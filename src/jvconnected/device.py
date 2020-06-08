@@ -35,6 +35,7 @@ class Device(Dispatcher):
         self._is_open = False
         self._add_param_group(CameraParams)
         self._add_param_group(ExposureParams)
+        self._add_param_group(TallyParams)
         attrs = ['model_name', 'serial_number', 'resolution', 'api_version']
         self.bind(**{attr:self.on_attr for attr in attrs})
 
@@ -64,6 +65,8 @@ class Device(Dispatcher):
         self._poll_enabled = False
         logger.debug(f'{self} closing...')
         await self._poll_fut
+        for pg in self.parameter_groups.values():
+            await pg.close()
         await self.client.close()
         logger.debug(f'{self} closed')
 
@@ -183,6 +186,11 @@ class ParameterGroup(Dispatcher):
             value = self.drill_down_api_dict(api_key, data)
             setattr(self, prop_attr, value)
 
+    async def close(self):
+        """Perform any cleanup actions before disconnecting
+        """
+        pass
+
     def __repr__(self):
         return f'<{self.__class__.__name__}: "{self}">'
     def __str__(self):
@@ -249,6 +257,73 @@ class ExposureParams(ParameterGroup):
         ('master_black', 'MasterBlack.Value'),
     ]
     _optional_api_keys = ['Exposure.Status']
+
+class TallyParams(ParameterGroup):
+    """Tally light parameters
+
+    Properties:
+        program (bool): True if program tally is lit
+        preview (bool): True if preview tally is lit
+        tally_priority (str): The tally priority. One of ``['Camera', 'Web']``.
+        tally_status (str): Tally light status. One of ``['Off', 'Program', 'Preview']``
+
+    """
+    _NAME = 'tally'
+    program = Property(False)
+    preview = Property(False)
+
+    tally_priority = Property()
+    tally_status = Property()
+    _prop_attrs = [
+        ('tally_priority', 'TallyLamp.Priority'),
+        ('tally_status', 'TallyLamp.StudioTally'),
+    ]
+
+    async def set_program(self, state: bool = True):
+        """Enable or Disable Program tally
+
+        Arguments:
+            state (bool, optional): If False, turns off the tally light
+
+        """
+        if not state:
+            value = 'Off'
+        else:
+            value = 'Program'
+        await self.set_tally_light(value)
+
+    async def set_preview(self, state: bool = True):
+        """Enable or Disable Preview tally
+
+        Arguments:
+            state (bool, optional): If False, turns off the tally light
+
+        """
+        if not state:
+            value = 'Off'
+        else:
+            value = 'Preview'
+        await self.set_tally_light(value)
+
+    async def set_tally_light(self, value: str):
+        """Set tally light state
+
+        Arguments:
+            value (str): One of 'Program', 'Preview' or 'Off'
+
+        """
+        resp = await self.device.client.request('SetStudioTally', {'Indication':value})
+        self.tally_status = value
+
+    async def close(self):
+        await self.set_tally_light('Off')
+
+    def on_prop(self, instance, value, **kwargs):
+        prop = kwargs['property']
+        if prop.name == 'tally_status':
+            self.program = value == 'Program'
+            self.preview = value == 'Preview'
+        super().on_prop(instance, value, **kwargs)
 
 
 @logger.catch
