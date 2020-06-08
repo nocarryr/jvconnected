@@ -227,7 +227,7 @@ class ExposureParams(ParameterGroup):
         iris_fstop (str): Character string for iris value
         iris_pos (int): Iris position (0-255)
         gain_mode (str): Gain mode. One of
-            ``['ManualL', 'ManualM', 'ManualH', 'AGC', 'AlcAELock', 'LoLux', 'Variable']
+            ``['ManualL', 'ManualM', 'ManualH', 'AGC', 'AlcAELock', 'LoLux', 'Variable']``
         gain_value (str): Gain value
         shutter_mode (str): Shutter mode. One of
             ``['Off', 'Manual', 'Step', 'Variable', 'Eei']``
