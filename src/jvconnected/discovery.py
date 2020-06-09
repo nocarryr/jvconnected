@@ -96,7 +96,7 @@ class Discovery(Dispatcher):
                 logger.warning(f'unhandled notification: {item}')
             self.listener.notify_queue.task_done()
 
-if __name__ == '__main__':
+def main():
     loop = asyncio.get_event_loop()
     disco = Discovery()
 
@@ -108,3 +108,7 @@ if __name__ == '__main__':
             loop.run_until_complete(disco.close())
     finally:
         loop.close()
+    return disco
+
+if __name__ == '__main__':
+    main()
