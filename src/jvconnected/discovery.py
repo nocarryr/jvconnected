@@ -81,11 +81,11 @@ class Discovery(Dispatcher):
                 break
             logger.debug(f'handling notify item: {item}')
             if item['msg'] == 'added':
-                info = item['info']
+                info = item['data']
                 self.procam_infos[info.name] = info
-                self.emit('on_service_added', name, info=info)
+                self.emit('on_service_added', info.name, info=info)
             elif item['msg'] == 'removed':
-                name = item['name']
+                name = item['data']
                 if name in self.procam_infos:
                     info = self.procam_infos[name]
                     del self.procam_infos[name]
