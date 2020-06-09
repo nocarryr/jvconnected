@@ -10,6 +10,9 @@ class ClientError(Exception):
     def __str__(self):
         return f'{self.msg}: {self.response_obj} - {self.data}'
 
+class ClientAuthError(ClientError):
+    pass
+
 class Client(object):
     """Http client wrapper
 
@@ -50,6 +53,8 @@ class Client(object):
         except httpx.HTTPError as exc:
             logger.error(exc)
             self._error = True
+            if resp.status_code == 401:
+                raise ClientAuthError(f'Unauthorized for "{uri}"', resp)
         self._authenticated = True
 
     async def open(self):
