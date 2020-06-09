@@ -116,10 +116,10 @@ class Client(object):
         """Validate an api response from the host
         """
         resp_data = data.get('Response', {})
-        if resp_data.get('Requested') != command:
-            raise ClientError('Response does not match request', resp, data)
-        elif resp_data.get('Result') != 'Success':
+        if resp_data.get('Result') != 'Success':
             raise ClientError('Result failure', resp, data)
+        elif resp_data.get('Requested') != command:
+            raise ClientError('Response does not match request', resp, data)
         return resp_data
 
     def __repr__(self):
