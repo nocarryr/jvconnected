@@ -184,7 +184,12 @@ class ParameterGroup(Dispatcher):
         """
         for prop_attr, api_key in self._prop_attrs:
             value = self.drill_down_api_dict(api_key, data)
-            setattr(self, prop_attr, value)
+            self.set_prop_from_api(prop_attr, value)
+
+    def set_prop_from_api(self, prop_attr: str, value):
+        if isinstance(value, str):
+            value = value.strip(' ')
+        setattr(self, prop_attr, value)
 
     async def close(self):
         """Perform any cleanup actions before disconnecting
@@ -257,6 +262,17 @@ class ExposureParams(ParameterGroup):
         ('master_black', 'MasterBlack.Value'),
     ]
     _optional_api_keys = ['Exposure.Status']
+
+    def set_prop_from_api(self, prop_attr, value):
+        if prop_attr == 'iris_fstop':
+            value = value.strip(' ')
+            if value != 'CLOSE':
+                if value.startswith('AF'):
+                    value = value.lstrip('AF')
+                elif value.startswith('F'):
+                    value = value.lstrip('F')
+                value = float(value)
+        super().set_prop_from_api(prop_attr, value)
 
 class TallyParams(ParameterGroup):
     """Tally light parameters
