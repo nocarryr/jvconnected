@@ -4,7 +4,7 @@ import asyncio
 from pydispatch import Dispatcher
 from pydispatch.properties import Property, DictProperty, ListProperty
 
-from .client import Client
+from jvconnected.client import Client
 
 class Device(Dispatcher):
     """A Connected Cam device
