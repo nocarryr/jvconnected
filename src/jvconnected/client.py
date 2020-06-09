@@ -108,11 +108,11 @@ class Client(object):
             raise
         data = resp.json()
         # logger.debug(f'Response: {data}')
-        resp_data = self._check_response_data(command, data)
+        resp_data = self._check_response_data(command, resp, data)
         return resp_data
 
     @logger.catch
-    def _check_response_data(self, command, data):
+    def _check_response_data(self, command, resp, data):
         """Validate an api response from the host
         """
         resp_data = data.get('Response', {})
