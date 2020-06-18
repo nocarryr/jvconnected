@@ -106,6 +106,9 @@ class Device(Dispatcher):
                 logger.error(exc)
                 raise
 
+    async def send_web_button(self, kind: str, value: str):
+        await self.client.request('SetWebButtonEvent', {'Kind':kind, 'Button':value})
+
     def on_attr(self, instance, value, **kwargs):
         prop = kwargs['property']
         logger.info(f'{prop.name} = {value}')
@@ -262,6 +265,104 @@ class ExposureParams(ParameterGroup):
         ('master_black', 'MasterBlack.Value'),
     ]
     _optional_api_keys = ['Exposure.Status']
+
+    async def set_auto_iris(self, state: bool):
+        """Set iris mode
+
+        Arguments:
+            state (bool): If True, enable auto iris mode, otherwise set to manual
+
+        """
+        value = {True:'Auto', False:'Manual'}.get(state)
+        await self.device.send_web_button('Iris', value)
+
+    async def set_auto_gain(self, state: bool):
+        """Set AGC mode
+
+        Arguments:
+            state (bool): If True, enable auto gain mode, otherwise set to manual
+
+        """
+        value = {True:'Auto', False:'Manual'}.get(state)
+        await self.device.send_web_button('Gain', value)
+
+    async def set_iris_pos(self, value: int):
+        """Set the iris position value
+
+        Parameters:
+            value (int): The iris value from 0 (closed) to 255 (open)
+
+        """
+        if value > 255:
+            value = 255
+        elif value < 0:
+            value = 0
+        params = {'Kind':'IrisBar', 'Position':value}
+        await self.device.client.request('SetWebSliderEvent', params)
+
+    async def increase_iris(self):
+        """Increase (open) iris
+        """
+        await self.adjust_iris(True)
+
+    async def decrease_iris(self):
+        """Decrease (close) iris
+        """
+        await self.adjust_iris(False)
+
+    async def adjust_iris(self, direction: bool):
+        """Increment (open) or decrement (close) iris
+
+        Parameters:
+            direction (bool): If True, increment, otherwise decrement
+
+        """
+        value = {True:'Open1', False:'Close1'}.get(direction)
+        await self.device.send_web_button('Iris', value)
+
+    async def increase_gain(self):
+        """Increase gain
+        """
+        await self.adjust_gain(True)
+
+    async def decrease_gain(self):
+        """Decrease gain
+        """
+        await self.adjust_gain(False)
+
+    async def adjust_gain(self, direction: bool):
+        """Increment or decrement gain
+
+        Parameters:
+            direction (bool): If True, increment, otherwise decrement
+
+        """
+        # TODO: In manual mode (using the L,M,H switch), this adjusts the
+        #       setting for whichever of the three preset gain positions is active
+        # if self.gain_mode != 'Variable':
+        #     await self.device.send_web_button('Gain', 'Variable')
+        value = {True:'Up1', False:'Down1'}.get(direction)
+        await self.device.send_web_button('Gain', value)
+
+    async def increase_master_black(self):
+        """Increase master black
+        """
+        await self.adjust_master_black(True)
+
+    async def decrease_master_black(self):
+        """Decrease master black
+        """
+        await self.adjust_master_black(False)
+
+    async def adjust_master_black(self, direction: bool):
+        """Increment or decrement master black
+
+        Parameters:
+            direction (bool): If True, increment, otherwise decrement
+
+        """
+        value = {True:'Up1', False:'Down1'}.get(direction)
+        await self.device.send_web_button('MasterBlack', value)
 
     def set_prop_from_api(self, prop_attr, value):
         if prop_attr == 'iris_fstop':
