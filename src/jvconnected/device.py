@@ -42,6 +42,7 @@ class Device(Dispatcher):
         self._add_param_group(CameraParams)
         self._add_param_group(ExposureParams)
         self._add_param_group(TallyParams)
+        self._add_param_group(PaintParams)
         attrs = ['model_name', 'serial_number', 'resolution', 'api_version']
         self.bind(**{attr:self.on_attr for attr in attrs})
         self.request_queue = asyncio.Queue(maxsize=8)
@@ -411,6 +412,132 @@ class ExposureParams(ParameterGroup):
                     value = value.lstrip('F')
                 value = float(value)
         super().set_prop_from_api(prop_attr, value)
+
+class PaintParams(ParameterGroup):
+    """Paint parameters
+
+    Properties:
+        white_balance_mode (str): Current white balance mode. One of
+            ``['Preset', 'A', 'B', 'Faw', 'FawAELock',
+            'Faw', 'Awb', 'OnePush', '3200K', '5600K', 'Manual']``
+        color_temp (str): White balance value
+        red_scale (int): Total range for WB red paint (0-64)
+        red_pos (int): Current position of WB red paint (0-64)
+        red_value (str): WB red paint value
+        red_normalized (int): Red value from -31 to +31
+        blue_scale (int): Total range for WB blue paint (0-64)
+        blue_pos (int): Current position of WB blue paint (0-64)
+        blue_value (str): WB blue paint value
+        blue_normalized (int): Blue value from -31 to +31
+        detail: Detail value
+
+    """
+    _NAME = 'paint'
+
+    white_balance_mode = Property()
+    color_temp = Property()
+    red_scale = Property(64)
+    red_pos = Property()
+    red_value = Property()
+    red_normalized = Property(0)
+    blue_scale = Property(64)
+    blue_pos = Property()
+    blue_value = Property()
+    blue_normalized = Property(0)
+    detail = Property()
+
+    _prop_attrs = [
+        ('white_balance_mode', 'Whb.Status'),
+        ('color_temp', 'Whb.Value'),
+        ('red_scale', 'Whb.WhPRScale'),
+        ('red_pos', 'Whb.WhPRPosition'),
+        ('red_value', 'Whb.WhPRValue'),
+        ('blue_scale', 'Whb.WhPBScale'),
+        ('blue_pos', 'Whb.WhPBPosition'),
+        ('blue_value', 'Whb.WhPBValue'),
+        ('detail', 'Detail.Value'),
+    ]
+
+    async def set_red_pos(self, red: int):
+        """Set red value
+
+        Arguments:
+            red (int): Red value in range -31 to +31
+
+        """
+        red += self.red_scale // 2
+        await self.set_wb_pos_raw(red, self.blue_pos)
+
+    async def set_blue_pos(self, blue: int):
+        """Set blue value
+
+        Arguments:
+            blue (int): Blue value in range -31 to +31
+
+        """
+        blue += self.blue_scale // 2
+        await self.set_wb_pos_raw(self.red_pos, blue)
+
+    async def set_wb_pos(self, red: int, blue: int):
+        """Set red/blue values
+
+        Arguments:
+            red (int): Red value in range -31 to +31
+            blue (int): Blue value in range -31 to +31
+
+        """
+        red += self.red_scale // 2
+        blue += self.blue_scale // 2
+        await self.set_wb_pos_raw(red, blue)
+
+    async def set_wb_pos_raw(self, red: int, blue: int):
+        """Set raw values for red/blue
+
+        Arguments:
+            red (int): Red value in range 0 to 64
+            blue (int): Blue value in range 0 to 64
+
+        """
+        params = {
+            'Kind':'WhPaintRB',
+            'XPosition':blue,
+            'YPosition':red,
+        }
+        await self.device.queue_request('SetWebXYFieldEvent', params)
+
+    async def increase_detail(self):
+        """Increment detail value
+        """
+        await self.adjust_detail(True)
+
+    async def decrease_detail(self):
+        """Decrease detail value
+        """
+        await self.adjust_detail(False)
+
+    async def adjust_detail(self, direction: bool):
+        """Increment or decrement detail
+
+        Parameters:
+            direction (bool): If True, increment, otherwise decrement
+
+        """
+        value = {True:'Up', False:'Down'}.get(direction)
+        await self.device.send_web_button('Detail', value)
+
+    def on_prop(self, instance, value, **kwargs):
+        prop = kwargs['property']
+        if prop.name in ['red_value', 'blue_value']:
+            value = int(value)
+            value = f'{value:+3d}'
+        super().on_prop(instance, value, **kwargs)
+        if prop.name in ['red_pos', 'red_scale']:
+            if self.red_pos is not None and self.red_scale is not None:
+                self.red_normalized = self.red_pos - (self.red_scale // 2)
+        elif prop.name in ['blue_pos', 'blue_scale']:
+            if self.blue_pos is not None and self.blue_scale is not None:
+                self.blue_normalized = self.blue_pos - (self.blue_scale // 2)
+
 
 class TallyParams(ParameterGroup):
     """Tally light parameters
