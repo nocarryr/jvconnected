@@ -21,11 +21,11 @@ class Engine(Dispatcher):
 
     """
     devices = DictProperty()
+    running = Property(False)
     def __init__(self):
         self.loop = asyncio.get_event_loop()
         self.config = Config()
         self.discovery = Discovery()
-        self.running = False
 
     def run_forever(self):
         """Convenience method to open and run until interrupted
