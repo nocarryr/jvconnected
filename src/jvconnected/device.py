@@ -13,6 +13,7 @@ class Device(Dispatcher):
         hostaddr (str): The network host address
         auth_user (str): Api username
         auth_pass (str): Api password
+        id_ (str): Unique string id
 
     Properties:
         model_name (str):
@@ -29,10 +30,11 @@ class Device(Dispatcher):
     api_version = Property()
     connected = Property(False)
     parameter_groups = DictProperty()
-    def __init__(self, hostaddr:str, auth_user:str, auth_pass:str):
+    def __init__(self, hostaddr:str, auth_user:str, auth_pass:str, id_: str):
         self.hostaddr = hostaddr
         self.auth_user = auth_user
         self.auth_pass = auth_pass
+        self.__id = id_
         self.client = Client(hostaddr, auth_user, auth_pass)
         self._poll_fut = None
         self._poll_enabled = False
@@ -42,6 +44,9 @@ class Device(Dispatcher):
         self._add_param_group(TallyParams)
         attrs = ['model_name', 'serial_number', 'resolution', 'api_version']
         self.bind(**{attr:self.on_attr for attr in attrs})
+
+    @property
+    def id(self): return self.__id
 
     def _add_param_group(self, cls, **kwargs):
         pg = cls(self, **kwargs)
@@ -450,14 +455,14 @@ class TallyParams(ParameterGroup):
 
 
 @logger.catch
-def main(hostaddr, auth_user, auth_pass):
+def main(hostaddr, auth_user, auth_pass, id_=None):
     """Build a device and open it
     """
     loop = asyncio.get_event_loop()
-    dev = Device(hostaddr, auth_user, auth_pass)
+    dev = Device(hostaddr, auth_user, auth_pass, id_)
     loop.run_until_complete(dev.open())
     try:
         loop.run_forever()
-    except KeyboardInterrupt:
+    finally:
         loop.run_until_complete(dev.close())
     return dev

@@ -70,7 +70,12 @@ class Engine(Dispatcher):
 
         """
         logger.debug(f'add_device_from_conf: {device_conf}')
-        device = Device(device_conf.hostaddr, device_conf.auth_user, device_conf.auth_pass)
+        device = Device(
+            device_conf.hostaddr,
+            device_conf.auth_user,
+            device_conf.auth_pass,
+            device_conf.id,
+        )
         self.devices[device_conf.id] = device
         try:
             await device.open()
