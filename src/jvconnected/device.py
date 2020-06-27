@@ -256,6 +256,11 @@ class CameraParams(ParameterGroup):
         ('mode', 'Camera.Mode'),
         ('timecode', 'Camera.TC'),
     ]
+    def on_prop(self, instance, value, **kwargs):
+        prop = kwargs['property']
+        if prop.name == 'timecode':
+            return
+        super().on_prop(instance, value, **kwargs)
 
 class ExposureParams(ParameterGroup):
     """Exposure parameters
