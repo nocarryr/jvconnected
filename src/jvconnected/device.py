@@ -31,6 +31,8 @@ class Device(Dispatcher):
     parameter_groups = DictProperty()
     def __init__(self, hostaddr:str, auth_user:str, auth_pass:str):
         self.hostaddr = hostaddr
+        self.auth_user = auth_user
+        self.auth_pass = auth_pass
         self.client = Client(hostaddr, auth_user, auth_pass)
         self._poll_fut = None
         self._poll_enabled = False
