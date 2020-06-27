@@ -20,12 +20,14 @@ class Device(Dispatcher):
         resolution (str):
         api_version (str):
         parameter_groups (dict): Container for :class:`ParameterGroup` instances
+        connected (bool): Connection state
 
     """
     model_name = Property()
     serial_number = Property()
     resolution = Property()
     api_version = Property()
+    connected = Property(False)
     parameter_groups = DictProperty()
     def __init__(self, hostaddr:str, auth_user:str, auth_pass:str):
         self.hostaddr = hostaddr
@@ -55,6 +57,7 @@ class Device(Dispatcher):
         self._poll_enabled = True
         self._poll_fut = asyncio.ensure_future(self._poll_loop())
         self._is_open = True
+        self.connected = True
 
     async def close(self):
         """Stop communication and close all connections
@@ -69,6 +72,7 @@ class Device(Dispatcher):
             await pg.close()
         await self.client.close()
         logger.debug(f'{self} closed')
+        self.connected = False
 
     async def _get_system_info(self):
         """Request basic device info
