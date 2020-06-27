@@ -44,6 +44,7 @@ class Device(Dispatcher):
         self._add_param_group(TallyParams)
         attrs = ['model_name', 'serial_number', 'resolution', 'api_version']
         self.bind(**{attr:self.on_attr for attr in attrs})
+        self.request_queue = asyncio.Queue(maxsize=8)
 
     @property
     def id(self): return self.__id
@@ -90,14 +91,29 @@ class Device(Dispatcher):
         self.api_version = data['ApiVersion']
         self.serial_number = data['Serial']
 
+    @logger.catch
     async def _poll_loop(self):
         """Periodically request status updates
         """
-        while self._poll_enabled:
-            await self._request_cam_status()
-            await asyncio.sleep(1)
+        async def get_queue_item(timeout=.5):
+            try:
+                item = await asyncio.wait_for(self.request_queue.get(), timeout)
+            except asyncio.TimeoutError:
+                item = None
+            return item
 
-    async def _request_cam_status(self):
+        while self._poll_enabled:
+            item = await get_queue_item(timeout=.5)
+            if item is not None:
+                command, params = item
+                logger.debug(f'tx: {command}, {params}')
+                await self.client.request(command, params)
+                await self._request_cam_status(short=True)
+                self.request_queue.task_done()
+            else:
+                await self._request_cam_status(short=False)
+
+    async def _request_cam_status(self, short=True):
         """Request all available camera parameters
 
         Called by :meth:`_poll_loop`. The response data is used to update the
@@ -118,7 +134,12 @@ class Device(Dispatcher):
                 raise
 
     async def send_web_button(self, kind: str, value: str):
-        await self.client.request('SetWebButtonEvent', {'Kind':kind, 'Button':value})
+        await self.queue_request('SetWebButtonEvent', {'Kind':kind, 'Button':value})
+
+    async def queue_request(self, command: str, params=None):
+        """Enqueue a command to be sent in the :meth:`_poll_loop`
+        """
+        await self.request_queue.put((command, params))
 
     def on_attr(self, instance, value, **kwargs):
         prop = kwargs['property']
@@ -309,7 +330,7 @@ class ExposureParams(ParameterGroup):
         elif value < 0:
             value = 0
         params = {'Kind':'IrisBar', 'Position':value}
-        await self.device.client.request('SetWebSliderEvent', params)
+        await self.device.queue_request('SetWebSliderEvent', params)
 
     async def increase_iris(self):
         """Increase (open) iris
