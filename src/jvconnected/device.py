@@ -14,6 +14,7 @@ class Device(Dispatcher):
         auth_user (str): Api username
         auth_pass (str): Api password
         id_ (str): Unique string id
+        hostport (int, optional): The network host port
 
     Properties:
         model_name (str):
