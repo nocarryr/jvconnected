@@ -1,6 +1,7 @@
 from loguru import logger
 import asyncio
 import httpx
+import httpcore
 
 class ClientError(Exception):
     def __init__(self, msg, response_obj, data=None):
@@ -11,6 +12,9 @@ class ClientError(Exception):
         return f'{self.msg}: {self.response_obj} - {self.data}'
 
 class ClientAuthError(ClientError):
+    pass
+
+class ClientNetworkError(ClientError):
     pass
 
 class Client(object):
@@ -103,8 +107,12 @@ class Client(object):
         if params is not None:
             payload['Request']['Params'] = params
         uri = self._build_uri(self.CMD_URI)
-        logger.debug(f'Request: {uri} - {payload}')
-        resp = await self._client.post(uri, json=payload)
+        try:
+            resp = await self._client.post(uri, json=payload)
+        except httpcore.NetworkError as exc:
+            logger.error(exc)
+            self._error = True
+            raise ClientNetworkError(str(exc), None)
         try:
             resp.raise_for_status()
         except httpx.HTTPError as exc:
