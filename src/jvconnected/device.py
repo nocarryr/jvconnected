@@ -4,7 +4,7 @@ import asyncio
 from pydispatch import Dispatcher
 from pydispatch.properties import Property, DictProperty, ListProperty
 
-from jvconnected.client import Client
+from jvconnected.client import Client, ClientError
 
 class Device(Dispatcher):
     """A Connected Cam device
@@ -22,6 +22,15 @@ class Device(Dispatcher):
         api_version (str):
         parameter_groups (dict): Container for :class:`ParameterGroup` instances
         connected (bool): Connection state
+        error (bool): Becomes ``True`` when a communication error occurs
+
+    :Events:
+
+        .. event:: on_client_error(self, exc)
+
+            Fired when an error is caught by the http client. The first argument
+            is the :class:`Device` instance and the second argument is the
+            :class:`Exception` that was raised
 
     """
     model_name = Property()
@@ -29,7 +38,9 @@ class Device(Dispatcher):
     resolution = Property()
     api_version = Property()
     connected = Property(False)
+    error = Property(False)
     parameter_groups = DictProperty()
+    _events_ = ['on_client_error']
     def __init__(self, hostaddr:str, auth_user:str, auth_pass:str, id_: str, hostport: int = 80):
         self.hostaddr = hostaddr
         self.hostport = hostport
@@ -107,8 +118,7 @@ class Device(Dispatcher):
                 item = None
             return item
 
-        while self._poll_enabled:
-            item = await get_queue_item(timeout=.5)
+        async def do_poll(item):
             if item is not None:
                 command, params = item
                 logger.debug(f'tx: {command}, {params}')
@@ -117,6 +127,14 @@ class Device(Dispatcher):
                 self.request_queue.task_done()
             else:
                 await self._request_cam_status(short=False)
+
+        while self._poll_enabled:
+            item = await get_queue_item(timeout=.5)
+            try:
+                await do_poll(item)
+            except ClientError as exc:
+                asyncio.ensure_future(self._handle_client_error(exc))
+                break
 
     async def _request_cam_status(self, short=True):
         """Request all available camera parameters
@@ -137,6 +155,10 @@ class Device(Dispatcher):
                 logger.debug(f'data: {jsdata}')
                 logger.error(exc)
                 raise
+
+    async def _handle_client_error(self, exc: Exception):
+        self.error = True
+        self.emit('on_client_error', self, exc)
 
     async def send_web_button(self, kind: str, value: str):
         await self.queue_request('SetWebButtonEvent', {'Kind':kind, 'Button':value})
@@ -597,7 +619,10 @@ class TallyParams(ParameterGroup):
             value (str): One of 'Program', 'Preview' or 'Off'
 
         """
-        resp = await self.device.client.request('SetStudioTally', {'Indication':value})
+        try:
+            resp = await self.device.client.request('SetStudioTally', {'Indication':value})
+        except ClientError as exc:
+            asyncio.ensure_future(self.device._handle_client_error(exc))
         self.tally_status = value
 
     async def close(self):

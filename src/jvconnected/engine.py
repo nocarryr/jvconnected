@@ -84,6 +84,14 @@ class Engine(Dispatcher):
             del self.devices[device_conf.id]
             logger.exception(exc)
             await device.close()
+            return
+        device.bind_async(self.loop, on_client_error=self.on_device_client_error)
+
+    async def on_device_client_error(self, device, exc, **kwargs):
+        try:
+            await device.close()
+        finally:
+            del self.devices[device.id]
 
     @logger.catch
     async def on_discovery_service_added(self, name, **kwargs):
