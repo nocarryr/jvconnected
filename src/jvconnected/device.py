@@ -39,10 +39,8 @@ class Device(Dispatcher):
         self._poll_fut = None
         self._poll_enabled = False
         self._is_open = False
-        self._add_param_group(CameraParams)
-        self._add_param_group(ExposureParams)
-        self._add_param_group(TallyParams)
-        self._add_param_group(PaintParams)
+        for cls in PARAMETER_GROUP_CLS:
+            self._add_param_group(cls)
         attrs = ['model_name', 'serial_number', 'resolution', 'api_version']
         self.bind(**{attr:self.on_attr for attr in attrs})
         self.request_queue = asyncio.Queue(maxsize=8)
@@ -55,6 +53,11 @@ class Device(Dispatcher):
         assert pg.name not in self.parameter_groups
         self.parameter_groups[pg.name] = pg
         return pg
+
+    def __getattr__(self, key):
+        if hasattr(self, 'parameter_groups') and key in self.parameter_groups:
+            return self.parameter_groups[key]
+        raise AttributeError
 
     async def open(self):
         """Begin communication with the device
@@ -606,6 +609,7 @@ class TallyParams(ParameterGroup):
             self.preview = value == 'Preview'
         super().on_prop(instance, value, **kwargs)
 
+PARAMETER_GROUP_CLS = (CameraParams, ExposureParams, PaintParams, TallyParams)
 
 @logger.catch
 def main(hostaddr, auth_user, auth_pass, id_=None):
