@@ -49,6 +49,7 @@ class Engine(Dispatcher):
         )
         await self.discovery.open()
         self.running = True
+        logger.success('Engine open')
 
     async def close(self):
         """Close the discovery engine and any running device clients
@@ -62,6 +63,7 @@ class Engine(Dispatcher):
         for device in self.devices.values():
             coros.append(device.close())
         await asyncio.gather(*coros)
+        logger.success('Engine closed')
 
     async def add_device_from_conf(self, device_conf: 'jvconnected.config.DeviceConfig'):
         """Add a client :class:`~jvconnected.device.Device` instance from the given
