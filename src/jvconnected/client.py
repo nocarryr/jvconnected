@@ -24,20 +24,25 @@ class Client(object):
     """
     AUTH_URI = '/api.php'
     CMD_URI = '/cgi-bin/api.cgi'
-    def __init__(self, hostaddr: str, auth_user: str, auth_pass: str):
+    def __init__(self, hostaddr: str, auth_user: str, auth_pass: str, hostport: int = 80):
         if hostaddr.endswith('/'):
             hostaddr = hostaddr.rstrip('/')
         if not hostaddr.startswith('http'):
             hostaddr = f'http://{hostaddr}'
         self.hostaddr = hostaddr
+        self.hostport = hostport
         self._client = None
         self.auth = httpx.DigestAuth(auth_user, auth_pass)
         self._authenticated = False
         self._error = False
 
+    @property
+    def netloc(self):
+        return f'{self.hostaddr}:{self.hostport}'
+
     def _build_uri(self, path: str):
         path = path.lstrip('/')
-        return f'{self.hostaddr}/{path}'
+        return f'{self.netloc}/{path}'
 
     async def _authenticate(self):
         """Authenticate with the host using digest auth

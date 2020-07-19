@@ -30,12 +30,13 @@ class Device(Dispatcher):
     api_version = Property()
     connected = Property(False)
     parameter_groups = DictProperty()
-    def __init__(self, hostaddr:str, auth_user:str, auth_pass:str, id_: str):
+    def __init__(self, hostaddr:str, auth_user:str, auth_pass:str, id_: str, hostport: int = 80):
         self.hostaddr = hostaddr
+        self.hostport = hostport
         self.auth_user = auth_user
         self.auth_pass = auth_pass
         self.__id = id_
-        self.client = Client(hostaddr, auth_user, auth_pass)
+        self.client = Client(hostaddr, auth_user, auth_pass, hostport)
         self._poll_fut = None
         self._poll_enabled = False
         self._is_open = False

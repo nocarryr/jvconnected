@@ -75,6 +75,7 @@ class Engine(Dispatcher):
             device_conf.auth_user,
             device_conf.auth_pass,
             device_conf.id,
+            device_conf.hostport,
         )
         self.devices[device_conf.id] = device
         try:
