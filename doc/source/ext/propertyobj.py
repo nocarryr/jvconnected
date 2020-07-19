@@ -1,7 +1,11 @@
 from sphinx import addnodes
 from docutils import nodes
 from docutils.parsers.rst import directives
-from sphinx.domains.python import PyAttribute, PyXRefRole
+from sphinx.domains.python import PyXRefRole
+try:
+    from sphinx.domains.python import PyAttribute
+except ImportError:
+    from sphinx.domains.python import PyClassmember as PyAttribute
 
 def _parse_propertyobj_section(self, section):
     """Injected into :class:`sphinx.ext.napoleon.docstring.GoogleDocstring`
