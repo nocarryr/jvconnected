@@ -58,8 +58,10 @@ class Engine(Dispatcher):
         self.running = False
         self.discovery.unbind(self)
         await self.discovery.close()
+        coros = []
         for device in self.devices.values():
-            await device.close()
+            coros.append(device.close())
+        await asyncio.gather(*coros)
 
     async def add_device_from_conf(self, device_conf: 'jvconnected.config.DeviceConfig'):
         """Add a client :class:`~jvconnected.device.Device` instance from the given
