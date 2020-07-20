@@ -14,6 +14,9 @@ class Engine(Dispatcher):
 
     Properties:
         devices (dict): Container for :class:`~jvconnected.device.Device` instances
+        auto_add_devices (bool): If ``True``, devices will be added automatically
+            when discovered on the network. Otherwise, they must be added manually
+            using :meth:`add_device_from_conf`
 
     Attributes:
         config: The :class:`~jvconnected.config.Config` instance
@@ -44,12 +47,14 @@ class Engine(Dispatcher):
     """
     devices = DictProperty()
     running = Property(False)
+    auto_add_devices = Property(True)
 
     _events_ = [
         'on_config_device_added', 'on_device_discovered',
         'on_device_added', 'on_device_removed',
     ]
-    def __init__(self):
+    def __init__(self, **kwargs):
+        self.auto_add_devices = kwargs.get('auto_add_devices', True)
         self.loop = asyncio.get_event_loop()
         self.config = Config()
         self.discovery = Discovery()
@@ -137,8 +142,9 @@ class Engine(Dispatcher):
         device_conf = self.config.add_discovered_device(info)
         logger.debug(f'device_conf: {device_conf}')
         self.emit('on_device_discovered', device_conf)
-        if device_conf.id not in self.devices:
-            await self.add_device_from_conf(device_conf)
+        if self.auto_add_devices:
+            if device_conf.id not in self.devices:
+                await self.add_device_from_conf(device_conf)
 
     async def _on_config_device_added(self, conf_device, **kwargs):
         self.emit('on_config_device_added', conf_device)
