@@ -19,9 +19,36 @@ class Engine(Dispatcher):
         config: The :class:`~jvconnected.config.Config` instance
         discovery: The :class:`~jvconnected.discovery.Discovery` instance
 
+    :Events:
+        .. event:: on_config_device_added(conf_device)
+
+            Fired when an instance of :class:`~jvconnected.config.DeviceConfig`
+            is added
+
+        .. event:: on_device_discovered(conf_device)
+
+            Fired when a device is detected on the network. An instance of
+            :class:`~jvconnected.config.DeviceConfig` is found (or created)
+            and passed as the argument
+
+        .. event:: on_device_added(device)
+
+            Fired when an instance of :class:`~jvconnected.device.Device` is
+            added to :attr:`devices`
+
+        .. event:: on_device_removed(device)
+
+            Fired when an instance of :class:`~jvconnected.device.Device` is
+            removed
+
     """
     devices = DictProperty()
     running = Property(False)
+
+    _events_ = [
+        'on_config_device_added', 'on_device_discovered',
+        'on_device_added', 'on_device_removed',
+    ]
     def __init__(self):
         self.loop = asyncio.get_event_loop()
         self.config = Config()
@@ -43,6 +70,10 @@ class Engine(Dispatcher):
         """
         if self.running:
             return
+        self.config.bind_async(
+            self.loop,
+            on_device_added=self._on_config_device_added,
+        )
         self.discovery.bind_async(
             self.loop,
             on_service_added=self.on_discovery_service_added,
@@ -90,12 +121,14 @@ class Engine(Dispatcher):
             await device.close()
             return
         device.bind_async(self.loop, on_client_error=self.on_device_client_error)
+        self.emit('on_device_added', device)
 
     async def on_device_client_error(self, device, exc, **kwargs):
         try:
             await device.close()
         finally:
             del self.devices[device.id]
+            self.emit('on_device_removed', device)
 
     @logger.catch
     async def on_discovery_service_added(self, name, **kwargs):
@@ -103,8 +136,12 @@ class Engine(Dispatcher):
         info = kwargs['info']
         device_conf = self.config.add_discovered_device(info)
         logger.debug(f'device_conf: {device_conf}')
+        self.emit('on_device_discovered', device_conf)
         if device_conf.id not in self.devices:
             await self.add_device_from_conf(device_conf)
+
+    async def _on_config_device_added(self, conf_device, **kwargs):
+        self.emit('on_config_device_added', conf_device)
 
 if __name__ == '__main__':
     Engine().run_forever()
