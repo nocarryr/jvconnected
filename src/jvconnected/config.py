@@ -4,11 +4,13 @@ import sys
 import asyncio
 from pathlib import Path
 import typing as tp
+from contextlib import contextmanager
 
 from pydispatch import Dispatcher
 from pydispatch.properties import Property, DictProperty, ListProperty
 import jsonfactory
 
+from jvconnected.utils import IndexedDict
 
 def get_config_dir(app_name: str) -> 'pathlib.Path':
     """Get the platform's preferred configuration directory
@@ -48,6 +50,22 @@ class DumbLock(object):
     async def __aexit__(self, *args):
         self.release()
 
+class ContextLock(DumbLock):
+    def __init__(self):
+        self.context = None
+        super().__init__()
+    @contextmanager
+    def set(self, value):
+        self.acquire()
+        self.context = value
+        yield
+        self.release()
+    def release(self):
+        super().release()
+        if not self.locked():
+            self.context = None
+
+
 class Config(Dispatcher):
     """Configuration storage
 
@@ -62,17 +80,27 @@ class Config(Dispatcher):
         DEFAULT_FILENAME (:class:`pathlib.Path`): Platform-dependent default filename
             (``<config_dir>/jvconnected/config.json``). Where ``<config_dir>``
             is chosen in :func:`get_config_dir`
+        indexed_devices: An instance of :class:`jvconnected.utils.IndexedDict`
+            to handle device indexing
 
     """
     data = DictProperty()
     DEFAULT_FILENAME: 'pathlib.Path' = get_config_dir('jvconnected') / 'config.json'
+    _events_ = ['on_device_added']
     def __init__(self, filename: tp.Optional['pathlib.Path'] = None):
         if filename is None:
             filename = self.DEFAULT_FILENAME
         logger.info(f'Config using filename: {filename}')
+        self._read_complete = False
+        self._device_reindexing = ContextLock()
+        self.indexed_devices = IndexedDict()
+        self.indexed_devices.bind(
+            on_item_index_changed=self.on_device_dict_index_changed,
+        )
         self.filename = filename
         self._setitem_lock = DumbLock()
         self.read()
+        self._read_complete = True
         self.bind(data=self.on_data_changed)
 
     @property
@@ -118,15 +146,38 @@ class Config(Dispatcher):
         If a device config already exists, it will be updated with the info
         provided using :meth:`DeviceConfig.update_from_other`
 
+        If its :attr:`~DeviceConfig.device_index` is set, it will be added
+        to :attr:`indexed_devices`.
+
         """
-        if device.id in self.devices:
+        key = device.id
+        if key in self.devices:
             with self._setitem_lock:
-                self.devices[device.id].update_from_other(device)
+                ix = self.devices[key].device_index
+                self.devices[key].update_from_other(device)
+                if not self._read_complete:
+                    if ix is not None and ix != -1:
+                        assert self.devices[key].device_index == ix
             self.write()
         else:
-            self.devices[device.id] = device
-            device.bind(on_change=self.on_device_prop_change)
-        return self.devices[device.id]
+            assert not self._device_reindexing.locked()
+            ix = device.device_index
+            if ix is not None:
+                with self._setitem_lock:
+                    with self._device_reindexing.set(device):
+                        new_index = self.indexed_devices.add(key, device, ix)
+                        if not self._read_complete and ix != -1:
+                            assert ix == new_index
+                        device.device_index = new_index
+            self.devices[key] = device
+            device.bind(
+                device_index=self.on_device_index,
+                on_change=self.on_device_prop_change,
+            )
+            # self.indexed_devices.compact_indices()
+            self.write()
+            self.emit('on_device_added', device)
+        return self.devices[key]
 
     def add_discovered_device(self, info: 'zeroconf.ServiceInfo') -> 'DeviceConfig':
         """Add a :class:`DeviceConfig` from zeroconf data
@@ -142,6 +193,8 @@ class Config(Dispatcher):
             self.update(data)
 
     def write(self):
+        if not self._read_complete:
+            return
         p = self.filename.parent
         if not p.exists():
             p.mkdir(mode=0o700, parents=True)
@@ -152,7 +205,49 @@ class Config(Dispatcher):
             return
         self.write()
 
+    def on_device_dict_index_changed(self, **kwargs):
+        key = kwargs['key']
+        device = kwargs['item']
+        old_index = kwargs['old_index']
+        new_index = kwargs['new_index']
+        if self._device_reindexing.locked():
+            device.device_index = new_index
+        else:
+            with self._device_reindexing.set(device):
+                with self._setitem_lock:
+                    device.device_index = new_index
+                self.write()
+
+    def on_device_index(self, instance, value, **kwargs):
+        if self._device_reindexing.locked():
+            return
+        if self._setitem_lock.locked():
+            return
+        key = instance.id
+        old = kwargs['old']
+        if value is None:
+            assert isinstance(old, int)
+            if key in self.indexed_devices:
+                self.indexed_devices.remove(key)
+        else:
+            with self._device_reindexing.set(instance):
+                with self._setitem_lock:
+                    key = instance.id
+                    if old is None:
+                        new_index = self.indexed_devices.add(key, instance, value)
+                        if value != -1:
+                            assert value == new_index
+                        else:
+                            assert new_index >= 0
+                        instance.device_index = new_index
+                    else:
+                        self.indexed_devices.change_item_index(key, value)
+                    # self.indexed_devices.compact_indices()
+                self.write()
+
     def on_device_prop_change(self, instance, prop_name, value, **kwargs):
+        if prop_name == 'device_index':
+            return
         self.write()
 
 class DeviceConfig(Dispatcher):
@@ -168,6 +263,9 @@ class DeviceConfig(Dispatcher):
         hostport (int): The service port
         auth_user (str): Username to use with authentication
         auth_pass (str): Password to use with authentication
+        device_index (int): Index for the device for organization purposes.
+            If ``None`` (default), no index is assigned. Otherwise, the index
+            will be assigned according to :meth:`jvconnected.utils.IndexedDict.add`
 
     :Events:
         .. event:: on_change(instance, prop_name, value)
@@ -182,10 +280,11 @@ class DeviceConfig(Dispatcher):
     hostport = Property(80)
     auth_user = Property(None)
     auth_pass = Property(None)
+    device_index = Property(None)
 
     _all_prop_names = (
         'name', 'dns_name', 'fqdn',
-        'hostaddr', 'hostport', 'auth_user', 'auth_pass',
+        'hostaddr', 'hostport', 'auth_user', 'auth_pass', 'device_index',
     )
     _immutable_prop_names = (
         'model_name', 'serial_number',
@@ -260,7 +359,9 @@ class DeviceConfig(Dispatcher):
         """
         for attr in self._all_prop_names:
             val = getattr(other, attr)
-            if val is None:
+            if attr == 'device_index' and val == -1:
+                continue
+            elif val is None:
                 continue
             setattr(self, attr, val)
 
