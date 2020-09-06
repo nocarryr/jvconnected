@@ -24,3 +24,15 @@
 
 .. automodule:: jvconnected.interfaces.midi.mapped_device
     :members:
+
+:mod:`jvconnected.interfaces.midi.bcf`
+------------------------------------------------
+
+.. automodule:: jvconnected.interfaces.midi.bcf
+    :members:
+
+:mod:`jvconnected.interfaces.midi.bcf_sysex`
+------------------------------------------------
+
+.. automodule:: jvconnected.interfaces.midi.bcf_sysex
+    :members:
