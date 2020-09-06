@@ -1,7 +1,7 @@
-from typing import List, Dict, Any, ClassVar, Iterator
+from typing import List, Dict, Any, ClassVar, Iterator, Optional
 from dataclasses import dataclass, field
 
-from pydispatch import Dispatcher
+from pydispatch import Dispatcher, Property, ListProperty
 
 @dataclass
 class Value:
@@ -39,8 +39,15 @@ class ChoiceValue(Value):
     """The expected string values for the parameter"""
 
 
-@dataclass
-class BaseParameterSpec:
+class BaseParameterSpec(Dispatcher):
+    """
+
+    :Events:
+        .. event:: on_device_value_changed(param: ParameterSpec, value)
+
+            Fired when the parameter value has changed on the device
+
+    """
     _doc_field_names: ClassVar[List[str]] = []
 
     group_name: str = ''
@@ -65,6 +72,82 @@ class BaseParameterSpec:
     :meth:`jvconnected.device.ExposureParams.adjust_iris`
     """
 
+    _events_ = ['on_device_value_changed']
+
+    def __init__(self, **kwargs):
+        self._param_group_spec = None
+        self._device_param_group = None
+        self.group_name = kwargs.get('group_name', '')
+        self.name = kwargs.get('name', '')
+        self.full_name = kwargs.get('full_name', '')
+        self.setter_method = kwargs.get('setter_method', '')
+        self.adjust_method = kwargs.get('adjust_method', '')
+
+    @property
+    def param_group_spec(self) -> Optional['ParameterGroupSpec']:
+        """The parent :class:`ParameterGroupSpec` instance
+        """
+        return self._param_group_spec
+    @param_group_spec.setter
+    def param_group_spec(self, pgs: Optional['ParameterGroupSpec']):
+        self._param_group_spec = pgs
+        if pgs is None:
+            self.device_param_group = None
+        else:
+            self.device_param_group = pgs.device_param_group
+
+    @property
+    def device_param_group(self) -> Optional['jvconnected.device.ParameterGroup']:
+        """The :class:`jvconnected.device.ParameterGroup` bound to this instance
+        """
+        return self._device_param_group
+    @device_param_group.setter
+    def device_param_group(self, pg: Optional['jvconnected.device.ParameterGroup']):
+        old = self.device_param_group
+        if old is not None:
+            old.unbind(self)
+        self._device_param_group = pg
+        if pg is not None:
+            self._bind_to_param_group(pg)
+
+    def _bind_to_param_group(self, pg: 'jvconnected.device.ParameterGroup'):
+        pass
+
+    def copy(self) -> 'BaseParameterSpec':
+        kw = self._build_copy_kwargs()
+        cls = self.__class__
+        return cls(**kw)
+
+    def _build_copy_kwargs(self) -> Dict:
+        attrs = ['group_name', 'name', 'full_name', 'setter_method', 'adjust_method']
+        return {attr:getattr(self, attr) for attr in attrs}
+
+    async def increment_value(self):
+        """Increment the device value
+        """
+        await self.adjust_param_value(True)
+
+    async def decrement_value(self):
+        """Decrement the device value
+        """
+        await self.adjust_param_value(False)
+
+    async def adjust_value(self, direction: bool):
+        """Increment or decrement the device value
+
+        Arguments:
+            direction (bool): If True, increment, otherwise decrement
+
+        Raises:
+            ValueError: If there is no :attr:`adjust_method` defined
+
+        """
+        pg = self.device_param_group
+        if not self.adjust_method:
+            raise ValueError(f'No adjust method for {self}')
+        m = getattr(pg, self.adjust_method)
+        await m(direction)
+
     def build_docstring_lines(self, indent=0):
         indent_str = ' ' * indent
         lines = []
@@ -87,10 +170,14 @@ class BaseParameterSpec:
             lines.append(s)
         return lines
 
-@dataclass
 class ParameterSpec(BaseParameterSpec):
     """Specifications for a single parameter within a
     :class:`jvconnected.device.ParameterGroup`
+
+    :Properties:
+
+        value: The current device value
+
     """
 
     _doc_field_names: ClassVar[List[str]] = [
@@ -110,27 +197,66 @@ class ParameterSpec(BaseParameterSpec):
     One of :class:`BoolValue`, :class:`IntValue`, or :class:`ChoiceValue`
     """
 
-    def __post_init__(self):
+    value = Property()
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.prop_name = kwargs.get('prop_name', '')
+        self.value_type = kwargs['value_type']
         if not len(self.prop_name):
             self.prop_name = self.name
 
-    def get_param_value(self, param_group_spec: 'ParameterGroupSpec') -> Any:
-        pg = param_group_spec.device_param_group
+    def _build_copy_kwargs(self) -> Dict:
+        kw = super()._build_copy_kwargs()
+        attrs = ['prop_name', 'value_type']
+        kw.update({attr:getattr(self, attr) for attr in attrs})
+        return kw
+
+    def _bind_to_param_group(self, pg: 'jvconnected.device.ParameterGroup'):
+        self.value = self.get_param_value()
+        pg.bind(**{self.prop_name:self.on_device_prop_change})
+
+    def on_device_prop_change(self, instance, value, **kwargs):
+        if instance is not self.device_param_group:
+            return
+        prop = kwargs['property']
+        assert prop.name == self.prop_name
+        assert value == self.get_param_value()
+        self.value = value
+        self.emit('on_device_value_changed', self, self.value,
+            prop_name=prop.name, value_type=self.value_type,
+        )
+
+    def get_param_value(self) -> Any:
+        """Get the current device value
+        """
+        pg = self.device_param_group
         value = getattr(pg, self.prop_name)
-        assert isinstance(value, self.value_type.py_type)
+        if value is not None:
+            assert isinstance(value, self.value_type.py_type)
         return value
 
-    async def set_param_value(self, param_group_spec: 'ParameterGroupSpec', value: Any):
-        pg = param_group_spec.device_param_group
+    async def set_param_value(self, value: Any):
+        """Set the device value
+
+        Raises:
+            ValueError: If no :attr:`setter_method` is defined
+
+        """
+        pg = self.device_param_group
         if self.setter_method:
             m = getattr(pg, self.setter_method)
             await m(value)
         else:
             raise ValueError(f'No setter method for {self}')
 
-@dataclass
 class MultiParameterSpec(BaseParameterSpec):
     """Combines multiple :class:`ParameterSpec` definitions
+
+    :Properties:
+
+        value(list): The current device value
+
     """
 
     _doc_field_names: ClassVar[List[str]] = [
@@ -138,25 +264,63 @@ class MultiParameterSpec(BaseParameterSpec):
         'setter_method', 'adjust_method',
     ]
 
-    prop_names: List[str] = field(default_factory=list)
+    prop_names: List[str]# = field(default_factory=list)
     """The Property/attribute names within the
     :class:`jvconnected.device.ParameterGroup` containing the parameter values
     """
 
-    value_types: List[Value] = field(default_factory=list)
+    value_types: List[Value]# = field(default_factory=list)
     """Specifications for the expected values of the attribute in
     :class:`~jvconnected.device.ParameterGroup`
     """
 
-    def get_param_value(self, param_group_spec: 'ParameterGroupSpec') -> List[Any]:
-        pg = param_group_spec.device_param_group
+    value = ListProperty()
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.prop_names = kwargs['prop_names']
+        self.value_types = kwargs['value_types']
+        self.value = [vt.py_type for vt in self.value_types]
+
+    def _build_copy_kwargs(self) -> Dict:
+        kw = super()._build_copy_kwargs()
+        attrs = ['prop_name', 'value_type']
+        kw.update({attr:getattr(self, attr) for attr in attrs})
+        return kw
+
+    def _bind_to_param_group(self, pg: 'jvconnected.device.ParameterGroup'):
+        pg.bind(**{self.prop_name:self.on_device_prop_change})
+
+    def on_device_prop_change(self, instance, value, **kwargs):
+        if instance is not self.device_param_group:
+            return
+        prop = kwargs['property']
+        assert prop.name == self.prop_name
+        i = self.prop_names.index(prop.name)
+        vtype = self.value_types[i]
+        assert isinstance(value, vtype.py_type)
+        self.value[i] = value
+        self.emit('on_device_value_changed', self, self.value,
+            prop_name=prop.name, value_type=vtype,
+        )
+
+    def get_param_value(self) -> List[Any]:
+        """Get the current device value
+        """
+        pg = self.device_param_group
         value = [getattr(pg, key) for key in self.prop_names]
         for vtype, item in zip(self.value_types, value):
             assert isinstance(item, vtype)
         return value
 
-    async def set_param_value(self, param_group_spec: 'ParameterGroupSpec', value: List[Any]):
-        pg = param_group_spec.device_param_group
+    async def set_param_value(self, value: List[Any]):
+        """Set the device value
+
+        Raises:
+            ValueError: If no :attr:`setter_method` is defined
+
+        """
+        pg = self.device_param_group
         if self.setter_method:
             m = getattr(pg, self.setter_method)
             await m(*value)
@@ -187,9 +351,8 @@ class ParameterGroupSpec(Dispatcher):
 
     """
 
-    # class attributes
-    name: str
-    parameter_list: List[ParameterSpec]
+    name: ClassVar[str]
+    parameter_list: ClassVar[List[ParameterSpec]]
     parameters: Dict[str, ParameterSpec]
 
     _events_ = ['on_device_value_changed']
@@ -217,18 +380,18 @@ class ParameterGroupSpec(Dispatcher):
     def __init__(self, device: 'jvconnected.device.Device'):
         self.device = device
         self.device_param_group = device.parameter_groups[self.name]
-        single_params = [p.prop_name for p in self.parameters.values() if not isinstance(p, MultiParameterSpec)]
+
+        self.parameter_list = [p.copy() for p in self.parameter_list]
+        self.parameters = {p.name:p for p in self.parameter_list}
+        for p in self.parameter_list:
+            p.param_group_spec = self
+            p.bind(on_device_value_changed=self.on_param_spec_value_changed)
+
         multi_params = [p for p in self.parameters.values() if isinstance(p, MultiParameterSpec)]
         self.multi_params = {}
         for param in multi_params:
             for prop in param.prop_names:
                 self.multi_params[prop] = param
-        all_props = set(single_params) | set(self.multi_params.keys())
-        self.device_param_group.bind(**{k:self._on_device_param_group_prop for k in all_props})
-        # self.device_param_group.bind(
-        #     **{k:self._on_device_multi_param_group_prop for k in self.multi_params.keys()},
-        # )
-
 
     @classmethod
     def all_parameter_group_cls(cls) -> Iterator['ParameterGroupSpec']:
@@ -259,7 +422,7 @@ class ParameterGroupSpec(Dispatcher):
 
         """
         param = self.parameters[name]
-        return param.get_param_value(self)
+        return param.get_param_value()
 
     async def set_param_value(self, name: str, value: Any):
         """Set the device value for the given parameter
@@ -273,7 +436,7 @@ class ParameterGroupSpec(Dispatcher):
 
         """
         param = self.parameters[name]
-        await param.set_param_value(self, value)
+        await param.set_param_value(value)
 
     async def increment_param_value(self, name: str):
         """Increment the device value for the given parameter
@@ -305,34 +468,10 @@ class ParameterGroupSpec(Dispatcher):
 
         """
         param = self.parameters[name]
-        pg = self.device_param_group
-        if not param.adjust_method:
-            raise ValueError(f'No adjust method for {param}')
-        m = getattr(pg, param.adjust_method)
-        await m(direction)
+        await param.adjust_value(direction)
 
-    def _on_device_param_group_prop(self, instance, value, **kwargs):
-        if instance is not self.device_param_group:
-            return
-        prop = kwargs['property']
-        param = self.parameters.get(prop.name)
-        if param is not None:
-            assert isinstance(value, param.value_type.py_type)
-            self.emit('on_device_value_changed', self, param, value)
-        if prop.name in self.multi_params:
-            self._on_device_multi_param_group_prop(instance, value, **kwargs)
-
-    def _on_device_multi_param_group_prop(self, instance, value, **kwargs):
-        if instance is not self.device_param_group:
-            return
-        prop = kwargs['property']
-        param = self.multi_params[prop.name]
-        i = param.prop_names.index(prop.name)
-        vtype = param.value_types[i]
-        assert isinstance(value, vtype.py_type)
-        self.emit('on_device_value_changed', self, param, value,
-            prop_name=prop.name, value_type=vtype,
-        )
+    def on_param_spec_value_changed(self, param: 'BaseParameterSpec', value: Any, **kwargs):
+        self.emit('on_device_value_changed', self, param, value, **kwargs)
 
     def __getitem__(self, key):
         return self.parameters[key]
