@@ -1,3 +1,6 @@
+import asyncio
+import collections
+from dataclasses import dataclass
 from typing import Any, Iterator, Union, Tuple
 
 from pydispatch import Dispatcher
@@ -229,3 +232,61 @@ class IndexedDict(Dispatcher):
             'on_item_index_changed',
             key=key, item=item, old_index=cur_index, new_index=new_index,
         )
+
+@dataclass
+class NamedItem:
+    """Helper class for :class:`NamedQueue`
+    """
+    key: Any
+    """The item key"""
+
+    item: Any
+    """The item itself"""
+
+class NamedQueue(asyncio.Queue):
+    """A :class:`asyncio.Queue` subclass that stores items by user-defined keys.
+
+    The items placed on the queue must be instances of :class:`NamedItem`.
+    For convenience, there is a :meth:`create_item` contructor method.
+    """
+
+    @classmethod
+    def create_item(self, key: Any, item: Any) -> NamedItem:
+        """Create a :class:`NamedItem` to be put on the queue
+        """
+        return NamedItem(key=key, item=item)
+
+    def _init(self, maxsize):
+        self._queue = collections.deque()
+        self._queue_items = {}
+
+    def _put(self, item: NamedItem):
+        self._queue_items[item.key] = item
+        if item.key not in self._queue:
+            self._queue.append(item.key)
+
+    def _get(self) -> NamedItem:
+        key = self._queue.popleft()
+        item = self._queue_items[key]
+        del self._queue_items[key]
+        return item
+
+    async def put(self, item: NamedItem):
+        """Put a :class:`NamedItem` into the queue.
+
+        If the queue is full, wait until a free
+        slot is available before adding item.
+
+        If an item with the same :attr:`~NamedItem.key` already exists in the
+        queue, it will be replaced.
+        """
+        return await super().put(item)
+
+    def put_nowait(self, item: NamedItem):
+        return super().put_nowait(item)
+
+    async def get(self) -> NamedItem:
+        return await super().get()
+
+    def get_nowait(self) -> NamedItem:
+        return super().get_nowait()

@@ -4,6 +4,7 @@ import asyncio
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
 from jvconnected.client import Client, ClientError
+from jvconnected.utils import NamedQueue
 
 class Device(Dispatcher):
     """A Connected Cam device
@@ -57,7 +58,7 @@ class Device(Dispatcher):
             self._add_param_group(cls)
         attrs = ['model_name', 'serial_number', 'resolution', 'api_version']
         self.bind(**{attr:self.on_attr for attr in attrs})
-        self.request_queue = asyncio.Queue(maxsize=8)
+        self.request_queue = NamedQueue(maxsize=16)
 
     @property
     def id(self): return self.__id
@@ -122,7 +123,7 @@ class Device(Dispatcher):
 
         async def do_poll(item):
             if item is not None:
-                command, params = item
+                command, params = item.item
                 logger.debug(f'tx: {command}, {params}')
                 await self.client.request(command, params)
                 await self._request_cam_status(short=True)
@@ -168,7 +169,8 @@ class Device(Dispatcher):
     async def queue_request(self, command: str, params=None):
         """Enqueue a command to be sent in the :meth:`_poll_loop`
         """
-        await self.request_queue.put((command, params))
+        item = self.request_queue.create_item(command, (command, params))
+        await self.request_queue.put(item)
 
     def on_attr(self, instance, value, **kwargs):
         prop = kwargs['property']
