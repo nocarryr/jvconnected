@@ -4,3 +4,4 @@
 .. toctree::
 
     paramspec
+    midi

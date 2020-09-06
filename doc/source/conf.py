@@ -99,4 +99,5 @@ intersphinx_mapping = {
     'python':('https://docs.python.org/', None),
     'pydispatch': ('https://python-dispatch.readthedocs.io/en/latest/', None),
     'zeroconf':('https://python-zeroconf.readthedocs.io/en/latest/', None),
+    'mido':('https://mido.readthedocs.io/en/latest/', None),
 }
