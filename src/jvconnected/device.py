@@ -302,10 +302,12 @@ class ExposureParams(ParameterGroup):
         gain_mode (str): Gain mode. One of
             ``['ManualL', 'ManualM', 'ManualH', 'AGC', 'AlcAELock', 'LoLux', 'Variable']``
         gain_value (str): Gain value
+        gain_pos (int): Gain value as an integer from -6 to 24
         shutter_mode (str): Shutter mode. One of
             ``['Off', 'Manual', 'Step', 'Variable', 'Eei']``
         shutter_value (str): Shutter value
         master_black (str): MasterBlack value
+        master_black_pos (int): MasterBlack value as an integer from -50 to 50
 
     """
     _NAME = 'exposure'
@@ -315,9 +317,11 @@ class ExposureParams(ParameterGroup):
     iris_pos = Property()
     gain_mode = Property()
     gain_value = Property()
+    gain_pos = Property(0)
     shutter_mode = Property()
     shutter_value = Property()
     master_black = Property()
+    master_black_pos = Property(0)
     _prop_attrs = [
         ('mode', 'Exposure.Status'),
         ('iris_mode', 'Iris.Status'),
@@ -440,6 +444,17 @@ class ExposureParams(ParameterGroup):
                 value = float(value)
         super().set_prop_from_api(prop_attr, value)
 
+    def on_prop(self, instance, value, **kwargs):
+        prop = kwargs['property']
+        if prop.name == 'gain_value':
+            gain_pos = value.rstrip('dB')
+            self.gain_pos = int(gain_pos)
+            logger.debug(f'{self}.gain_pos: {self.gain_pos}')
+        elif prop.name == 'master_black':
+            self.master_black_pos = int(value)
+            logger.debug(f'{self}.master_black_pos: {self.master_black_pos}')
+        super().on_prop(instance, value, **kwargs)
+
 class PaintParams(ParameterGroup):
     """Paint parameters
 
@@ -456,7 +471,8 @@ class PaintParams(ParameterGroup):
         blue_pos (int): Current position of WB blue paint (0-64)
         blue_value (str): WB blue paint value
         blue_normalized (int): Blue value from -31 to +31
-        detail: Detail value
+        detail (str): Detail value as string
+        detail_pos (int): Detail value as an integer from -10 to +10
 
     """
     _NAME = 'paint'
@@ -472,6 +488,7 @@ class PaintParams(ParameterGroup):
     blue_value = Property()
     blue_normalized = Property(0)
     detail = Property()
+    detail_pos = Property(0)
 
     _prop_attrs = [
         ('white_balance_mode', 'Whb.Status'),
@@ -558,7 +575,9 @@ class PaintParams(ParameterGroup):
             value = int(value)
             value = f'{value:+3d}'
         super().on_prop(instance, value, **kwargs)
-        if prop.name in ['red_pos', 'red_scale']:
+        if prop.name == 'detail':
+            self.detail_pos = int(value)
+        elif prop.name in ['red_pos', 'red_scale']:
             if self.red_pos is not None and self.red_scale is not None:
                 self.red_normalized = self.red_pos - (self.red_scale // 2)
         elif prop.name in ['blue_pos', 'blue_scale']:

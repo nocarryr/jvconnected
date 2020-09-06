@@ -9,4 +9,5 @@ Reference
     device
     client
     discovery
+    interfaces/index.rst
     utils
