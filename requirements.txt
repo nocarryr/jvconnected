@@ -4,4 +4,3 @@ loguru
 python-dispatch
 json-object-factory
 mido
-python-rtmidi
