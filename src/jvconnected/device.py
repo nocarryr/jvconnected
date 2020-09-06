@@ -545,11 +545,21 @@ class PaintParams(ParameterGroup):
             blue (int): Blue value in range 0 to 64
 
         """
+        if red > 64:
+            red = 64
+        elif red < 0:
+            red = 0
+        if blue > 64:
+            blue = 64
+        elif blue < 0:
+            blue = 0
         params = {
             'Kind':'WhPaintRB',
             'XPosition':blue,
             'YPosition':red,
         }
+        self.red_pos = red
+        self.blue_pos = blue
         await self.device.queue_request('SetWebXYFieldEvent', params)
 
     async def increase_detail(self):
