@@ -169,6 +169,7 @@ class Config(Dispatcher):
                             assert ix == new_index
                         device.device_index = new_index
             self.devices[key] = device
+            device.stored_in_config = True
             device.bind(
                 device_index=self.on_device_index,
                 on_change=self.on_device_prop_change,
@@ -265,6 +266,9 @@ class DeviceConfig(Dispatcher):
         device_index (int): Index for the device for organization purposes.
             If ``None`` (default), no index is assigned. Otherwise, the index
             will be assigned according to :meth:`jvconnected.utils.IndexedDict.add`
+        online (bool): ``True`` if the device is currently active on the network
+        active (bool): ``True`` if a :class:`jvconnected.device.Device` is
+            currently communicating with the device
 
     :Events:
         .. event:: on_change(instance, prop_name, value)
@@ -280,6 +284,9 @@ class DeviceConfig(Dispatcher):
     auth_user = Property(None)
     auth_pass = Property(None)
     device_index = Property(None)
+    stored_in_config = Property(False)
+    online = Property(False)
+    active = Property(False)
 
     _all_prop_names = (
         'name', 'dns_name', 'fqdn',
@@ -307,6 +314,7 @@ class DeviceConfig(Dispatcher):
         :class:`ServiceInfo.properties <zeroconf.ServiceInfo>`
         """
         return self.__model_name
+
     @property
     def serial_number(self) -> str:
         """The serial number of the device, taken from the
@@ -320,6 +328,13 @@ class DeviceConfig(Dispatcher):
         and :attr:`serial_number` attributes
         """
         return f'{self.model_name}-{self.serial_number}'
+
+    @classmethod
+    def get_id_for_service_info(cls, info: 'zeroconf.ServiceInfo') -> str:
+        """Get the :attr:`id` attribute for the given :class:`zeroconf.ServiceInfo`
+        """
+        props = cls.get_props_from_service_info(info)
+        return f'{props["model_name"]}-{props["serial_number"]}'
 
     @classmethod
     def get_props_from_service_info(cls, info: 'zeroconf.ServiceInfo') -> tp.Dict:

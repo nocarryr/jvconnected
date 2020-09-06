@@ -3,7 +3,7 @@ import asyncio
 
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
-from jvconnected.config import Config
+from jvconnected.config import Config, DeviceConfig
 from jvconnected.device import Device
 from jvconnected.discovery import Discovery
 from jvconnected.client import ClientAuthError
@@ -45,6 +45,7 @@ class Engine(Dispatcher):
 
     """
     devices = DictProperty()
+    discovered_devices = DictProperty()
     running = Property(False)
     auto_add_devices = Property(True)
 
@@ -81,6 +82,7 @@ class Engine(Dispatcher):
         self.discovery.bind_async(
             self.loop,
             on_service_added=self.on_discovery_service_added,
+            on_service_removed=self.on_discovery_service_removed,
         )
         await self.discovery.open()
         self.running = True
@@ -125,6 +127,7 @@ class Engine(Dispatcher):
             logger.exception(exc)
             await device.close()
             return
+        device_conf.active = True
         device.bind_async(self.loop, on_client_error=self.on_device_client_error)
         self.emit('on_device_added', device)
 
@@ -139,12 +142,54 @@ class Engine(Dispatcher):
     async def on_discovery_service_added(self, name, **kwargs):
         logger.debug(f'on_discovery_service_added: {name}, {kwargs}')
         info = kwargs['info']
-        device_conf = self.config.add_discovered_device(info)
-        logger.debug(f'device_conf: {device_conf}')
-        self.emit('on_device_discovered', device_conf)
+        device_id = DeviceConfig.get_id_for_service_info(info)
+        device_conf = self.discovered_devices.get(device_id)
+
+        if device_id in self.config.devices:
+            if device_conf is not None:
+                dev = self.config.add_device(device_conf)
+                assert dev is device_conf
+            else:
+                device_conf = self.config.add_discovered_device(info)
+                self.discovered_devices[device_id] = device_conf
+        elif device_conf is None:
+            device_conf = self.add_discovered_device(info)
+
+        device_conf.online = True
         if self.auto_add_devices:
             if device_conf.id not in self.devices:
                 await self.add_device_from_conf(device_conf)
+        self.emit('on_device_discovered', device_conf)
+
+    async def on_discovery_service_removed(self, name, **kwargs):
+        logger.debug(f'on_discovery_service_removed: {name}, {kwargs}')
+        info = kwargs['info']
+        device_id = DeviceConfig.get_id_for_service_info(info)
+        device_conf = self.discovered_devices.get(device_id)
+        if device_conf is not None:
+            device_conf.active = False
+            device_conf.online = False
+
+        device = self.devices.get(device_id)
+        if device is not None:
+            try:
+                await device.close()
+            finally:
+                del self.devices[device_id]
+                self.emit('on_device_removed', device)
+
+    def add_discovered_device(self, info: 'zeroconf.ServiceInfo') -> DeviceConfig:
+        """Create a :class:`~jvconnected.config.DeviceConfig` and add it to
+        :attr:`discovered_devices`
+        """
+        device_id = DeviceConfig.get_id_for_service_info(info)
+        if device_id in self.discovered_devices:
+            device_conf = self.discovered_devices[device_id]
+        else:
+            device_conf = DeviceConfig.from_service_info(info)
+            self.discovered_devices[device_conf.id] = device_conf
+        return device_conf
+
 
     async def _on_config_device_added(self, conf_device, **kwargs):
         conf_device.bind(device_index=self._on_config_device_index_changed)
