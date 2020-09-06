@@ -6,8 +6,7 @@ from pathlib import Path
 import typing as tp
 from contextlib import contextmanager
 
-from pydispatch import Dispatcher
-from pydispatch.properties import Property, DictProperty, ListProperty
+from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 import jsonfactory
 
 from jvconnected.utils import IndexedDict

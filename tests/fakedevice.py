@@ -5,8 +5,7 @@ import socket
 import datetime
 
 from aiohttp import web
-from pydispatch import Dispatcher
-from pydispatch.properties import Property, DictProperty, ListProperty
+from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 import zeroconf
 # from zeroconf import ServiceInfo
 

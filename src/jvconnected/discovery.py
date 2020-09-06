@@ -1,8 +1,7 @@
 from loguru import logger
 import asyncio
 from zeroconf import ServiceBrowser, Zeroconf, ZeroconfServiceTypes
-from pydispatch import Dispatcher
-from pydispatch.properties import Property, DictProperty
+from pydispatch import Dispatcher, Property, DictProperty
 
 PROCAM_FQDN = '_jvc_procam_web._tcp.local.'
 

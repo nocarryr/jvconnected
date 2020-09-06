@@ -1,8 +1,7 @@
 from loguru import logger
 import asyncio
 
-from pydispatch import Dispatcher
-from pydispatch.properties import Property, DictProperty, ListProperty
+from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
 from jvconnected.config import Config
 from jvconnected.device import Device
