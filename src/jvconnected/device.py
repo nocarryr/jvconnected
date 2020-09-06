@@ -22,6 +22,7 @@ class Device(Dispatcher):
         api_version (str):
         parameter_groups (dict): Container for :class:`ParameterGroup` instances
         connected (bool): Connection state
+        device_index (int): The device index
         error (bool): Becomes ``True`` when a communication error occurs
 
     :Events:
@@ -37,6 +38,7 @@ class Device(Dispatcher):
     serial_number = Property()
     resolution = Property()
     api_version = Property()
+    device_index = Property(0)
     connected = Property(False)
     error = Property(False)
     parameter_groups = DictProperty()

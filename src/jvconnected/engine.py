@@ -116,6 +116,7 @@ class Engine(Dispatcher):
             device_conf.id,
             device_conf.hostport,
         )
+        device.device_index = device_conf.device_index
         self.devices[device_conf.id] = device
         try:
             await device.open()
@@ -146,7 +147,15 @@ class Engine(Dispatcher):
                 await self.add_device_from_conf(device_conf)
 
     async def _on_config_device_added(self, conf_device, **kwargs):
+        conf_device.bind(device_index=self._on_config_device_index_changed)
         self.emit('on_config_device_added', conf_device)
+
+    def _on_config_device_index_changed(self, instance, value, **kwargs):
+        device_id = instance.id
+        device = self.devices.get(device_id)
+        if device is None:
+            return
+        device.device_index = value
 
 if __name__ == '__main__':
     Engine().run_forever()
