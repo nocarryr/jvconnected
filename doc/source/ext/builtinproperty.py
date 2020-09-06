@@ -44,7 +44,10 @@ class BuiltinPropertyDocumenter(autodoc.PropertyDocumenter):
         if readonly:
             self.add_line(f'   :readonly:', sourcename)
         if anno is not None:
-            self.add_line(f'   :proptype: {anno.__qualname__}', sourcename)
+            anno_type = getattr(anno, '__qualname__', None)
+            if anno_type is None:
+                anno_type = str(anno)
+            self.add_line(f'   :proptype: {anno_type}', sourcename)
 
 class BuiltinPropertyDirective(PyMethod):
     """A directive for more informative :func:`property` documentation
