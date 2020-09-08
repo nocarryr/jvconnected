@@ -7,6 +7,11 @@ try:
 except ImportError:
     np = None
 
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
 def build_wb_img(width: int = 64):
     import numpy as _
     height = width
@@ -55,10 +60,9 @@ def plot_img(img_arr):
     plt.show()
 
 def build_wb_img_file(filename: Path, width: int = 64):
-    from matplotlib import image
-
     img_arr = build_wb_img(width)
-    image.imsave(str(filename), img_arr)
+    im = Image.fromarray(np.uint8(img_arr*255))
+    im.save(filename)
 
 
 def main():
