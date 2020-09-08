@@ -40,7 +40,8 @@ def build_images(qrc_file: Path, img_dir: Path, *sizes):
         resource_el = qrc_doc.add_child(tag='qresource', prefix='/')
     for size in sizes:
         fn = img_dir / f'YUV_UV_plane_{size}x{size}.png'
-        build_wb_img_file(fn, size)
+        if not fn.exists():
+            build_wb_img_file(fn, size)
         el = qrc_doc.search_for_file(fn)
         if el is None:
             el = resource_el.add_child(tag='file', filename=fn.relative_to(BASE_PATH))
