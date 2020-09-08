@@ -4,10 +4,10 @@ import shlex
 import subprocess
 from pathlib import Path
 
-from jvconnected.ui.qrc_utils import QRCDocument
-from jvconnected.ui.colorgradients import build_wb_img_file
+from jvconnected.ui.tools.qrc_utils import QRCDocument
+from jvconnected.ui.tools.colorgradients import build_wb_img_file
 
-BASE_PATH = Path(__file__).resolve().parent
+BASE_PATH = Path(__file__).resolve().parent.parent
 
 IMG_QRC = BASE_PATH / 'images.qrc'
 IMG_SCRIPT = BASE_PATH / 'rc_images.py'
