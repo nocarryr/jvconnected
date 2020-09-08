@@ -25,7 +25,7 @@ class QRCElement(object):
         ugly = ET.tostring(self.element, encoding='unicode')
         dom = minidom.parseString(ugly)
         pretty = dom.toprettyxml()
-        pretty = pretty.splitlines()
+        pretty = [line for line in pretty.splitlines() if len(line.strip('\t'))]
         pretty[0] = '<!DOCTYPE RCC>'
         pretty[1] = '<RCC version="1.0">'
         return '\n'.join(pretty)
