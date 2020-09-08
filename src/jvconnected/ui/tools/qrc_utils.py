@@ -64,6 +64,13 @@ class QRCElement(object):
                 return _cls
 
     @property
+    def root_element(self) -> 'QRCElement':
+        p = self.parent
+        if p is None:
+            return self
+        return p.root_element
+
+    @property
     def tag(self): return self.element.tag
 
     @property
@@ -95,10 +102,14 @@ class QRCElement(object):
 class QRCDocument(QRCElement):
     TAG = 'RCC'
 
+    def __init__(self, **kwargs):
+        self.base_path = kwargs['base_path']
+        super().__init__(**kwargs)
+
     @classmethod
     def from_file(cls, filename: Path):
         root = ET.fromstring(filename.read_text())
-        return cls(element=root)
+        return cls(element=root, base_path=filename.resolve().parent)
 
     def search_for_file(self, filename: Path):
         for c in self.children:
@@ -123,13 +134,20 @@ class QRCResource(QRCElement):
     def prefix(self, value: str):
         self.attrib['prefix'] = value
 
+    @property
+    def path(self) -> Path:
+        root = self.root_element
+        p = root.base_path
+        if self.prefix and self.prefix != '/':
+            p = p / self.prefix.lstrip('/')
+        return p
+
     def search_for_file(self, filename: Path):
-        if self.prefix:
-            filename = Path(self.prefix) / filename
+        base_path = self.path
         for c in self.children:
             if not isinstance(c, QRCFile):
                 continue
-            if filename == c.filename:
+            if filename == base_path / c.filename:
                 return c
 
 class QRCFile(QRCElement):
