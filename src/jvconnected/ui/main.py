@@ -11,12 +11,12 @@ from asyncqt import QEventLoop, asyncSlot, asyncClose
 
 from jvconnected.ui import models
 from jvconnected.ui import rc_images
+from . import get_resource_filename
 
 def register_qml_types():
     models.register_qml_types()
 
-BASE_PATH = Path(__file__).resolve().parent
-QML_PATH = BASE_PATH / 'qml'
+QML_PATH = get_resource_filename('qml')
 
 def run(argv=None):
     if argv is None:

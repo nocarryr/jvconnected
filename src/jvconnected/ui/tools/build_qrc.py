@@ -4,14 +4,14 @@ import shlex
 import subprocess
 from pathlib import Path
 
+from jvconnected.ui import get_resource_filename
 from jvconnected.ui.tools.qrc_utils import QRCDocument
 from jvconnected.ui.tools.colorgradients import build_wb_img_file
 
-BASE_PATH = Path(__file__).resolve().parent.parent
-
-IMG_QRC = BASE_PATH / 'images.qrc'
-IMG_SCRIPT = BASE_PATH / 'rc_images.py'
-IMG_DIR = BASE_PATH / 'img'
+IMG_QRC = get_resource_filename('images.qrc')
+IMG_SCRIPT = get_resource_filename('rc_images.py')
+IMG_DIR = get_resource_filename('img')
+BASE_PATH = IMG_DIR.parent
 IMG_SIZES = (64, 128, 256)
 
 def rcc(qrc_file: Path, rc_script: Path):
@@ -19,11 +19,8 @@ def rcc(qrc_file: Path, rc_script: Path):
     cmd_str = f'pyside2-rcc -o "{rc_script}" "{qrc_file}"'
     subprocess.run(shlex.split(cmd_str))
 
-# QRC_FILE = BASE_PATH / 'images.qrc'
-# RC_SCRIPT = BASE_PATH / 'rc_images.py'
 
 def build_images(qrc_file: Path, img_dir: Path, *sizes):
-    # IMG_DIR = BASE_PATH / 'img'
     if not img_dir.exists():
         img_dir.mkdir(parents=True)
     if qrc_file.exists():
