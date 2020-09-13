@@ -1,5 +1,11 @@
 #! /usr/bin/env python
 
+"""
+Generate resources needed for the UI and compile them using the `Qt Resouce System`_
+
+.. _Qt Resouce System: https://doc.qt.io/qt-5/resources.html
+
+"""
 import shlex
 import subprocess
 from pathlib import Path
@@ -15,12 +21,31 @@ BASE_PATH = IMG_DIR.parent
 IMG_SIZES = (64, 128, 256)
 
 def rcc(qrc_file: Path, rc_script: Path):
-    print(f'QRC_FILE: "{qrc_file}", RC_SCRIPT: "{rc_script}"')
+    """Run `pyside2-rcc`_, the PySide2 wrapper for `rcc`_ to compile resources
+    into a python module
+
+    Arguments:
+        qrc_file (pathlib.Path): The qrc filename containing resource definitions
+        rc_script (pathlib.Path): The filename for the python module to generate
+
+
+    .. _rcc: https://doc.qt.io/qt-5/rcc.html
+    .. _pyside2-rcc: https://doc.qt.io/qtforpython/tutorials/basictutorial/qrcfiles.html
+
+    """
     cmd_str = f'pyside2-rcc -o "{rc_script}" "{qrc_file}"'
     subprocess.run(shlex.split(cmd_str))
 
 
 def build_images(qrc_file: Path, img_dir: Path, *sizes):
+    """Generate and/or compile the YUV plane images used for the white balance
+    paint control
+
+    Arguments:
+        qrc_file (pathlib.Path): The qrc filename to register the images in
+        img_dir (pathlib.Path): Directory to build images in
+
+    """
     if not img_dir.exists():
         img_dir.mkdir(parents=True)
     if qrc_file.exists():
@@ -45,13 +70,9 @@ def build_images(qrc_file: Path, img_dir: Path, *sizes):
     qrc_doc.write(qrc_file)
 
 
-
-
 def main():
     build_images(IMG_QRC, IMG_DIR, *IMG_SIZES)
     rcc(IMG_QRC, IMG_SCRIPT)
-
-
 
 if __name__ == '__main__':
     main()

@@ -12,24 +12,27 @@ try:
 except ImportError:
     Image = None
 
-def build_wb_img(width: int = 64):
+def build_wb_img(width: int = 64) -> np.ndarray:
+    """Generate RGB pixel data for a `YUV`_ color plane
+
+    Arguments:
+        width (int): The size of the output array along the first axis. This will
+            also be used for "height"
+
+    Returns:
+        numpy.ndarray: The output data with shape ``(width, height, 3)`` where
+            the last axis contains the color values as floats (0..1) of
+            red, green and blue
+
+    .. _YUV: https://en.wikipedia.org/wiki/YUV
+    """
     import numpy as _
     height = width
     hx = width // 2
     hy = height // 2
 
-    # ix_arr = np.round(np.linspace(0, width, hx))
-    # ix_arr = np.concatenate((ix_arr, np.flip(ix_arr)))
-    # ix_arr = np.asarray(ix_arr, dtype=int)
-
-    # xy_index = np.zeros((width, height, 2), dtype=int)
-    # xy_index[...,0] += ix_arr
-    # xy_index[...,1] += ix_arr.reshape((height,1))
-    # # xy_index[...,1] += np.arange(height).reshape((height,1))
-
     xy_index = np.zeros((width, height, 2), dtype=int)
     xy_index[...,0] += np.arange(width)
-    # xy_index2[...,1] += ix_arr.reshape((height,1))
     xy_index[...,1] += np.arange(height).reshape((height,1))
 
     y_arr = xy_index.sum(axis=-1)
@@ -40,15 +43,7 @@ def build_wb_img(width: int = 64):
 
     rgb[...,0] = xy_index[...,1] / height * -1 + 1
     rgb[...,1] = (y_arr / y_arr.max()) * -1 + 1
-    # rgb[...,1] += 1
     rgb[...,2] = xy_index[...,0] / width
-
-
-
-    # r = np.rot90(np.tile(np.linspace(0, 1, height), width).reshape(width, height))
-    # b = np.tile(np.linspace(0, 1, width), height).reshape(width, height)
-    # g =
-    # rgb = np.rot90(rgb)
 
     return rgb
 
@@ -60,6 +55,16 @@ def plot_img(img_arr):
     plt.show()
 
 def build_wb_img_file(filename: Path, width: int = 64):
+    """Build a YUV color plane using :func:`build_wb_img` and save it as
+    an image file.
+
+    Arguments:
+        filename (pathlib.Path): The filename for the output image. The image type
+            will be determined from the extension
+            as described in :meth:`PIL.Image.Image.save`
+        width (int): The image width (and height)
+
+    """
     img_arr = build_wb_img(width)
     im = Image.fromarray(np.uint8(img_arr*255))
     im.save(filename)
