@@ -29,7 +29,7 @@ def build_images(qrc_file: Path, img_dir: Path, *sizes):
     if qrc_file.exists():
         qrc_doc = QRCDocument.from_file(qrc_file)
     else:
-        qrc_doc = QRCDocument.create()
+        qrc_doc = QRCDocument.create(base_path=BASE_PATH)
     # resource_el = qrc_doc.element.find(".//qresource[@prefix='/']")
     resource_el = None
     for o in qrc_doc.walk():
