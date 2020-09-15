@@ -17,7 +17,6 @@ from jvconnected.ui.tools.colorgradients import build_wb_img_file
 IMG_QRC = get_resource_filename('images.qrc')
 IMG_SCRIPT = get_resource_filename('rc_images.py')
 IMG_DIR = get_resource_filename('img')
-BASE_PATH = IMG_DIR.parent
 IMG_SIZES = (64, 128, 256)
 
 def rcc(qrc_file: Path, rc_script: Path):
@@ -51,7 +50,7 @@ def build_images(qrc_file: Path, img_dir: Path, *sizes):
     if qrc_file.exists():
         qrc_doc = QRCDocument.from_file(qrc_file)
     else:
-        qrc_doc = QRCDocument.create(base_path=BASE_PATH)
+        qrc_doc = QRCDocument.create(base_path=qrc_file.parent)
     # resource_el = qrc_doc.element.find(".//qresource[@prefix='/']")
     resource_el = None
     for o in qrc_doc.walk():
@@ -66,7 +65,7 @@ def build_images(qrc_file: Path, img_dir: Path, *sizes):
             build_wb_img_file(fn, size)
         el = qrc_doc.search_for_file(fn)
         if el is None:
-            el = resource_el.add_child(tag='file', filename=fn.relative_to(BASE_PATH))
+            el = resource_el.add_child(tag='file', filename=fn.relative_to(qrc_doc.base_path))
     qrc_doc.write(qrc_file)
 
 
