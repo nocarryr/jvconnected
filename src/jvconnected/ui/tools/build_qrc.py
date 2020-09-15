@@ -51,21 +51,11 @@ def build_images(qrc_file: Path, img_dir: Path, *sizes):
         qrc_doc = QRCDocument.from_file(qrc_file)
     else:
         qrc_doc = QRCDocument.create(base_path=qrc_file.parent)
-    # resource_el = qrc_doc.element.find(".//qresource[@prefix='/']")
-    resource_el = None
-    for o in qrc_doc.walk():
-        if o.tag == 'qresource' and o.prefix == '/':
-            resource_el = o
-            break
-    if resource_el is None:
-        resource_el = qrc_doc.add_child(tag='qresource', prefix='/')
     for size in sizes:
         fn = img_dir / f'YUV_UV_plane_{size}x{size}.png'
         if not fn.exists():
             build_wb_img_file(fn, size)
-        el = qrc_doc.search_for_file(fn)
-        if el is None:
-            el = resource_el.add_child(tag='file', filename=fn.relative_to(qrc_doc.base_path))
+        qrc_doc.add_file(fn)
     qrc_doc.write(qrc_file)
 
 

@@ -167,6 +167,32 @@ class QRCDocument(QRCElement):
         root = ET.fromstring(filename.read_text())
         return cls(element=root, base_path=filename.resolve().parent)
 
+    def add_file(self, filename: Path, prefix: Optional[str] = None, **kwargs) -> 'QRCFile':
+        """Add a :class:`QRCFile` to the document if it does not currently exist
+
+        Arguments:
+            filename (pathlib.Path): The filename to add
+            prefix (str, optional): The :attr:`~QRCResource.prefix` to use for
+                the :class:`QRCResource`. If not given, it will default to ``"/"``
+            **kwargs: Extra keyword arguments to pass to the :class:`QRCFile` creation
+
+        """
+        if prefix is None:
+            prefix = '/'
+        resource_el = self.find_resource(prefix)
+        if resource_el is None:
+            resource_el = self.add_child(tag='qresource', prefix=prefix)
+        return resource_el.add_file(filename, **kwargs)
+
+    def find_resource(self, prefix: str) -> Optional['QRCResource']:
+        """Search for a :class:`QRCResource` matching the given prefix
+
+        If one is not found, ``None`` will be returned
+        """
+        for el in self.children:
+            if el.prefix == prefix:
+                return el
+
     def search_for_file(self, filename: Path) -> Optional['QRCFile']:
         """Search for the :class:`QRCFile` element matching the given filename
         """
@@ -209,6 +235,24 @@ class QRCResource(QRCElement):
         if self.prefix and self.prefix != '/':
             p = p / self.prefix.lstrip('/')
         return p
+
+    def add_file(self, filename: Path, **kwargs) -> 'QRCFile':
+        """Add a :class:`QRCFile` to the resource if it does not currently exist
+
+        Arguments:
+            filename (pathlib.Path): The filename to add
+            **kwargs: Extra keyword arguments to pass to the :class:`QRCFile` creation
+
+        """
+        el = self.search_for_file(filename)
+        if el is not None:
+            return el
+
+        rel_fn = filename.resolve().relative_to(self.path.resolve())
+        kw = kwargs.copy()
+        kw['tag'] = 'file'
+        kw['filename'] = rel_fn
+        return self.add_child(**kw)
 
     def search_for_file(self, filename: Path) -> Optional['QRCFile']:
         """Search within this qresource for the :class:`QRCFile` element
