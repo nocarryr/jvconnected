@@ -1,3 +1,5 @@
 rc_images.py
 images.qrc
 img/
+rc_qml.py
+qml.qrc

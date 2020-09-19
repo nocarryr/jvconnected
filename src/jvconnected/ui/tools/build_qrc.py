@@ -14,6 +14,10 @@ from jvconnected.ui import get_resource_filename
 from jvconnected.ui.tools.qrc_utils import QRCDocument
 from jvconnected.ui.tools.colorgradients import build_wb_img_file
 
+QML_QRC = get_resource_filename('qml.qrc')
+QML_DIR = get_resource_filename('qml')
+QML_SCRIPT = get_resource_filename('rc_qml.py')
+
 IMG_QRC = get_resource_filename('images.qrc')
 IMG_SCRIPT = get_resource_filename('rc_images.py')
 IMG_DIR = get_resource_filename('img')
@@ -58,10 +62,30 @@ def build_images(qrc_file: Path, img_dir: Path, *sizes):
         qrc_doc.add_file(fn)
     qrc_doc.write(qrc_file)
 
+def pack_qml(qrc_file: Path, qml_dir: Path):
+    """Find all qml files found in the given directory then add definitions
+    for them in the given qrc file.
+
+    Arguments:
+        qrc_file (pathlib.Path): The qrc filename to register the files in
+        qml_dir (pathlib.Path): The root directory containing qml files
+
+    """
+    if qrc_file.exists():
+        qrc_doc = QRCDocument.from_file(qrc_file)
+    else:
+        qrc_doc = QRCDocument.create(base_path=qrc_file.parent)
+    for pattern in ['**/*.qml', '**/qmldir']:
+        for p in qml_dir.glob(pattern):
+            qrc_doc.add_file(p)
+    qrc_doc.write(qrc_file)
+
 
 def main():
     build_images(IMG_QRC, IMG_DIR, *IMG_SIZES)
     rcc(IMG_QRC, IMG_SCRIPT)
+    pack_qml(QML_QRC, QML_DIR)
+    rcc(QML_QRC, QML_SCRIPT)
 
 if __name__ == '__main__':
     main()
