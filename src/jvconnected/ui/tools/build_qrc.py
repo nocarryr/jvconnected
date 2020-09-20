@@ -9,6 +9,7 @@ Generate resources needed for the UI and compile them using the `Qt Resouce Syst
 import shlex
 import subprocess
 from pathlib import Path
+from typing import Sequence
 
 from jvconnected.ui import get_resource_filename
 from jvconnected.ui.tools.qrc_utils import QRCDocument
@@ -40,13 +41,20 @@ def rcc(qrc_file: Path, rc_script: Path):
     subprocess.run(shlex.split(cmd_str))
 
 
-def build_images(qrc_file: Path, img_dir: Path, *sizes):
+def build_images(qrc_file: Path = IMG_QRC, img_dir: Path = IMG_DIR,
+                 qrc_script: Path = IMG_SCRIPT, build_rcc: bool = False,
+                 sizes: Sequence[int] = IMG_SIZES):
     """Generate and/or compile the YUV plane images used for the white balance
     paint control
 
     Arguments:
         qrc_file (pathlib.Path): The qrc filename to register the images in
         img_dir (pathlib.Path): Directory to build images in
+        qrc_script (pathlib.Path): Filename for script to generate
+            (if ``build_rcc`` is ``True``)
+        build_rcc (bool): If True, compile the resources to a
+            Python module using :func:`rcc`
+        sizes (Sequence[int]): The image sizes to create
 
     """
     if not img_dir.exists():
@@ -61,14 +69,21 @@ def build_images(qrc_file: Path, img_dir: Path, *sizes):
             build_wb_img_file(fn, size)
         qrc_doc.add_file(fn)
     qrc_doc.write(qrc_file)
+    if build_rcc:
+        rcc(qrc_file, qrc_script)
 
-def pack_qml(qrc_file: Path, qml_dir: Path):
+def pack_qml(qrc_file: Path = QML_QRC, qml_dir: Path = QML_DIR,
+             qrc_script: Path = QML_SCRIPT, build_rcc: bool = False):
     """Find all qml files found in the given directory then add definitions
     for them in the given qrc file.
 
     Arguments:
         qrc_file (pathlib.Path): The qrc filename to register the files in
         qml_dir (pathlib.Path): The root directory containing qml files
+        qrc_script (pathlib.Path): Filename for script to generate
+            (if ``build_rcc`` is ``True``)
+        build_rcc (bool): If True, compile the resources to a
+            Python module using :func:`rcc`
 
     """
     if qrc_file.exists():
@@ -79,13 +94,13 @@ def pack_qml(qrc_file: Path, qml_dir: Path):
         for p in qml_dir.glob(pattern):
             qrc_doc.add_file(p)
     qrc_doc.write(qrc_file)
+    if build_rcc:
+        rcc(qrc_file, qrc_script)
 
 
 def main():
-    build_images(IMG_QRC, IMG_DIR, *IMG_SIZES)
-    rcc(IMG_QRC, IMG_SCRIPT)
-    pack_qml(QML_QRC, QML_DIR)
-    rcc(QML_QRC, QML_SCRIPT)
+    build_images(build_rcc=True, sizes=IMG_SIZES)
+    pack_qml(build_rcc=True)
 
 if __name__ == '__main__':
     main()

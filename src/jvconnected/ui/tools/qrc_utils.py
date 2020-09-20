@@ -2,6 +2,13 @@ from typing import List, Dict, ClassVar, Optional, Iterator
 from pathlib import Path
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
+import hashlib
+
+HASH_ALGO = 'sha1'
+"""The :mod:`hashlib` algorithm to use for creating file hashes
+"""
+
+HASH_FUNC = getattr(hashlib, HASH_ALGO)
 
 class QRCElement(object):
     """An element within a QRC document tree
@@ -43,7 +50,6 @@ class QRCElement(object):
         pretty = dom.toprettyxml()
         pretty = [line for line in pretty.splitlines() if len(line.strip('\t'))]
         pretty[0] = '<!DOCTYPE RCC>'
-        pretty[1] = '<RCC version="1.0">'
         return '\n'.join(pretty)
 
     def write(self, filename: Path):
@@ -167,6 +173,26 @@ class QRCDocument(QRCElement):
         root = ET.fromstring(filename.read_text())
         return cls(element=root, base_path=filename.resolve().parent)
 
+    @property
+    def current_hash(self) -> Optional[str]:
+        """The hash of the contents when the qrc file was last saved
+        """
+        return self.attrib.get('content_hash')
+    @current_hash.setter
+    def current_hash(self, value: str):
+        self.attrib['content_hash'] = value
+
+    def hashes_match(self) -> bool:
+        """Determine if the contents defined within the document have changed
+        on the local filesystem
+
+        Compares the :attr:`current_hash` against the result of :meth:`hash_contents`
+        """
+        if not self.current_hash:
+            return False
+        local_hash = self.hash_contents()
+        return local_hash == self.current_hash
+
     def add_file(self, filename: Path, prefix: Optional[str] = None, **kwargs) -> 'QRCFile':
         """Add a :class:`QRCFile` to the document if it does not currently exist
 
@@ -203,6 +229,33 @@ class QRCDocument(QRCElement):
             if r is not None:
                 return r
 
+    def iter_resources(self) -> Iterator['QRCResource']:
+        """Iterate over child :class:`QRCResource` instances
+        """
+        for c in self.children:
+            if isinstance(c, QRCResource):
+                yield c
+
+    def iter_files(self) -> Iterator['QRCFile']:
+        """Iterate through all :class:`QRCFile` instances in the tree
+        """
+        for r in self.iter_resources():
+            yield from r.iter_files()
+
+    def hash_contents(self) -> str:
+        """Create a single hash from all :class:`QRCFile` data on the local
+        filesystem using :meth:`QRCFile.hash_contents`
+        """
+        hashes = [f.hash_contents() for f in self.iter_files()]
+        m = HASH_FUNC()
+        for hval in sorted(hashes):
+            m.update(hval.encode('utf-8'))
+        return m.hexdigest()
+
+    def tostring(self) -> str:
+        self.current_hash = self.hash_contents()
+        return super().tostring()
+
 
 class QRCResource(QRCElement):
     """A :class:`QRCElement` subclass representing a qresource element
@@ -213,6 +266,7 @@ class QRCResource(QRCElement):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self._path = None
         if 'prefix' in kwargs:
             self.prefix = kwargs['prefix']
 
@@ -223,6 +277,7 @@ class QRCResource(QRCElement):
         return self.attrib.get('prefix')
     @prefix.setter
     def prefix(self, value: str):
+        self._path = None
         self.attrib['prefix'] = value
 
     @property
@@ -230,10 +285,15 @@ class QRCResource(QRCElement):
         """The filesystem location for this element given the :attr:`~QRCDocument.base_path`
         of the :attr:`root_element` and :attr:`prefix`
         """
+        p = self._path
+        if p is not None:
+            return p
+
         root = self.root_element
         p = root.base_path
         if self.prefix and self.prefix != '/':
             p = p / self.prefix.lstrip('/')
+        self._path = p
         return p
 
     def add_file(self, filename: Path, **kwargs) -> 'QRCFile':
@@ -265,6 +325,13 @@ class QRCResource(QRCElement):
             if filename == base_path / c.filename:
                 return c
 
+    def iter_files(self) -> Iterator['QRCFile']:
+        """Iterate over all :class:`QRCFile` instances within this qresource
+        """
+        for c in self.children:
+            if isinstance(c, QRCFile):
+                yield c
+
 class QRCFile(QRCElement):
     """A :class:`QRCElement` subclass representing a file resource
     """
@@ -281,6 +348,7 @@ class QRCFile(QRCElement):
     @property
     def filename(self) -> Path:
         """The filename as a :class:`pathlib.Path`
+        (relative to the parent :class:`QRCResource`)
         """
         s = self.text
         if s is None:
@@ -299,6 +367,13 @@ class QRCFile(QRCElement):
             self.text = str(value)
 
     @property
+    def filename_abs(self) -> Path:
+        """Filename including the parent :attr:`QRCResource.path`
+        """
+        base = self.parent.path
+        return base / self.filename
+
+    @property
     def alias(self) -> Optional[str]:
         """The file alias as described in the `qrc documentation`_
 
@@ -310,3 +385,21 @@ class QRCFile(QRCElement):
         if isinstance(value, Path):
             value = str(value)
         self.attrib['alias'] = value
+
+    def hash_contents(self) -> str:
+        """Create a hash of the file data using :mod:`hashlib` algorithm defined
+        by :any:`HASH_ALGO`
+        """
+        m = HASH_FUNC()
+        block_size = 65536
+        p = self.filename_abs
+        if not p.exists():
+            return m.hexdigest()
+
+        with open(p, 'rb') as fp:
+            while True:
+                data = fp.read(block_size)
+                if not data:
+                    break
+                m.update(data)
+        return m.hexdigest()
