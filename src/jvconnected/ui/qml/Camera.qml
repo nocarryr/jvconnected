@@ -111,13 +111,13 @@ Control {
 
                         Item { Layout.fillWidth: true }
 
-                        UpDownButtons {
-                            onUpClicked: model.iris.increase()
-                            onDownClicked: model.iris.decrease()
+                        LeftRightButtons {
+                            onRightClicked: model.iris.increase()
+                            onLeftClicked: model.iris.decrease()
                         }
 
                         Slider {
-                            orientation: Qt.Vertical
+                            orientation: Qt.Horizontal
                             from: 0
                             to: 255
                             stepSize: 1
