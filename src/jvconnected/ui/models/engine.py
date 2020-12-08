@@ -1,6 +1,7 @@
 from loguru import logger
 import asyncio
 import threading
+from typing import List
 
 from PySide2 import QtCore, QtQml
 from PySide2.QtCore import Property, Signal
@@ -12,10 +13,33 @@ from jvconnected.ui.utils import GenericQObject, connect_close_event
 from jvconnected.ui.models.device import DeviceModel, DeviceConfigModel
 
 class EngineModel(GenericQObject):
+    """Qt Bridge to :class:`jvconnected.engine.Engine`
+
+    This object creates an instance of :class:`jvconnected.engine.Engine`
+    and handles all necessary interaction with it
+
+    Attributes:
+        engine: The engine instance
+
+    :Events:
+        .. event:: deviceAdded(device: DeviceModel)
+
+            Fired when an active device is added to the engine
+
+            :param device: The model for the added device
+            :type device: jvconnected.ui.models.device.DeviceModel
+
+        .. event:: configDeviceAdded(conf_device: DeviceConfigModel)
+
+            Fired when a device is detected or loaded from config
+
+            :param conf_device: The model for the device
+            :type conf_device: jvconnected.ui.models.device.DeviceConfigModel
+
+    """
     _n_running = Signal()
     _n_deviceViewIndices = Signal()
     deviceAdded = Signal(DeviceModel)
-    deviceRemoved = Signal(str)
     deviceRemoved = Signal(str)
     configDeviceAdded = Signal(DeviceConfigModel)
     def __init__(self, *args):
@@ -37,12 +61,18 @@ class EngineModel(GenericQObject):
 
     @asyncSlot()
     async def open(self):
+        """Open the :attr:`engine`
+        See :meth:`jvconnected.engine.Engine.open`
+        """
         for conf_device in self.engine.config.devices.values():
             await self.on_config_device_added(conf_device)
         await self.engine.open()
 
     @asyncSlot()
     async def close(self):
+        """Close the :attr:`engine`
+        See :meth:`jvconnected.engine.Engine.close`
+        """
         await self.engine.close()
 
     @asyncSlot()
@@ -50,20 +80,29 @@ class EngineModel(GenericQObject):
         await self.close()
 
     @QtCore.Slot(str, result=DeviceConfigModel)
-    def getDeviceConfig(self, device_id):
+    def getDeviceConfig(self, device_id: str) -> DeviceConfigModel:
+        """Get a :class:`jvconnected.ui.models.device.DeviceConfigModel` by its
+        :attr:`~jvconnected.ui.models.device.DeviceConfig.deviceId`
+        """
         return self._device_configs[device_id]
 
     @QtCore.Slot(result='QVariantList')
-    def getAllDeviceConfigIds(self):
+    def getAllDeviceConfigIds(self) -> List[str]:
+        """Get a list of all device ids in the :class:`jvconnected.config.Config`
+        """
         return list(self._device_configs.keys())
 
     @QtCore.Slot(str, result=DeviceModel)
-    def getDevice(self, device_id):
+    def getDevice(self, device_id: str) -> DeviceModel:
+        """Get a :class:`jvconnected.ui.models.device.DeviceModel` by its
+        :attr:`~jvconnected.ui.models.device.DeviceModel.deviceId`
+        """
         return self._devices[device_id]
 
-    def _g_running(self): return self._running
-    def _s_running(self, value): self._generic_setter('_running', value)
+    def _g_running(self) -> bool: return self._running
+    def _s_running(self, value: bool): self._generic_setter('_running', value)
     running = Property(bool, _g_running, _s_running, notify=_n_running)
+    """Run state"""
 
     def _g_deviceViewIndices(self): return self._deviceViewIndices
     def _s_deviceViewIndices(self, value): self._generic_setter('_deviceViewIndices', value)

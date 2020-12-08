@@ -11,3 +11,4 @@ Reference
     discovery
     interfaces/index.rst
     utils
+    ui/index.rst

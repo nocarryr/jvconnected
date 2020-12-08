@@ -1,5 +1,9 @@
 from loguru import logger
 import asyncio
+from typing import List, TYPE_CHECKING
+if TYPE_CHECKING:
+    from jvconnected.config import DeviceConfig
+    from jvconnected.device import Device, ParameterGroup
 
 from PySide2 import QtCore, QtQml
 from PySide2.QtCore import Property, Signal
@@ -9,6 +13,8 @@ from asyncqt import QEventLoop, asyncSlot, asyncClose
 from jvconnected.ui.utils import GenericQObject
 
 class DeviceBase(GenericQObject):
+    """Base class to interface devices with Qt
+    """
     _n_device = Signal()
     _n_deviceId = Signal()
     _n_deviceIndex = Signal()
@@ -37,6 +43,7 @@ class DeviceBase(GenericQObject):
     def _do_set_device(self, device):
         raise NotImplementedError
     device = Property(object, _g_device, _s_device, notify=_n_device)
+    """The device instance"""
 
     def _on_device_set(self, device):
         self.deviceId = device.id
@@ -46,13 +53,15 @@ class DeviceBase(GenericQObject):
         self.authUser = device.auth_user
         self.authPass = device.auth_pass
 
-    def _g_deviceId(self): return self._deviceId
-    def _s_deviceId(self, value): self._generic_setter('_deviceId', value)
+    def _g_deviceId(self) -> str: return self._deviceId
+    def _s_deviceId(self, value: str): self._generic_setter('_deviceId', value)
     deviceId = Property(str, _g_deviceId, _s_deviceId, notify=_n_deviceId)
+    """The device id"""
 
     def _g_deviceIndex(self): return self._deviceIndex
     def _s_deviceIndex(self, value): self._generic_setter('_deviceIndex', value)
     deviceIndex = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
+    """The device index"""
 
     def _g_modelName(self): return self._modelName
     def _s_modelName(self, value): self._generic_setter('_modelName', value)
@@ -89,6 +98,8 @@ class DeviceBase(GenericQObject):
         return 'None'
 
 class DeviceConfigModel(DeviceBase):
+    """Qt Bridge for :class:`jvconnected.config.DeviceConfig`
+    """
     _n_deviceOnline = Signal()
     _n_deviceActive = Signal()
     _n_storedInConfig = Signal()
@@ -107,21 +118,28 @@ class DeviceConfigModel(DeviceBase):
         self._updating_from_device = False
         super().__init__(*args)
 
-    def _g_deviceOnline(self): return self._deviceOnline
-    def _s_deviceOnline(self, value): self._generic_setter('_deviceOnline', value)
+    def _g_deviceOnline(self) -> bool: return self._deviceOnline
+    def _s_deviceOnline(self, value: bool): self._generic_setter('_deviceOnline', value)
     deviceOnline = Property(bool, _g_deviceOnline, _s_deviceOnline, notify=_n_deviceOnline)
+    """Alias for :attr:`jvconnected.config.DeviceConfig.online`"""
 
-    def _g_deviceActive(self): return self._deviceActive
-    def _s_deviceActive(self, value): self._generic_setter('_deviceActive', value)
+    def _g_deviceActive(self) -> bool: return self._deviceActive
+    def _s_deviceActive(self, value: bool): self._generic_setter('_deviceActive', value)
     deviceActive = Property(bool, _g_deviceActive, _s_deviceActive, notify=_n_deviceActive)
+    """Alias for :attr:`jvconnected.config.DeviceConfig.active`"""
 
     def _g_storedInConfig(self): return self._storedInConfig
     def _s_storedInConfig(self, value): self._generic_setter('_storedInConfig', value)
     storedInConfig = Property(bool, _g_storedInConfig, _s_storedInConfig, notify=_n_storedInConfig)
+    """Alias for :attr:`jvconnected.config.DeviceConfig.stored_in_config`"""
 
-    def _g_editedProperties(self): return self._editedProperties
-    def _s_editedProperties(self, value): self._generic_setter('_editedProperties', value)
+    def _g_editedProperties(self) -> List[str]: return self._editedProperties
+    def _s_editedProperties(self, value: List[str]):
+        self._generic_setter('_editedProperties', value)
     editedProperties = Property('QVariantList', _g_editedProperties, _s_editedProperties, notify=_n_editedProperties)
+    """A list of attributes that have changed and are waiting to be set on the
+    :attr:`device` instance
+    """
 
     def _generic_setter(self, attr, value):
         super()._generic_setter(attr, value)
@@ -150,7 +168,10 @@ class DeviceConfigModel(DeviceBase):
         self._updating_from_device = False
 
     @asyncSlot(int)
-    async def setDeviceIndex(self, value):
+    async def setDeviceIndex(self, value: int):
+        """Set the :attr:`~jvconnected.config.DeviceConfig.device_index`
+        on the :attr:`device`
+        """
         self.device.device_index = value
 
     # async def _remove_device_index(self):
@@ -158,6 +179,11 @@ class DeviceConfigModel(DeviceBase):
 
     @asyncSlot()
     async def sendValuesToDevice(self):
+        """Update the :attr:`device` values for any attributes currently in
+        :attr:`editedProperties`.
+
+        After all values are set, the :attr:`editedProperties` list is emptied.
+        """
         self._updating_from_device = True
         for dev_attr in self.editedProperties:
             attr = self._prop_attr_map[dev_attr]
@@ -169,6 +195,11 @@ class DeviceConfigModel(DeviceBase):
 
     @asyncSlot()
     async def getValuesFromDevice(self):
+        """Get the current values from the :attr:`device`
+
+        Changes made to anything in :attr:`editedProperties` are overwritten
+        and the list is cleared.
+        """
         self._updating_from_device = True
         for dev_attr in self._editable_properties:
             attr = self._prop_attr_map[dev_attr]
@@ -199,6 +230,17 @@ class DeviceConfigModel(DeviceBase):
         self._updating_from_device = False
 
 class DeviceModel(DeviceBase):
+    """Qt Bridge for :class:`jvconnected.device.Device`
+
+    :Signals:
+        .. event:: removeDeviceIndex(device_id: str)
+
+            When triggered, the :class:`~jvconnected.ui.models.engine.EngineModel`
+            resets the device_index of the :class:`jvconnected.config.DeviceConfig`
+            for this :attr:`device`. This will force an auto-calculation of the
+            index
+
+    """
     _n_connected = Signal()
     _n_confDevice = Signal()
     removeDeviceIndex = Signal(str)
@@ -207,8 +249,8 @@ class DeviceModel(DeviceBase):
         self._confDevice = None
         super().__init__(*args)
 
-    def _g_confDevice(self): return self._confDevice
-    def _s_confDevice(self, value):
+    def _g_confDevice(self) -> DeviceConfigModel: return self._confDevice
+    def _s_confDevice(self, value: DeviceConfigModel):
         if self._confDevice == value:
             return
         self._generic_setter('_confDevice', value)
@@ -216,6 +258,7 @@ class DeviceModel(DeviceBase):
             self.deviceIndex = value.deviceIndex
             value._n_deviceIndex.connect(self._on_conf_index_changed)
     confDevice = Property(DeviceConfigModel, _g_confDevice, _s_confDevice, notify=_n_confDevice)
+    """Instance of :class:`DeviceConfigModel` matching this device"""
 
     def _do_set_device(self, device):
         if device is not None:
@@ -230,12 +273,15 @@ class DeviceModel(DeviceBase):
         else:
             self._generic_setter('_device', value)
 
-    def _g_connected(self): return self._connected
-    def _s_connected(self, value): self._generic_setter('_connected', value)
+    def _g_connected(self) -> bool: return self._connected
+    def _s_connected(self, value: bool): self._generic_setter('_connected', value)
     connected = Property(bool, _g_connected, _s_connected, notify=_n_connected)
+    """Alias for :attr:`jvconnected.device.Device.connected`"""
 
     @asyncSlot()
     async def open(self):
+        """Calls :meth:`~jvconnected.device.Device.open` on the :attr:`device`
+        """
         device = self.device
         if device is None:
             self.connected = False
@@ -244,6 +290,8 @@ class DeviceModel(DeviceBase):
 
     @asyncSlot()
     async def close(self):
+        """Calls :meth:`~jvconnected.device.Device.close` on the :attr:`device`
+        """
         device = self.device
         if device is None:
             return
@@ -254,7 +302,9 @@ class DeviceModel(DeviceBase):
         await self.close()
 
     @asyncSlot(int)
-    async def setDeviceIndex(self, value):
+    async def setDeviceIndex(self, value: int):
+        """Calls :meth:`~DeviceConfigModel.setDeviceIndex` on :attr:`confDevice`
+        """
         await self.confDevice.setDeviceIndex(value)
 
     # async def _remove_device_index(self):
@@ -284,6 +334,8 @@ class DeviceModel(DeviceBase):
         self.connected = value
 
 class ParamBase(GenericQObject):
+    """Qt Bridge for :class:`jvconnected.device.ParameterGroup`
+    """
     _n_device = Signal()
     _n_paramGroup = Signal()
     _param_group_key = None
@@ -295,8 +347,8 @@ class ParamBase(GenericQObject):
         self._paramGroup = None
         super().__init__(*args)
 
-    def _g_device(self): return self._device
-    def _s_device(self, value):
+    def _g_device(self) -> DeviceModel: return self._device
+    def _s_device(self, value: DeviceModel):
         if value is not None and value is self._device:
             return
         if value is not None:
@@ -310,9 +362,10 @@ class ParamBase(GenericQObject):
         else:
             self._generic_setter('_device', value)
     device = Property(DeviceModel, _g_device, _s_device, notify=_n_device)
+    """The parent :class:`DeviceModel`"""
 
-    def _g_paramGroup(self): return self._paramGroup
-    def _s_paramGroup(self, value):
+    def _g_paramGroup(self) -> 'ParameterGroup': return self._paramGroup
+    def _s_paramGroup(self, value: 'ParameterGroup'):
         if value is not None and value is self._paramGroup:
             return
         if value is not None:
@@ -324,6 +377,9 @@ class ParamBase(GenericQObject):
         else:
             self._generic_setter('_paramGroup', value)
     paramGroup = Property(object, _g_paramGroup, _s_paramGroup, notify=_n_paramGroup)
+    """The :class:`jvconnected.device.ParameterGroup` for this object. Retreived
+    from the :attr:`device`
+    """
 
     def _on_device_set(self, device):
         p = self.paramGroup = device.device.parameter_groups[self._param_group_key]
@@ -367,17 +423,20 @@ class CameraParamsModel(ParamBase):
         self._timecode = None
         super().__init__(*args)
 
-    def _g_status(self): return self._status
-    def _s_status(self, value): self._generic_setter('_status', value)
+    def _g_status(self) -> str: return self._status
+    def _s_status(self, value: str): self._generic_setter('_status', value)
     status = Property(str, _g_status, _s_status, notify=_n_status)
+    """Alias for :attr:`jvconnected.device.CameraParams.status`"""
 
-    def _g_mode(self): return self._mode
-    def _s_mode(self, value): self._generic_setter('_mode', value)
+    def _g_mode(self) -> str: return self._mode
+    def _s_mode(self, value: str): self._generic_setter('_mode', value)
     mode = Property(str, _g_mode, _s_mode, notify=_n_mode)
+    """Alias for :attr:`jvconnected.device.CameraParams.status`"""
 
-    def _g_timecode(self): return self._timecode
-    def _s_timecode(self, value): self._generic_setter('_timecode', value)
+    def _g_timecode(self) -> str: return self._timecode
+    def _s_timecode(self, value: str): self._generic_setter('_timecode', value)
     timecode = Property(str, _g_timecode, _s_timecode, notify=_n_timecode)
+    """Alias for :attr:`jvconnected.device.CameraParams.status`"""
 
 class IrisModel(ParamBase):
     _param_group_key = 'exposure'
@@ -398,17 +457,20 @@ class IrisModel(ParamBase):
         self._request_pending = asyncio.Lock()
         super().__init__(*args)
 
-    def _g_mode(self): return self._mode
-    def _s_mode(self, value): self._generic_setter('_mode', value)
+    def _g_mode(self) -> str: return self._mode
+    def _s_mode(self, value: str): self._generic_setter('_mode', value)
     mode = Property(str, _g_mode, _s_mode, notify=_n_mode)
+    """Alias for :attr:`jvconnected.device.ExposureParams.iris_mode`"""
 
-    def _g_fstop(self): return str(self._fstop)
-    def _s_fstop(self, value): self._generic_setter('_fstop', value)
+    def _g_fstop(self) -> str: return str(self._fstop)
+    def _s_fstop(self, value: str): self._generic_setter('_fstop', value)
     fstop = Property(str, _g_fstop, _s_fstop, notify=_n_fstop)
+    """Alias for :attr:`jvconnected.device.ExposureParams.iris_fstop`"""
 
-    def _g_pos(self): return self._pos
-    def _s_pos(self, value): self._generic_setter('_pos', value)
+    def _g_pos(self) -> int: return self._pos
+    def _s_pos(self, value: int): self._generic_setter('_pos', value)
     pos = Property(int, _g_pos, _s_pos, notify=_n_pos)
+    """Alias for :attr:`jvconnected.device.ExposureParams.iris_pos`"""
 
     def _g_requestedPos(self): return self._requestedPos
     def _s_requestedPos(self, value):
@@ -421,7 +483,11 @@ class IrisModel(ParamBase):
     requestedPos = Property(int, _g_requestedPos, _s_requestedPos, notify=_n_requestedPos)
 
     @asyncSlot(int)
-    async def setPos(self, value):
+    async def setPos(self, value: int):
+        """Set the iris position
+
+        See :meth:`jvconnected.device.ExposureParams.set_iris_pos`
+        """
         # logger.debug(f'setPos({value})')
         if self.requestedPos != -1:
             self.requestedPos = value
@@ -445,6 +511,8 @@ class IrisModel(ParamBase):
 
     @asyncSlot()
     async def increase(self):
+        """Calls :meth:`jvconnected.device.ExposureParams.increase_iris`
+        """
         if self._request_pending.locked():
             return
         async with self._request_pending:
@@ -453,6 +521,8 @@ class IrisModel(ParamBase):
 
     @asyncSlot()
     async def decrease(self):
+        """Calls :meth:`jvconnected.device.ExposureParams.increase_iris`
+        """
         if self._request_pending.locked():
             return
         async with self._request_pending:
@@ -460,6 +530,9 @@ class IrisModel(ParamBase):
             # await self._run_on_device_loop(self.paramGroup.decrease_iris())
 
 class SingleParam(ParamBase):
+    """A direct mapping to a single parameter within a
+    :class:`~jvconnected.device.ParameterGroup`
+    """
     _param_group_attr = None
     _n_value = Signal()
     def __init__(self, *args):
@@ -468,17 +541,22 @@ class SingleParam(ParamBase):
         self._value = None
         super().__init__(*args)
 
-    def _g_value(self): return str(self._value)
-    def _s_value(self, value): self._generic_setter('_value', value)
+    def _g_value(self) -> str: return str(self._value)
+    def _s_value(self, value: str): self._generic_setter('_value', value)
     value = Property(str, _g_value, _s_value, notify=_n_value)
+    """The parameter value"""
 
 class SingleAdjustableParam(SingleParam):
+    """A single parameter with increment/decrement methods
+    """
     def __init__(self, *args):
         self._request_pending = asyncio.Lock()
         super().__init__(*args)
 
     @asyncSlot()
     async def increase(self):
+        """Increment the parameter value
+        """
         if self._request_pending.locked():
             return
         async with self._request_pending:
@@ -487,6 +565,8 @@ class SingleAdjustableParam(SingleParam):
 
     @asyncSlot()
     async def decrease(self):
+        """Decrement the parameter value
+        """
         if self._request_pending.locked():
             return
         async with self._request_pending:
@@ -553,24 +633,32 @@ class WbPaintModelBase(ParamBase):
         self._request_pending = asyncio.Lock()
         super().__init__(*args)
 
-    def _g_scale(self): return self._scale
-    def _s_scale(self, value): self._generic_setter('_scale', value)
+    def _g_scale(self) -> int: return self._scale
+    def _s_scale(self, value: int): self._generic_setter('_scale', value)
     scale = Property(int, _g_scale, _s_scale, notify=_n_scale)
+    """Total range of values for the parameter"""
 
-    def _g_pos(self): return self._pos
-    def _s_pos(self, value): self._generic_setter('_pos', value)
+    def _g_pos(self) -> int: return self._pos
+    def _s_pos(self, value: int): self._generic_setter('_pos', value)
     pos = Property(int, _g_pos, _s_pos, notify=_n_pos)
+    """The normalized position value (zero-centered)"""
 
-    def _g_rawPos(self): return self._rawPos
-    def _s_rawPos(self, value): self._generic_setter('_rawPos', value)
+    def _g_rawPos(self) -> int: return self._rawPos
+    def _s_rawPos(self, value: int): self._generic_setter('_rawPos', value)
     rawPos = Property(int, _g_rawPos, _s_rawPos, notify=_n_rawPos)
+    """Un-normalized position value"""
 
-    def _g_value(self): return self._value
-    def _s_value(self, value): self._generic_setter('_value', value)
+    def _g_value(self) -> str: return self._value
+    def _s_value(self, value: str): self._generic_setter('_value', value)
     value = Property(str, _g_value, _s_value, notify=_n_value)
+    """String representation of the value"""
 
     @asyncSlot(int)
-    async def setPos(self, value):
+    async def setPos(self, value: int):
+        """Set the position value
+
+        See :meth:`setRedPos` and :meth:`setBluePos`
+        """
         # if self._request_pending.locked():
         #     return
         # async with self._request_pending:
@@ -583,7 +671,11 @@ class WbPaintModelBase(ParamBase):
             await self.setBluePos(value)
 
     @asyncSlot(int)
-    async def setRedPos(self, value):
+    async def setRedPos(self, value: int):
+        """Set the red white balance position
+
+        See :meth:`jvconnected.device.PaintParams.set_red_pos`
+        """
         if self._request_pending.locked():
             return
         async with self._request_pending:
@@ -595,6 +687,10 @@ class WbPaintModelBase(ParamBase):
 
     @asyncSlot(int)
     async def setBluePos(self, value):
+        """Set the red white balance position
+
+        See :meth:`jvconnected.device.PaintParams.set_blue_pos`
+        """
         if self._request_pending.locked():
             return
         async with self._request_pending:
@@ -605,7 +701,11 @@ class WbPaintModelBase(ParamBase):
             # await self._run_on_device_loop(self.paramGroup.set_blue_pos(value))
 
     @asyncSlot(int, int)
-    async def setRBPos(self, red, blue):
+    async def setRBPos(self, red: int, blue: int):
+        """Set both red and blue position values
+
+        See :meth:`jvconnected.device.PaintParams.set_wb_pos`
+        """
         if self._request_pending.locked():
             return
         async with self._request_pending:
@@ -618,7 +718,11 @@ class WbPaintModelBase(ParamBase):
             # await self._run_on_device_loop(self.paramGroup.set_wb_pos(red, blue))
 
     @asyncSlot(int, int)
-    async def setRBPosRaw(self, red, blue):
+    async def setRBPosRaw(self, red: int, blue: int):
+        """Set both red and blue position values un-normalized
+
+        See :meth:`jvconnected.device.PaintParams.set_wb_pos_raw`
+        """
         if self._request_pending.locked():
             return
         async with self._request_pending:
@@ -641,9 +745,13 @@ class WbPaintModelBase(ParamBase):
         super()._on_prop_set(instance, value, **kwargs)
 
 class WbRedPaintModel(WbPaintModelBase):
+    """Red paint parameter
+    """
     _color_name = 'red'
 
 class WbBluePaintModel(WbPaintModelBase):
+    """Blue paint parameter
+    """
     _color_name = 'blue'
 
 class DetailModel(SingleAdjustableParam):
@@ -669,21 +777,31 @@ class TallyModel(ParamBase):
         self._preview = False
         super().__init__(*args)
 
-    def _g_program(self): return self._program
-    def _s_program(self, value): self._generic_setter('_program', value)
+    def _g_program(self) -> bool: return self._program
+    def _s_program(self, value: bool): self._generic_setter('_program', value)
     program = Property(bool, _g_program, _s_program, notify=_n_program)
+    """Alias for :attr:`jvconnected.device.TallyParams.program`"""
 
-    def _g_preview(self): return self._preview
-    def _s_preview(self, value): self._generic_setter('_preview', value)
+    def _g_preview(self) -> bool: return self._preview
+    def _s_preview(self, value: bool): self._generic_setter('_preview', value)
     preview = Property(bool, _g_preview, _s_preview, notify=_n_preview)
+    """Alias for :attr:`jvconnected.device.TallyParams.preview`"""
 
     @asyncSlot(bool)
-    async def setProgram(self, state):
+    async def setProgram(self, state: bool):
+        """Set the program tally state
+
+        See :meth:`jvconnected.device.TallyParams.set_program`
+        """
         await self.paramGroup.set_program(state)
         # await self._run_on_device_loop(self.paramGroup.set_program(state))
 
     @asyncSlot(bool)
     async def setPreview(self, state):
+        """Set the program tally state
+
+        See :meth:`jvconnected.device.TallyParams.set_preview`
+        """
         await self.paramGroup.set_preview(state)
         # await self._run_on_device_loop(self.paramGroup.set_preview(state))
 
