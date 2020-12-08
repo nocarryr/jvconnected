@@ -131,7 +131,11 @@ ApplicationWindow {
                     model: deviceListModel
 
                     delegate: Camera {
-                        device: engine.getDevice(deviceId)
+                        property string devId: deviceId
+
+                        Component.onCompleted: {
+                            device = Qt.binding(function(){ return engine.getDevice(devId) });
+                        }
                     }
                 }
             }
