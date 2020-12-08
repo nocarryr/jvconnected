@@ -1,0 +1,3 @@
+# limit to <5.15:  https://bugreports.qt.io/browse/PYSIDE-1317?gerritReviewStatus=Open
+PySide2<5.15
+asyncqt

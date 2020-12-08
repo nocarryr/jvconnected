@@ -1,0 +1,12 @@
+module Controls
+
+ValueLabel 1.0 ValueLabel.qml
+TextInput 1.0 TextInput.qml
+Indicator 1.0 Indicator.qml
+UpDownButtons 1.0 UpDownButtons.qml
+LeftRightButtons 1.0 LeftRightButtons.qml
+HeaderLabel 1.0 HeaderLabel.qml
+MyGroupBox 1.0 MyGroupBox.qml
+CollapseGroupBox 1.0 CollapseGroupBox.qml
+MyTabButton 1.0 MyTabButton.qml
+MyTabBar 1.0 MyTabBar.qml

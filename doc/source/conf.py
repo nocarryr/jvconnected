@@ -100,4 +100,6 @@ intersphinx_mapping = {
     'pydispatch': ('https://python-dispatch.readthedocs.io/en/latest/', None),
     'zeroconf':('https://python-zeroconf.readthedocs.io/en/latest/', None),
     'mido':('https://mido.readthedocs.io/en/latest/', None),
+    'numpy':('https://numpy.org/doc/stable/', None),
+    'PIL':('https://pillow.readthedocs.io/en/stable/', None),
 }
