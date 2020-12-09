@@ -34,8 +34,7 @@ Control {
 
     Connections {
         target: engine
-        onConfigDeviceAdded: {
-            var device = arguments[0];
+        function onConfigDeviceAdded(device) {
             confList.addDevice(device);
         }
     }
@@ -96,8 +95,8 @@ Control {
             delegate: ConfigCamera {
                 Connections {
                     target: root
-                    onSubmit: { submit() }
-                    onCancel: { cancel() }
+                    function onSubmit() { submit() }
+                    function onCancel() { cancel() }
                 }
 
                 onHasChangesChanged: {

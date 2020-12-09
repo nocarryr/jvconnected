@@ -35,10 +35,10 @@ Dialog {
             // anchors.fill: parent
             Connections {
                 target: root
-                onAccepted: { camSettings.submit() }
-                onApplied: { camSettings.submit() }
-                onRejected: { camSettings.cancel() }
-                onReset: { camSettings.cancel() }
+                function onAccepted() { camSettings.submit() }
+                function onApplied() { camSettings.submit() }
+                function onRejected() { camSettings.cancel() }
+                function onReset() { camSettings.cancel() }
             }
         }
 

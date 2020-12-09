@@ -56,7 +56,7 @@ Control {
 
     Connections {
         target: device
-        onEditedPropertiesChanged: {
+        function onEditedPropertiesChanged() {
             // root.hasChanges = device.editedProperties.length > 0;
             checkValues();
         }
