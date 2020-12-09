@@ -4,6 +4,13 @@ from contextvars import ContextVar
 import socket
 import datetime
 
+import pkg_resources
+ZC_VERSION = pkg_resources.get_distribution('zeroconf').parsed_version
+if ZC_VERSION < pkg_resources.parse_version('0.28.6'):
+    SERV_NAME_KWARGS = {'allow_underscores':True}
+else:
+    SERV_NAME_KWARGS = {'strict':False}
+
 from aiohttp import web
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 import zeroconf
@@ -452,7 +459,7 @@ class Zeroconf(zeroconf.Zeroconf):
 
         # This is kind of funky because of the subtype based tests
         # need to make subtypes a first class citizen
-        service_name = zeroconf.service_type_name(info.name, allow_underscores=True)
+        service_name = zeroconf.service_type_name(info.name, **SERV_NAME_KWARGS)
         if not info.type.endswith(service_name):
             raise zeroconf.BadTypeInNameException
 
@@ -472,7 +479,7 @@ class Zeroconf(zeroconf.Zeroconf):
                     # change the name and look for a conflict
                     info.name = '%s-%s.%s' % (instance_name, next_instance_number, info.type)
                     next_instance_number += 1
-                    zeroconf.service_type_name(info.name, allow_underscores=True)
+                    zeroconf.service_type_name(info.name, **SERV_NAME_KWARGS)
                     next_time = now
                     i = 0
 
