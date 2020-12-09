@@ -1,2 +1,2 @@
 PySide2>=5.15.1,<6
-asyncqt
+qasync>=0.9.5

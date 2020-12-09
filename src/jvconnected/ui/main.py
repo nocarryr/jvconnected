@@ -10,7 +10,7 @@ from PySide2 import QtCore, QtQml
 from PySide2.QtWidgets import QApplication
 from PySide2.QtQuick import QQuickView
 
-from asyncqt import QEventLoop, asyncSlot, asyncClose
+from qasync import QEventLoop, asyncSlot, asyncClose
 
 from jvconnected.ui import models
 from jvconnected.ui import rc_images, rc_qml

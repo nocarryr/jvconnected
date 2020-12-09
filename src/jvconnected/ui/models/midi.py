@@ -5,7 +5,7 @@ from typing import Optional
 from PySide2 import QtCore, QtQml
 from PySide2.QtCore import Property, Signal
 
-from asyncqt import QEventLoop, asyncSlot, asyncClose
+from qasync import QEventLoop, asyncSlot, asyncClose
 
 from jvconnected.interfaces.midi import MIDI_AVAILABLE
 from jvconnected.ui.utils import GenericQObject

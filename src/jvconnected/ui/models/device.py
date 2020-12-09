@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 from PySide2 import QtCore, QtQml
 from PySide2.QtCore import Property, Signal
 
-from asyncqt import QEventLoop, asyncSlot, asyncClose
+from qasync import QEventLoop, asyncSlot, asyncClose
 
 from jvconnected.ui.utils import GenericQObject
 

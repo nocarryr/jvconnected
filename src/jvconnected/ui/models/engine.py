@@ -6,7 +6,7 @@ from typing import List
 from PySide2 import QtCore, QtQml
 from PySide2.QtCore import Property, Signal
 
-from asyncqt import QEventLoop, asyncSlot, asyncClose
+from qasync import QEventLoop, asyncSlot, asyncClose
 
 from jvconnected.engine import Engine
 from jvconnected.ui.utils import GenericQObject, connect_close_event
