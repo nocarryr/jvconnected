@@ -2,3 +2,4 @@ python-rtmidi --global-option='--no-alsa' \
               --global-option='--no-coremidi' \
               --global-option='--no-jack' \
               --global-option='--no-winmm'
+-r ./requirements.txt
