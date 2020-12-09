@@ -12,8 +12,6 @@ Control {
 
     horizontalPadding: 4
     verticalPadding: 4
-    implicitWidth: grid.implicitWidth + leftPadding + rightPadding
-    implicitHeight: grid.implicitHeight + topPadding + bottomPadding
     font.pointSize: 9
 
     contentItem: GridLayout {

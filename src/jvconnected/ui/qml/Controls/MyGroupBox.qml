@@ -15,8 +15,6 @@ Frame {
     spacing: 6
     topPadding: 0
 
-    implicitWidth: col.implicitWidth + leftPadding + rightPadding
-    implicitHeight: col.implicitHeight + topPadding + bottomPadding
 
     contentItem: ColumnLayout {
         id: col

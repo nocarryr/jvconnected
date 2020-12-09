@@ -12,10 +12,7 @@ Control {
     signal upClicked()
     signal downClicked()
 
-    implicitWidth: grid.implicitWidth + leftPadding + rightPadding
-    implicitHeight: grid.implicitHeight + topPadding + bottomPadding
-
-    GridLayout {
+    contentItem: GridLayout {
         id: grid
         columns: root.orientation == Qt.Vertical ? 1 : 2
         rows: root.orientation == Qt.Vertical ? 2 : 1
