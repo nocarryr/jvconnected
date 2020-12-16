@@ -652,10 +652,7 @@ class TallyParams(ParameterGroup):
             value (str): One of 'Program', 'Preview' or 'Off'
 
         """
-        try:
-            resp = await self.device.client.request('SetStudioTally', {'Indication':value})
-        except ClientError as exc:
-            asyncio.ensure_future(self.device._handle_client_error(exc))
+        await self.device.queue_request('SetStudioTally', {'Indication':value})
         self.tally_status = value
 
     async def close(self):
