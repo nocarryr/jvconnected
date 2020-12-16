@@ -1,7 +1,14 @@
 :mod:`jvconnected.interfaces`
 =============================
 
+Submodules
+----------
+
 .. toctree::
 
-    paramspec
+    base
     midi
+    paramspec
+
+.. automodule:: jvconnected.interfaces
+    :members: Registry, registry

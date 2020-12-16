@@ -6,11 +6,12 @@ import mido
 import rtmidi
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
+from jvconnected.interfaces import Interface
 from jvconnected.interfaces.midi.aioport import InputPort, OutputPort
 from jvconnected.interfaces.midi.mapped_device import MappedDevice
 from jvconnected.interfaces.midi.mapper import MidiMapper
 
-class MidiIO(Dispatcher):
+class MidiIO(Interface):
     """Midi interface handler
 
     Properties:
@@ -35,10 +36,8 @@ class MidiIO(Dispatcher):
     mapped_devices = DictProperty()
     mapper = Property()
     config = Property()
-    running = Property(False)
     def __init__(self):
-        self._engine = None
-        self.loop = asyncio.get_event_loop()
+        super().__init__()
         self._consume_tasks = {}
         self._reading_config = False
         self._port_lock = asyncio.Lock()
@@ -51,12 +50,6 @@ class MidiIO(Dispatcher):
             outport_names=self.on_outport_names,
         )
         self.bind(config=self.read_config)
-
-    @property
-    def engine(self) -> 'jvconnected.engine.Engine':
-        """Instance of :class:`jvconnected.engine.Engine`
-        """
-        return self._engine
 
     @classmethod
     def get_available_inputs(cls) -> List[str]:
@@ -71,23 +64,11 @@ class MidiIO(Dispatcher):
         return mido.get_output_names()
 
     async def set_engine(self, engine: 'jvconnected.engine.Engine'):
-        """Attach MidiIO to a running instance of :class:`jvconnected.engine.Engine`
-
-        If the engine is running, the MidiIO will start (using the :meth:`open` method).
-        Otherwise it will automatically start when the engine does.
-        """
         if engine is self.engine:
             return
-        assert self.engine is None
-        self._engine = engine
         self.config = engine.config
-        if engine.running:
-            await self.open()
+        await super().set_engine(engine)
         self.automap_engine_devices()
-        engine.bind_async(
-            self.loop,
-            running=self.on_engine_running,
-        )
         engine.bind(devices=self.automap_engine_devices)
 
     def automap_engine_devices(self, *args, **kwargs):

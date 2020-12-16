@@ -8,12 +8,15 @@ from jvconnected.device import Device
 from jvconnected.discovery import Discovery
 from jvconnected.client import ClientAuthError
 
-from jvconnected.interfaces.midi import MidiIO, MIDI_AVAILABLE
+from jvconnected import interfaces
+from jvconnected.interfaces import midi
 
 class Engine(Dispatcher):
     """Top level component to handle config, discovery and device control
 
     Properties:
+        interfaces (dict): Container for :class:`jvconnected.interfaces.base.Interface`
+            instances
         devices (dict): Container for :class:`~jvconnected.device.Device` instances
         auto_add_devices (bool): If ``True``, devices will be added automatically
             when discovered on the network. Otherwise, they must be added manually
@@ -51,6 +54,7 @@ class Engine(Dispatcher):
     running = Property(False)
     auto_add_devices = Property(True)
     midi_io = Property()
+    interfaces = DictProperty()
 
     _events_ = [
         'on_config_device_added', 'on_device_discovered',
@@ -61,8 +65,21 @@ class Engine(Dispatcher):
         self.loop = asyncio.get_event_loop()
         self.config = Config()
         self.discovery = Discovery()
-        if MIDI_AVAILABLE:
-            self.midi_io = MidiIO()
+        for name, cls in interfaces.registry:
+            obj = cls()
+            self.interfaces[name] = obj
+            if name == 'midi':
+                self.midi_io = obj
+        interfaces.registry.bind_async(
+            self.loop,
+            interface_added=self.on_interface_registered,
+        )
+
+    async def on_interface_registered(self, name, cls, **kwargs):
+        if name not in self.interfaces:
+            obj = cls()
+            self.interfaces[name] = obj
+            await obj.set_engine(self)
 
     def run_forever(self):
         """Convenience method to open and run until interrupted
@@ -80,8 +97,8 @@ class Engine(Dispatcher):
         """
         if self.running:
             return
-        if MIDI_AVAILABLE:
-            await self.midi_io.set_engine(self)
+        for obj in self.interfaces.values():
+            await obj.set_engine(self)
         self.config.bind_async(
             self.loop,
             on_device_added=self._on_config_device_added,

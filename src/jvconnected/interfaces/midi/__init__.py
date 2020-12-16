@@ -1,4 +1,7 @@
 from loguru import logger
+
+from jvconnected.interfaces import registry
+
 try:
     import mido
     MIDI_AVAILABLE = True
@@ -7,6 +10,7 @@ except ImportError:
 
 if MIDI_AVAILABLE:
     from .midi_io import MidiIO
+    registry.register('midi', MidiIO)
 else:
     MidiIO = None
     logger.warning('''Midi interface unavailable.
