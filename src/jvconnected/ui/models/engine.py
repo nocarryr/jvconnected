@@ -139,6 +139,8 @@ class EngineModel(GenericQObject):
     @logger.catch
     async def on_device_discovered(self, conf_device, **kwargs):
         logger.info(f'engine.on_device_discovered: {conf_device}')
+        conf_device = self.engine.config.add_device(conf_device)
+        self.engine.discovered_devices[conf_device.id] = conf_device
         await self.on_config_device_added(conf_device)
         await self._add_device_from_conf(conf_device.id)
 
