@@ -164,6 +164,8 @@ class NetlinxClient(base.Interface):
         """
         if None not in [self.reader, self.writer]:
             await self.disconnect_client()
+        if self.hostaddr is None:
+            return False
         logger.debug('connecting')
         task = asyncio.open_connection(self.hostaddr, self.hostport)
         r, w = None, None
