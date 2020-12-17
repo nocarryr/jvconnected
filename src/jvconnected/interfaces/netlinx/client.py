@@ -94,6 +94,24 @@ class NetlinxClient(base.Interface):
         self.config = engine.config
         await super().set_engine(engine)
 
+    async def set_hostaddr(self, hostaddr: str):
+        """Set the :attr:`hostaddr` to the given value and connect to it
+        """
+        if hostaddr == self.hostaddr:
+            return
+        self.hostaddr = hostaddr
+        if self.running:
+            self.reconnect_evt.set()
+
+    async def set_hostport(self, hostport: int):
+        """Set the :attr:`hostport` to the given value and connect to it
+        """
+        if hostport == self.hostport:
+            return
+        self.hostport = hostport
+        if self.running:
+            self.reconnect_evt.set()
+
     @logger.catch
     async def open(self):
         if self.running:
@@ -123,6 +141,7 @@ class NetlinxClient(base.Interface):
                     r = False
                 return r
 
+        self.reconnect_evt.clear()
         while self.running:
             await self.connect_client()
             if not self.connected:
@@ -293,8 +312,10 @@ class NetlinxClient(base.Interface):
             return
         if 'interfaces' not in config:
             config['interfaces'] = {}
-        if 'netlinx' not in config['interfaces']:
-            config['interfaces']['netlinx'] = {'hostaddr':self.hostaddr}
+        d = config['interfaces'].get('netlinx')
+        if d is None:
+            d = config['interfaces']['netlinx'] = {}
+        d.update({'hostaddr':self.hostaddr, 'hostport':self.hostport})
 
     async def read_config(self, *args, **kwargs):
         config = self.config
@@ -305,4 +326,7 @@ class NetlinxClient(base.Interface):
         hostaddr = d.get('hostaddr')
         if hostaddr is not None:
             self.hostaddr = hostaddr
+        hostport = d.get('hostport')
+        if hostport is not None:
+            self.hostport = hostport
         self._reading_config = False

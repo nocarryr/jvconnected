@@ -7,3 +7,4 @@
     engine
     device
     midi
+    netlinx

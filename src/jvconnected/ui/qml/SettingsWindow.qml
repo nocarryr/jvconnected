@@ -18,6 +18,7 @@ Dialog {
 
         MyTabButton { text: 'Devices'; width: bar.maxItemWidth }
         MyTabButton { text: 'Midi'; width: bar.maxItemWidth }
+        MyTabButton { text: 'Netlinx'; width: bar.maxItemWidth }
     }
 
     StackLayout {
@@ -45,6 +46,19 @@ Dialog {
         MidiSettings {
             id: midiSettings
             engine: root.engine
+        }
+
+        NetlinxSettings {
+            id: netlinxSettings
+            engine: root.engine
+
+            Connections {
+                target: root
+                function onAccepted() { netlinxSettings.submit() }
+                function onApplied() { netlinxSettings.submit() }
+                function onRejected() { netlinxSettings.cancel() }
+                function onReset() { netlinxSettings.cancel() }
+            }
         }
     }
 
