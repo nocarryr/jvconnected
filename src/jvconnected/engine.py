@@ -9,7 +9,7 @@ from jvconnected.discovery import Discovery
 from jvconnected.client import ClientAuthError
 
 from jvconnected import interfaces
-from jvconnected.interfaces import midi
+from jvconnected.interfaces import midi, netlinx
 
 class Engine(Dispatcher):
     """Top level component to handle config, discovery and device control
