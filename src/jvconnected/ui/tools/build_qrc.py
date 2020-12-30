@@ -89,6 +89,9 @@ def pack_qml(qrc_file: Path = QML_QRC, qml_dir: Path = QML_DIR,
     """
     if qrc_file.exists():
         qrc_doc = QRCDocument.from_file(qrc_file)
+        removed = qrc_doc.remove_missing_files()
+        for f in removed:
+            print(f'Removed non-existent "{f.filename_abs}" from qrc document')
     else:
         qrc_doc = QRCDocument.create(base_path=qrc_file.parent)
     for pattern in ['**/*.qml', '**/qmldir']:
