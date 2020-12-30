@@ -10,6 +10,7 @@ import shlex
 import subprocess
 from pathlib import Path
 from typing import Sequence
+from setuptools import Command
 
 from jvconnected.ui import get_resource_filename
 from jvconnected.ui.tools.qrc_utils import QRCDocument
@@ -97,6 +98,15 @@ def pack_qml(qrc_file: Path = QML_QRC, qml_dir: Path = QML_DIR,
     if build_rcc:
         rcc(qrc_file, qrc_script)
 
+class BuildQRC(Command):
+    description = "Build qml and image resources"
+    user_options = []
+    def initialize_options(self):
+        pass
+    def finalize_options(self):
+        pass
+    def run(self):
+        main()
 
 def main():
     build_images(build_rcc=True, sizes=IMG_SIZES)
