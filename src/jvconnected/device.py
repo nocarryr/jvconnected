@@ -505,6 +505,16 @@ class PaintParams(ParameterGroup):
         ('detail', 'Detail.Value'),
     ]
 
+    async def set_white_balance_mode(self, mode: str):
+        """Set white balance mode
+
+        Arguments:
+            mode (str): The mode to set. Possible values are
+                ``['Faw', 'Preset', 'A', 'B', 'Adjust', 'WhPaintRP', 'WhPaintRM',
+                'WhPaintBP', 'WhPaintBM', 'Awb', '3200K', '5600K', 'Manual']``
+        """
+        await self.device.send_web_button('Whb', mode)
+
     async def set_red_pos(self, red: int):
         """Set red value
 

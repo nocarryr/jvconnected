@@ -607,6 +607,10 @@ class WbModeModel(SingleParam):
     _param_group_key = 'paint'
     _param_group_attr = 'white_balance_mode'
 
+    @asyncSlot(str)
+    async def setMode(self, mode: str):
+        await self.paramGroup.set_white_balance_mode(mode)
+
 class WbColorTempModel(SingleParam):
     _param_group_key = 'paint'
     _param_group_attr = 'color_temp'
