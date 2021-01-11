@@ -148,7 +148,7 @@ class Engine(Dispatcher):
             await device.open()
         except ClientAuthError as exc:
             del self.devices[device_conf.id]
-            logger.exception(exc)
+            logger.warning(f'Authentication failed for device_id: {device_conf.id}')
             await device.close()
             return
         device_conf.active = True

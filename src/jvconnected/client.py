@@ -36,6 +36,10 @@ class Client(object):
         self.hostaddr = hostaddr
         self.hostport = hostport
         self._client = None
+        if auth_user is None:
+            auth_user = ''
+        if auth_pass is None:
+            auth_pass = ''
         self.auth = httpx.DigestAuth(auth_user, auth_pass)
         self._authenticated = False
         self._error = False
