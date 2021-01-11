@@ -482,6 +482,14 @@ class IrisModel(ParamBase):
         self._n_requestedPos.emit()
     requestedPos = Property(int, _g_requestedPos, _s_requestedPos, notify=_n_requestedPos)
 
+    @asyncSlot(bool)
+    async def setAutoIris(self, value: bool):
+        """Set auto iris mode
+
+        See :meth:`jvconnected.device.ExposureParams.set_auto_iris`
+        """
+        await self.paramGroup.set_auto_iris(value)
+
     @asyncSlot(int)
     async def setPos(self, value: int):
         """Set the iris position

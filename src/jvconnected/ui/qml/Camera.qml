@@ -12,6 +12,7 @@ Control {
     property string labelText: device ? device.deviceId : 'Unknown Camera'
     property bool connected: device ? device.connected : false
     property alias deviceIndex: model.deviceIndex
+    property CameraModel model: model
     signal deviceIndexUpdate()
 
     onDeviceIndexChanged: {
@@ -94,11 +95,35 @@ Control {
                 Layout.fillWidth: true
 
                 content: ColumnLayout {
-                    // anchors.fill: parent
 
-                    ValueLabel {
-                        labelText: 'Mode'
-                        valueText: model.iris.mode
+                    RowLayout {
+
+                        Label {
+                            text: 'Mode'
+                        }
+
+                        Item { }
+
+                        ComboBox {
+                            property string currentMode: root.model.iris.mode
+                            model: ['Auto', 'Manual']
+
+                            function updateCurrentMode(){
+                                if (typeof(currentMode) != 'undefined'){
+                                    currentIndex = indexOfValue(currentMode);
+                                }
+                            }
+
+                            onCurrentModeChanged: { updateCurrentMode() }
+
+                            Component.onCompleted: { updateCurrentMode() }
+
+                            onActivated: {
+                                var modeBool = true ? currentText == 'Auto' : false
+                                root.model.iris.setAutoIris(modeBool);
+                                updateCurrentMode();
+                            }
+                        }
                     }
 
                     RowLayout {
@@ -112,11 +137,13 @@ Control {
                         Item { Layout.fillWidth: true }
 
                         LeftRightButtons {
+                            enabled: model.iris.mode == 'Manual'
                             onRightClicked: model.iris.increase()
                             onLeftClicked: model.iris.decrease()
                         }
 
                         Slider {
+                            enabled: model.iris.mode == 'Manual'
                             orientation: Qt.Horizontal
                             from: 0
                             to: 255
@@ -206,21 +233,47 @@ Control {
                                 labelText: 'Value'
                                 valueText: model.detail.value
                             }
-                            UpDownButtons {
-                                onUpClicked: model.detail.increase()
-                                onDownClicked: model.detail.decrease()
+                            LeftRightButtons {
+                                onRightClicked: model.detail.increase()
+                                onLeftClicked: model.detail.decrease()
                             }
                         }
                     }
                     MyGroupBox {
                         title: 'White Balance'
                         content: ColumnLayout {
-                            ValueLabel {
-                                labelText: 'Mode'
-                                valueText: model.paint.mode.value
+                            RowLayout {
+                                Label {
+                                    text: 'Mode'
+                                }
+                                Item { }
+                                ComboBox {
+                                    property string currentMode: root.model.paint.mode.value
+
+                                    model: [
+                                        'Faw', 'Preset', 'A', 'B', 'Adjust',
+                                        'WhPaintRP', 'WhPaintRM', 'WhPaintBP', 'WhPaintBM',
+                                        'Awb', '3200K', '5600K', 'Manual',
+                                    ]
+
+                                    onCurrentModeChanged: { updateCurrentMode() }
+
+                                    function updateCurrentMode(){
+                                        if (typeof(currentMode) != 'undefined'){
+                                            currentIndex = indexOfValue(currentMode);
+                                        }
+                                    }
+
+                                    Component.onCompleted: { updateCurrentMode() }
+
+                                    onActivated: {
+                                        root.model.paint.mode.setMode(currentText);
+                                        updateCurrentMode();
+                                    }
+                                }
                             }
                             ValueLabel {
-                                labelText: 'Temp'
+                                labelText: 'Color Temp'
                                 valueText: model.paint.colorTemp.value
                             }
                             PaintControl {
