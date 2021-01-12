@@ -159,7 +159,9 @@ class Device(Dispatcher):
                 logger.error(exc)
                 raise
 
+    @logger.catch
     async def _handle_client_error(self, exc: Exception):
+        logger.warning(f'caught client error: {exc}')
         self.error = True
         self.emit('on_client_error', self, exc)
 

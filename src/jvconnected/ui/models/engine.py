@@ -165,8 +165,8 @@ class EngineModel(GenericQObject):
             model.removeDeviceIndex.connect(self.on_device_remove_index)
 
 
-    async def _engine_device_removed(self, device, **kwargs):
-        logger.info(f'engine.on_device_removed: {device}')
+    async def _engine_device_removed(self, device, reason, **kwargs):
+        logger.info(f'engine.on_device_removed: {device}, {reason}')
 
     def _calc_device_view_indices(self, *args, **kwargs):
         devices = self.engine.config.devices

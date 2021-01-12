@@ -1,15 +1,36 @@
 from loguru import logger
 import asyncio
+import enum
 
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
 from jvconnected.config import Config, DeviceConfig
 from jvconnected.device import Device
 from jvconnected.discovery import Discovery
-from jvconnected.client import ClientAuthError
+from jvconnected.client import ClientError, ClientAuthError, ClientNetworkError
 
 from jvconnected import interfaces
 from jvconnected.interfaces import midi
+
+class RemovalReason(enum.Enum):
+    """Possible values used in :event:`Engine.on_device_removed`
+    """
+
+    UNKNOWN = enum.auto()
+    """Unknown reason"""
+
+    OFFLINE = enum.auto()
+    """The device is no longer on the network"""
+
+    TIMEOUT = enum.auto()
+    """Communication was lost due to a timeout. Reconnection will be attempted"""
+
+    AUTH = enum.auto()
+    """Authentication with the device failed, likely due to invalid credentials"""
+
+    SHUTDOWN = enum.auto()
+    """The engine is shutting down"""
+
 
 class Engine(Dispatcher):
     """Top level component to handle config, discovery and device control
@@ -43,10 +64,15 @@ class Engine(Dispatcher):
             Fired when an instance of :class:`~jvconnected.device.Device` is
             added to :attr:`devices`
 
-        .. event:: on_device_removed(device)
+        .. event:: on_device_removed(device: jvconnected.device.Device, reason: RemovalReason)
 
             Fired when an instance of :class:`~jvconnected.device.Device` is
             removed
+
+            :param device: The device that was removed
+            :type device: jvconnected.device.Device
+            :param reason: Reason for removal
+            :type reason: RemovalReason
 
     """
     devices = DictProperty()
@@ -60,11 +86,17 @@ class Engine(Dispatcher):
         'on_config_device_added', 'on_device_discovered',
         'on_device_added', 'on_device_removed',
     ]
+    _device_reconnect_timeout = 5
+    _device_reconnect_max_attempts = 100
     def __init__(self, **kwargs):
         self.auto_add_devices = kwargs.get('auto_add_devices', True)
         self.loop = asyncio.get_event_loop()
         self.config = Config()
         self.discovery = Discovery()
+        self.device_reconnect_queue = asyncio.Queue()
+        self._device_reconnect_main_task = None
+        self._device_reconnect_tasks = set()
+        self._device_reconnect_num_attempts = {}
         for name, cls in interfaces.registry:
             obj = cls()
             self.interfaces[name] = obj
@@ -97,6 +129,8 @@ class Engine(Dispatcher):
         """
         if self.running:
             return
+        t = asyncio.create_task(self._reconnect_devices())
+        self._device_reconnect_main_task = t
         for obj in self.interfaces.values():
             await obj.set_engine(self)
         self.config.bind_async(
@@ -120,9 +154,30 @@ class Engine(Dispatcher):
         self.running = False
         self.discovery.unbind(self)
         await self.discovery.close()
+
+        t = self._device_reconnect_main_task
+        self._device_reconnect_main_task = None
+        await self.device_reconnect_queue.put(None)
+        await t
+        for t in self._device_reconnect_tasks:
+            if t.done():
+                continue
+            t.cancel()
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
+        self._device_reconnect_tasks.clear()
+
+        async def close_device(device):
+            try:
+                await device.close()
+            finally:
+                del self.devices[device.id]
+                self.emit('on_device_removed', device, RemovalReason.SHUTDOWN)
         coros = []
         for device in self.devices.values():
-            coros.append(device.close())
+            coros.append(close_device(device))
         await asyncio.gather(*coros)
         logger.success('Engine closed')
 
@@ -146,21 +201,36 @@ class Engine(Dispatcher):
         self.devices[device_conf.id] = device
         try:
             await device.open()
-        except ClientAuthError as exc:
+        except ClientError as exc:
             del self.devices[device_conf.id]
-            logger.warning(f'Authentication failed for device_id: {device_conf.id}')
             await device.close()
+            await self.on_device_client_error(device, exc)
             return
+        self._device_reconnect_num_attempts[device.id] = 0
         device_conf.active = True
         device.bind_async(self.loop, on_client_error=self.on_device_client_error)
         self.emit('on_device_added', device)
 
+    @logger.catch
     async def on_device_client_error(self, device, exc, **kwargs):
+        if isinstance(exc, ClientNetworkError):
+            reason = RemovalReason.TIMEOUT
+        elif isinstance(exc, ClientAuthError):
+            reason = RemovalReason.AUTH
+            logger.warning(f'Authentication failed for device_id: {device.id}')
+        else:
+            reason = RemovalReason.UNKNOWN
+        # logger.debug(f'device client error: device={device}, reason={reason}, exc={exc}')
+        device_conf = self.discovered_devices[device.id]
+        device_conf.active = False
         try:
             await device.close()
         finally:
-            del self.devices[device.id]
-            self.emit('on_device_removed', device)
+            if device.id in self.devices:
+                del self.devices[device.id]
+            if reason == RemovalReason.TIMEOUT:
+                await self.device_reconnect_queue.put(device.id)
+            self.emit('on_device_removed', device, reason)
 
     @logger.catch
     async def on_discovery_service_added(self, name, **kwargs):
@@ -200,7 +270,7 @@ class Engine(Dispatcher):
                 await device.close()
             finally:
                 del self.devices[device_id]
-                self.emit('on_device_removed', device)
+                self.emit('on_device_removed', device, RemovalReason.OFFLINE)
 
     def add_discovered_device(self, info: 'zeroconf.ServiceInfo') -> DeviceConfig:
         """Create a :class:`~jvconnected.config.DeviceConfig` and add it to
@@ -214,6 +284,46 @@ class Engine(Dispatcher):
             self.discovered_devices[device_conf.id] = device_conf
         return device_conf
 
+    async def _reconnect_devices(self):
+        q = self.device_reconnect_queue
+
+        async def do_reconnect(device_id):
+            await asyncio.sleep(self._device_reconnect_timeout)
+            if not self.running:
+                return
+            if device_id in self.devices:
+                return
+            disco_conf = self.discovered_devices.get(device_id)
+            if disco_conf is None:
+                return
+            if not disco_conf.online:
+                return
+            logger.debug(f'reconnect to {disco_conf}')
+            self._device_reconnect_num_attempts[device_id] += 1
+            await self.add_device_from_conf(disco_conf)
+
+        while self.running:
+            item = await q.get()
+            if item is None or not self.running:
+                q.task_done()
+                break
+            device_id = item
+            num_attempts = self._device_reconnect_num_attempts.get(device_id)
+            if num_attempts is None:
+                self._device_reconnect_num_attempts[device_id] = num_attempts = 0
+            if device_id in self.devices or num_attempts >= self._device_reconnect_max_attempts:
+                q.task_done()
+                logger.debug(f'{device_id} exists or max attempts reached ({num_attempts})')
+                continue
+
+            logger.debug(f'scheduling reconnect for {device_id}, num_attempts={num_attempts}')
+            task = asyncio.create_task(do_reconnect(device_id))
+            self._device_reconnect_tasks.add(task)
+            q.task_done()
+
+            for t in self._device_reconnect_tasks.copy():
+                if t.done():
+                    self._device_reconnect_tasks.discard(t)
 
     async def _on_config_device_added(self, conf_device, **kwargs):
         conf_device.bind(device_index=self._on_config_device_index_changed)
