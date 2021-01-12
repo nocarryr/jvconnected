@@ -454,8 +454,9 @@ class ExposureParams(ParameterGroup):
             self.gain_pos = int(gain_pos)
             logger.debug(f'{self}.gain_pos: {self.gain_pos}')
         elif prop.name == 'master_black':
-            self.master_black_pos = int(value)
-            logger.debug(f'{self}.master_black_pos: {self.master_black_pos}')
+            if len(value.strip(' ')):
+                self.master_black_pos = int(value)
+                logger.debug(f'{self}.master_black_pos: {self.master_black_pos}')
         super().on_prop(instance, value, **kwargs)
 
 class PaintParams(ParameterGroup):
