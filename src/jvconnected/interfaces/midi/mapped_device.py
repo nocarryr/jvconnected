@@ -70,6 +70,8 @@ class MappedDevice(Dispatcher):
         coros = set()
         for mapped_param in self.mapped_params.values():
             value = mapped_param.get_current_value()
+            if value is None:
+                continue
             msg = mapped_param.build_message(value)
             coros.add(self.send_message(msg))
         await asyncio.gather(*coros)
