@@ -4,5 +4,5 @@ python:
   install:
     - requirements: doc/requirements-rtfd.txt
     - requirements: requirements-dev.txt
-    - method: pip
-      path: .
+    - method: setuptools
+      path: setup.py
