@@ -52,9 +52,18 @@ Control {
 
         model: confList
         delegate: Label {
-            text: deviceId
+            id: confListItem
+            text: device ? device.displayName : deviceId
             font.italic: edited
             font.bold: edited
+
+            property string localDeviceId: deviceId
+            property DeviceConfigModel device
+
+            Component.onCompleted: {
+                confListItem.device = engine.getDeviceConfig(confListItem.localDeviceId);
+            }
+
             onWidthChanged: {
                 if (width > confListView.maxItemWidth){
                     confListView.maxItemWidth = width;

@@ -20,6 +20,7 @@ class DeviceBase(GenericQObject):
     _n_deviceIndex = Signal()
     _n_modelName = Signal()
     _n_serialNumber = Signal()
+    _n_displayName = Signal()
     _n_hostaddr = Signal()
     _n_authUser = Signal()
     _n_authPass = Signal()
@@ -30,6 +31,7 @@ class DeviceBase(GenericQObject):
         self._deviceIndex = -1
         self._modelName = None
         self._serialNumber = None
+        self._displayName = ''
         self._hostaddr = None
         self._authUser = None
         self._authPass = None
@@ -71,6 +73,10 @@ class DeviceBase(GenericQObject):
     def _s_serialNumber(self, value): self._generic_setter('_serialNumber', value)
     serialNumber = Property(str, _g_serialNumber, _s_serialNumber, notify=_n_serialNumber)
 
+    def _g_displayName(self): return self._displayName
+    def _s_displayName(self, value): self._generic_setter('_displayName', value)
+    displayName = Property(str, _g_displayName, _s_displayName, notify=_n_displayName)
+
     def _g_hostaddr(self): return self._hostaddr
     def _s_hostaddr(self, value): self._generic_setter('_hostaddr', value)
     hostaddr = Property(str, _g_hostaddr, _s_hostaddr, notify=_n_hostaddr)
@@ -107,9 +113,9 @@ class DeviceConfigModel(DeviceBase):
     _prop_attr_map = {
         'online':'deviceOnline', 'active':'deviceActive',
         'stored_in_config':'storedInConfig', 'device_index':'deviceIndex',
-        'auth_user':'authUser', 'auth_pass':'authPass'
+        'display_name':'displayName', 'auth_user':'authUser', 'auth_pass':'authPass'
     }
-    _editable_properties = ['device_index', 'auth_user', 'auth_pass']
+    _editable_properties = ['display_name', 'device_index', 'auth_user', 'auth_pass']
     def __init__(self, *args):
         self._deviceOnline = False
         self._deviceActive = False
@@ -144,7 +150,7 @@ class DeviceConfigModel(DeviceBase):
     def _generic_setter(self, attr, value):
         super()._generic_setter(attr, value)
         attr = attr.lstrip('_')
-        if attr in ['deviceIndex', 'authUser', 'authPass']:
+        if attr in ['displayName', 'deviceIndex', 'authUser', 'authPass']:
             if self._updating_from_device or self.device is None:
                 return
             if attr in self.editedProperties:
@@ -213,6 +219,7 @@ class DeviceConfigModel(DeviceBase):
         self.deviceActive = device.active
         self.storedInConfig = device.stored_in_config
         self.deviceIndex = device.device_index
+        self.displayName = device.display_name
         # keys = ['online', 'active', 'stored_in_config', 'device_index']
         keys = self._prop_attr_map.keys()
         device.bind(**{key:self.on_device_prop_change for key in keys})
@@ -257,6 +264,8 @@ class DeviceModel(DeviceBase):
         if value is not None:
             self.deviceIndex = value.deviceIndex
             value._n_deviceIndex.connect(self._on_conf_index_changed)
+            self.displayName = value.displayName
+            value._n_displayName.connect(self._on_conf_display_name_changed)
     confDevice = Property(DeviceConfigModel, _g_confDevice, _s_confDevice, notify=_n_confDevice)
     """Instance of :class:`DeviceConfigModel` matching this device"""
 
@@ -321,6 +330,9 @@ class DeviceModel(DeviceBase):
 
     def _on_conf_index_changed(self):
         self.deviceIndex = self.confDevice.deviceIndex
+
+    def _on_conf_display_name_changed(self):
+        self.displayName = self.confDevice.displayName
 
     async def _on_device_model_name(self, instance, value, **kwargs):
         self.modelName = value

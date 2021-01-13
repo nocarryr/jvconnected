@@ -9,7 +9,7 @@ Control {
     id: root
     property DeviceModel device
     property DeviceConfigModel confDevice: device ? device.confDevice : null
-    property string labelText: device ? device.deviceId : 'Unknown Camera'
+    property string labelText: device ? device.displayName : 'Unknown Camera'
     property bool connected: device ? device.connected : false
     property alias deviceIndex: model.deviceIndex
     property CameraModel model: model

@@ -261,6 +261,8 @@ class DeviceConfig(Dispatcher):
             :class:`ServiceInfo.name <zeroconf.ServiceInfo>`
         hostaddr (str): The IPv4 address (in string form)
         hostport (int): The service port
+        display_name (str): A user-defined name for the device, defaults to
+            :attr:`name`
         auth_user (str): Username to use with authentication
         auth_pass (str): Password to use with authentication
         device_index (int): Index for the device for organization purposes.
@@ -281,6 +283,7 @@ class DeviceConfig(Dispatcher):
     fqdn = Property('')
     hostaddr = Property('')
     hostport = Property(80)
+    display_name = Property('')
     auth_user = Property(None)
     auth_pass = Property(None)
     device_index = Property(None)
@@ -289,7 +292,7 @@ class DeviceConfig(Dispatcher):
     active = Property(False)
 
     _all_prop_names = (
-        'name', 'dns_name', 'fqdn',
+        'name', 'dns_name', 'fqdn', 'display_name',
         'hostaddr', 'hostport', 'auth_user', 'auth_pass', 'device_index',
     )
     _immutable_prop_names = (
@@ -305,6 +308,8 @@ class DeviceConfig(Dispatcher):
                 continue
             val = kwargs[attr]
             setattr(self, attr, val)
+        if not len(self.display_name):
+            self.display_name = self.name
 
         self.bind(**{attr:self.on_prop_change for attr in self._all_prop_names})
 
@@ -366,6 +371,8 @@ class DeviceConfig(Dispatcher):
             if key in self._immutable_prop_names:
                 assert getattr(self, key) == val
                 continue
+            elif key == 'display_name':
+                continue
             setattr(self, key, val)
 
     def update_from_other(self, other: 'DeviceConfig'):
@@ -375,6 +382,9 @@ class DeviceConfig(Dispatcher):
             val = getattr(other, attr)
             if attr == 'device_index' and val == -1:
                 continue
+            elif attr == 'display_name':
+                if val == other.name:
+                    continue
             elif val is None:
                 continue
             setattr(self, attr, val)
