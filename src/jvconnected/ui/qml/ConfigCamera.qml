@@ -76,6 +76,7 @@ Control {
             TextInput {
                 labelText: 'Display Name'
                 valueText: root.displayName
+                Layout.fillWidth: true
                 onSubmit: {
                     root.displayName = value;
                     root.checkValues();
@@ -84,7 +85,7 @@ Control {
             TextInput {
                 labelText: 'Username'
                 valueText: root.authUser
-                orientation: Qt.Horizontal
+                Layout.fillWidth: true
                 onSubmit: {
                     root.authUser = value;
                     root.checkValues();
@@ -93,13 +94,14 @@ Control {
             TextInput {
                 labelText: 'Password'
                 valueText: root.authPass
-                orientation: Qt.Horizontal
+                Layout.fillWidth: true
                 onSubmit: {
                     root.authPass = value;
                     root.checkValues();
                 }
             }
             RowLayout {
+                Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
                 ValueLabel {
                     labelText: 'Index'
                     valueText: root.deviceIndex

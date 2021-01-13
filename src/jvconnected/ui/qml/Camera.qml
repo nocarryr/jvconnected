@@ -43,6 +43,7 @@ Control {
                     labelText: 'Index'
                     valueText: root.device.deviceIndex
                     orientation: Qt.Horizontal
+                    Layout.fillWidth: true
                 }
                 RowLayout {
                     LeftRightButtons {
@@ -67,17 +68,23 @@ Control {
                     }
                 }
             }
-            Indicator {
-                labelText: 'Online'
-                valueState: root.confDevice ? root.confDevice.deviceOnline : false
-            }
-            Indicator {
-                labelText: 'Active'
-                valueState: root.confDevice ? root.confDevice.deviceActive : false
-            }
-            Indicator {
-                labelText: 'Stored'
-                valueState: root.confDevice ? root.confDevice.storedInConfig : false
+            RowLayout {
+                Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
+                Indicator {
+                    orientation: Qt.Vertical
+                    labelText: 'Online'
+                    valueState: root.confDevice ? root.confDevice.deviceOnline : false
+                }
+                Indicator {
+                    orientation: Qt.Vertical
+                    labelText: 'Active'
+                    valueState: root.confDevice ? root.confDevice.deviceActive : false
+                }
+                Indicator {
+                    orientation: Qt.Vertical
+                    labelText: 'Stored'
+                    valueState: root.confDevice ? root.confDevice.storedInConfig : false
+                }
             }
             ValueLabel {
                 labelText: 'Status'
