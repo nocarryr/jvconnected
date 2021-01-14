@@ -8,3 +8,9 @@
 
 .. autoclass:: RemovalReason
     :members:
+
+.. autoclass:: ReconnectStatus
+    :members:
+
+.. autoclass:: ConnectionState
+    :members:
