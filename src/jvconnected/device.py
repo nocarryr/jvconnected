@@ -452,7 +452,7 @@ class ExposureParams(ParameterGroup):
     def on_prop(self, instance, value, **kwargs):
         prop = kwargs['property']
         if prop.name == 'gain_value':
-            gain_pos = value.rstrip('dB')
+            gain_pos = value.rstrip('dB').lstrip('A')
             self.gain_pos = int(gain_pos)
             logger.debug(f'{self}.gain_pos: {self.gain_pos}')
         elif prop.name == 'master_black':
