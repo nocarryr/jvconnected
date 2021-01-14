@@ -119,8 +119,8 @@ class Client(object):
         uri = self._build_uri(self.CMD_URI)
         try:
             resp = await self._client.post(uri, json=payload)
-        except (httpcore.NetworkError, httpcore.TimeoutException,
-                httpx.NetworkError, httpx.TimeoutException) as exc:
+        except (httpcore.NetworkError, httpcore.TimeoutException, httpcore.ProtocolError,
+                httpx.NetworkError, httpx.TimeoutException, httpx.ProtocolError) as exc:
             logger.warning(repr(exc))
             self._error = True
             raise ClientNetworkError(str(exc), exc)
