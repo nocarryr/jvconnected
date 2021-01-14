@@ -36,6 +36,10 @@ class Client(object):
         self.hostaddr = hostaddr
         self.hostport = hostport
         self._client = None
+        if auth_user is None:
+            auth_user = ''
+        if auth_pass is None:
+            auth_pass = ''
         self.auth = httpx.DigestAuth(auth_user, auth_pass)
         self._authenticated = False
         self._error = False
@@ -72,8 +76,14 @@ class Client(object):
         if self._client is None:
             self._authenticated = False
             self._error = False
-            self._client = httpx.AsyncClient(auth=self.auth)
-            await self._authenticate()
+            try:
+                self._client = httpx.AsyncClient(auth=self.auth)
+                await self._authenticate()
+            except (httpcore.NetworkError, httpcore.TimeoutException,
+                    httpx.NetworkError, httpx.TimeoutException) as exc:
+                logger.warning(repr(exc))
+                self._error = True
+                raise ClientNetworkError(str(exc), exc)
 
     async def close(self):
         """Close the client session
@@ -109,10 +119,11 @@ class Client(object):
         uri = self._build_uri(self.CMD_URI)
         try:
             resp = await self._client.post(uri, json=payload)
-        except httpcore.NetworkError as exc:
-            logger.error(exc)
+        except (httpcore.NetworkError, httpcore.TimeoutException, httpcore.ProtocolError,
+                httpx.NetworkError, httpx.TimeoutException, httpx.ProtocolError) as exc:
+            logger.warning(repr(exc))
             self._error = True
-            raise ClientNetworkError(str(exc), None)
+            raise ClientNetworkError(str(exc), exc)
         try:
             resp.raise_for_status()
         except httpx.HTTPError as exc:

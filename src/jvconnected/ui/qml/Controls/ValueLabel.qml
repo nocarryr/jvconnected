@@ -18,22 +18,39 @@ Control {
         // anchors.fill: parent
         columns: root.orientation == Qt.Horizontal ? 3 : 1
         rows: root.orientation == Qt.Horizontal ? 1 : 3
-        implicitHeight: orientation == Qt.Horizontal ? Math.max(titleLbl.implicitHeight, valueLbl.implicitHeight) : titleLbl.implicitHeight + valueLbl.implicitHeight
-        implicitWidth: orientation == Qt.Horizontal ? titleLbl.implicitWidth + valueLbl.implicitWidth : Math.max(titleLbl.implicitWidth, valueLbl.implicitWidth)
+        implicitHeight: root.orientation == Qt.Horizontal ? Math.max(titleLbl.implicitHeight, valueLbl.implicitHeight) : titleLbl.implicitHeight + valueLbl.implicitHeight
+        implicitWidth: root.orientation == Qt.Horizontal ? titleLbl.implicitWidth + valueLbl.implicitWidth : Math.max(titleLbl.implicitWidth, valueLbl.implicitWidth)
         // columns: root.orientation == Qt.Vertical ? 1 : 3
         // rows: root.orientation == Qt.Vertical ? 3 : 1
         Label {
             id: titleLbl
             text: root.labelText
+            horizontalAlignment: root.orientation == Qt.Horizontal ? Text.AlignLeft : Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            Layout.alignment: root.orientation == Qt.Horizontal ? Layout.AlignVCenter | Layout.AlignLeft : Layout.AlignVCenter | Layout.AlignHCenter
+            Layout.fillWidth: root.orientation == Qt.Vertical ? true : false
+            Layout.fillHeight: root.orientation == Qt.Horizontal ? true : false
         }
         Item {
-            // Layout.fillWidth: root.orientation == Qt.Horizontal ? true : false
+            Layout.fillWidth: true
+            Layout.fillHeight: true
         }
         Label {
             id: valueLbl
             text: root.valueText
             // font.family: 'Droid Sans Mono'
+            horizontalAlignment: root.orientation == Qt.Horizontal ? Text.AlignRight : Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
             Layout.alignment: root.orientation == Qt.Horizontal ? Layout.AlignVCenter | Layout.AlignRight : Layout.AlignVCenter | Layout.AlignLeft
+            Layout.fillWidth: root.orientation == Qt.Vertical ? true : false
+            Layout.fillHeight: root.orientation == Qt.Horizontal ? true : false
         }
+    }
+
+    background: Rectangle {
+        anchors.fill: parent
+        border.color: root.palette.midlight
+        border.width: 1
+        radius: 3
     }
 }

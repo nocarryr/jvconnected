@@ -16,6 +16,9 @@ class ProcamListener(object):
 
     def add_service(self, zeroconf, type_, name):
         info = zeroconf.get_service_info(type_, name)
+        if info is None:
+            logger.warning(f'Could not resolve service "{type_}, {name}"')
+            return
         logger.debug(f'Adding {info}')
         self.notify('added', info)
 

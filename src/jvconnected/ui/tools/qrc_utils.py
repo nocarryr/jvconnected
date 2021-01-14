@@ -138,6 +138,12 @@ class QRCElement(object):
         self.children.append(child)
         return child
 
+    def remove_child(self, child: 'QRCElement'):
+        """Remove an child element the tree
+        """
+        self.element.remove(child.element)
+        self.children.remove(child)
+
     def walk(self) -> Iterator['QRCElement']:
         """Iterate over this element and all of its descendants
         """
@@ -228,6 +234,19 @@ class QRCDocument(QRCElement):
             r = c.search_for_file(filename)
             if r is not None:
                 return r
+
+    def remove_missing_files(self) -> List['QRCFile']:
+        """Find and remove any :class:`QRCFile` elements whose filenames do not
+        currently exist in the filesystem.
+
+        The elements that were removed (if any) are returned
+        """
+        removed = []
+        for f in self.iter_files():
+            if not f.exists():
+                removed.append(f)
+                f.parent.remove_child(f)
+        return removed
 
     def iter_resources(self) -> Iterator['QRCResource']:
         """Iterate over child :class:`QRCResource` instances
@@ -385,6 +404,11 @@ class QRCFile(QRCElement):
         if isinstance(value, Path):
             value = str(value)
         self.attrib['alias'] = value
+
+    def exists(self) -> bool:
+        """Returns whether the file exists in the filesystem
+        """
+        return self.filename_abs.exists()
 
     def hash_contents(self) -> str:
         """Create a hash of the file data using :mod:`hashlib` algorithm defined

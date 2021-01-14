@@ -14,6 +14,7 @@ Control {
     property string authUser: ''
     property string authPass: ''
     property int deviceIndex: 0
+    property string displayName: ''
     property bool hasChanges: false
 
     signal setDevice(DeviceConfigModel dev)
@@ -35,6 +36,7 @@ Control {
         authUser = device.authUser;
         authPass = device.authPass;
         deviceIndex = device.deviceIndex;
+        displayName = device.displayName;
         // hasChanges = false;
         checkValues();
     }
@@ -44,6 +46,7 @@ Control {
             device.authUser = root.authUser;
             device.authPass = root.authPass;
             device.deviceIndex = root.deviceIndex;
+            device.displayName = root.displayName;
             device.sendValuesToDevice();
             checkValues();
         }
@@ -51,7 +54,11 @@ Control {
     }
 
     function checkValues(){
-        hasChanges = (authUser != device.authUser || authPass != device.authPass || deviceIndex != device.deviceIndex || device.editedProperties.length > 0);
+        hasChanges = (
+            authUser != device.authUser || authPass != device.authPass ||
+            deviceIndex != device.deviceIndex || device.editedProperties.length > 0 ||
+            displayName != device.displayName
+        );
     }
 
     Connections {
@@ -67,9 +74,18 @@ Control {
 
         content: ColumnLayout {
             TextInput {
+                labelText: 'Display Name'
+                valueText: root.displayName
+                Layout.fillWidth: true
+                onSubmit: {
+                    root.displayName = value;
+                    root.checkValues();
+                }
+            }
+            TextInput {
                 labelText: 'Username'
                 valueText: root.authUser
-                orientation: Qt.Horizontal
+                Layout.fillWidth: true
                 onSubmit: {
                     root.authUser = value;
                     root.checkValues();
@@ -78,13 +94,14 @@ Control {
             TextInput {
                 labelText: 'Password'
                 valueText: root.authPass
-                orientation: Qt.Horizontal
+                Layout.fillWidth: true
                 onSubmit: {
                     root.authPass = value;
                     root.checkValues();
                 }
             }
             RowLayout {
+                Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
                 ValueLabel {
                     labelText: 'Index'
                     valueText: root.deviceIndex

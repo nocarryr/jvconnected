@@ -159,7 +159,9 @@ class Device(Dispatcher):
                 logger.error(exc)
                 raise
 
+    @logger.catch
     async def _handle_client_error(self, exc: Exception):
+        logger.warning(f'caught client error: {exc}')
         self.error = True
         self.emit('on_client_error', self, exc)
 
@@ -450,12 +452,13 @@ class ExposureParams(ParameterGroup):
     def on_prop(self, instance, value, **kwargs):
         prop = kwargs['property']
         if prop.name == 'gain_value':
-            gain_pos = value.rstrip('dB')
+            gain_pos = value.rstrip('dB').lstrip('A')
             self.gain_pos = int(gain_pos)
             logger.debug(f'{self}.gain_pos: {self.gain_pos}')
         elif prop.name == 'master_black':
-            self.master_black_pos = int(value)
-            logger.debug(f'{self}.master_black_pos: {self.master_black_pos}')
+            if len(value.strip(' ')):
+                self.master_black_pos = int(value)
+                logger.debug(f'{self}.master_black_pos: {self.master_black_pos}')
         super().on_prop(instance, value, **kwargs)
 
 class PaintParams(ParameterGroup):
@@ -504,6 +507,16 @@ class PaintParams(ParameterGroup):
         ('blue_value', 'Whb.WhPBValue'),
         ('detail', 'Detail.Value'),
     ]
+
+    async def set_white_balance_mode(self, mode: str):
+        """Set white balance mode
+
+        Arguments:
+            mode (str): The mode to set. Possible values are
+                ``['Faw', 'Preset', 'A', 'B', 'Adjust', 'WhPaintRP', 'WhPaintRM',
+                'WhPaintBP', 'WhPaintBM', 'Awb', '3200K', '5600K', 'Manual']``
+        """
+        await self.device.send_web_button('Whb', mode)
 
     async def set_red_pos(self, red: int):
         """Set red value
