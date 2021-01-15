@@ -1,5 +1,6 @@
 from loguru import logger
 import asyncio
+from typing import Optional
 import httpx
 import httpcore
 
@@ -47,6 +48,14 @@ class Client(object):
     @property
     def netloc(self):
         return f'{self.hostaddr}:{self.hostport}'
+
+    @property
+    def session_id(self) -> Optional[str]:
+        """The SessionID stored in cookies, if available
+        """
+        if self._client is None:
+            return None
+        return self._client.cookies.get('SessionID')
 
     def _build_uri(self, path: str):
         path = path.lstrip('/')
