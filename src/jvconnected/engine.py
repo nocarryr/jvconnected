@@ -192,6 +192,7 @@ class Engine(Dispatcher):
         self.discovery.bind_async(
             self.loop,
             on_service_added=self.on_discovery_service_added,
+            on_service_updated=self.on_discovery_service_updated,
             on_service_removed=self.on_discovery_service_removed,
         )
         await self.discovery.open()
@@ -324,6 +325,7 @@ class Engine(Dispatcher):
             if device_conf is not None:
                 dev = self.config.add_device(device_conf)
                 assert dev is device_conf
+                device_conf.update_from_service_info(info)
             else:
                 device_conf = self.config.add_discovered_device(info)
                 self.discovered_devices[device_id] = device_conf
@@ -335,6 +337,17 @@ class Engine(Dispatcher):
             if device_conf.id not in self.devices:
                 await self.add_device_from_conf(device_conf)
         self.emit('on_device_discovered', device_conf)
+
+    async def on_discovery_service_updated(self, name, **kwargs):
+        logger.debug(f'on_discovery_service_updated: "{name}", {kwargs}')
+        info = kwargs['info']
+        old = kwargs['old']
+        device_id = DeviceConfig.get_id_for_service_info(old)
+        status = self.connection_status.get(device_id)
+        if status.task is not None and not status.task.done():
+            await status.task
+        await self.on_discovery_service_removed(name, info=old)
+        await self.on_discovery_service_added(name, info=info)
 
     async def on_discovery_service_removed(self, name, **kwargs):
         logger.debug(f'on_discovery_service_removed: {name}, {kwargs}')

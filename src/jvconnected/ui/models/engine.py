@@ -128,6 +128,12 @@ class EngineModel(GenericQObject):
 
     async def on_config_device_added(self, conf_device):
         if conf_device.id in self._device_configs:
+            model = self._device_configs[conf_device.id]
+            if model.device is not conf_device:
+                if model.device is not None:
+                    model.device.unbind(self)
+                model.device = conf_device
+                conf_device.bind(device_index=self._calc_device_view_indices)
             return
         logger.debug(f'adding conf_device: {conf_device}')
         conf_device.bind(device_index=self._calc_device_view_indices)
