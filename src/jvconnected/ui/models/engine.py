@@ -9,7 +9,7 @@ from PySide2.QtCore import Property, Signal
 from qasync import QEventLoop, asyncSlot, asyncClose
 
 from jvconnected.engine import Engine
-from jvconnected.ui.utils import GenericQObject, connect_close_event
+from jvconnected.ui.utils import GenericQObject, connect_async_close_event
 from jvconnected.ui.models.device import DeviceModel, DeviceConfigModel
 
 class EngineModel(GenericQObject):
@@ -57,7 +57,7 @@ class EngineModel(GenericQObject):
         self._devices = {}
         self._deviceViewIndices = []
         super().__init__(*args)
-        connect_close_event(self.appClose)
+        connect_async_close_event(self.appClose)
 
     @asyncSlot()
     async def open(self):
@@ -75,7 +75,6 @@ class EngineModel(GenericQObject):
         """
         await self.engine.close()
 
-    @asyncSlot()
     async def appClose(self):
         await self.close()
 

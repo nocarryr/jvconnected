@@ -223,6 +223,12 @@ class Engine(Dispatcher):
                 pass
         self.connection_status.clear()
 
+        for conf_device in self.discovered_devices.values():
+            conf_device.active = False
+            conf_device.online = False
+
+        await asyncio.sleep(0)
+
         async def close_device(device):
             try:
                 await device.close()
