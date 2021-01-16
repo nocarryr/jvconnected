@@ -10,17 +10,25 @@ class ProcamListener(object):
         self.loop = loop
         self.notify_queue = asyncio.Queue(loop=loop)
 
-    def remove_service(self, zeroconf, type_, name):
+    def remove_service(self, zc: Zeroconf, type_: str, name: str):
         logger.debug(f'Service {name} removed')
         self.notify('removed', name)
 
-    def add_service(self, zeroconf, type_, name):
-        info = zeroconf.get_service_info(type_, name)
+    def add_service(self, zc: Zeroconf, type_: str, name: str):
+        info = zc.get_service_info(type_, name)
         if info is None:
             logger.warning(f'Could not resolve service "{type_}, {name}"')
             return
         logger.debug(f'Adding {info}')
         self.notify('added', info)
+
+    def update_service(self, zc: Zeroconf, type_: str, name: str):
+        info = zc.get_service_info(type_, name)
+        if info is None:
+            logger.warning(f'Could not resolve service "{type_}, {name}"')
+            return
+        logger.debug(f'Update {info}')
+        self.notify('updated', info)
 
     def notify(self, msg, info):
         asyncio.run_coroutine_threadsafe(self._notify(msg, info), loop=self.loop)
@@ -41,13 +49,18 @@ class Discovery(Dispatcher):
 
             Fired when a new device is discovered
 
+        .. event:: on_service_updated(name, info=info, old=old_info)
+
+            Fired when an service is updated.
+            The pre-existing :class:`~zeroconf.ServiceInfo` is passed for comparison
+
         .. event:: on_service_removed(name, info=info)
 
             Fired when an existing service is no longer available
 
     """
     procam_infos = DictProperty()
-    _events_ = ['on_service_added', 'on_service_removed']
+    _events_ = ['on_service_added', 'on_service_updated', 'on_service_removed']
     def __init__(self):
         self.running = False
 
@@ -86,6 +99,11 @@ class Discovery(Dispatcher):
                 info = item['data']
                 self.procam_infos[info.name] = info
                 self.emit('on_service_added', info.name, info=info)
+            elif item['msg'] == 'updated':
+                info = item['data']
+                stored_info = self.procam_infos[info.name]
+                self.procam_infos[info.name] = info
+                self.emit('on_service_updated', info.name, info=info, old=stored_info)
             elif item['msg'] == 'removed':
                 name = item['data']
                 if name in self.procam_infos:

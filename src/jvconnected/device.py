@@ -3,6 +3,7 @@ import asyncio
 
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
+from jvconnected.devicepreview import JpegSource
 from jvconnected.client import Client, ClientError
 from jvconnected.utils import NamedQueue
 
@@ -49,6 +50,7 @@ class Device(Dispatcher):
         self.hostport = hostport
         self.auth_user = auth_user
         self.auth_pass = auth_pass
+        self._devicepreview = None
         self.__id = id_
         self.client = Client(hostaddr, auth_user, auth_pass, hostport)
         self._poll_fut = None
@@ -63,6 +65,13 @@ class Device(Dispatcher):
     @property
     def id(self): return self.__id
 
+    @property
+    def devicepreview(self) -> JpegSource:
+        pv = self._devicepreview
+        if pv is None:
+            pv = self._devicepreview = JpegSource(self)
+        return pv
+
     def _add_param_group(self, cls, **kwargs):
         pg = cls(self, **kwargs)
         assert pg.name not in self.parameter_groups
@@ -72,7 +81,7 @@ class Device(Dispatcher):
     def __getattr__(self, key):
         if hasattr(self, 'parameter_groups') and key in self.parameter_groups:
             return self.parameter_groups[key]
-        raise AttributeError
+        raise AttributeError(key)
 
     async def open(self):
         """Begin communication with the device
@@ -94,6 +103,10 @@ class Device(Dispatcher):
         self._is_open = False
         self._poll_enabled = False
         logger.debug(f'{self} closing...')
+        pv = self._devicepreview
+        if pv is not None and pv.encoding:
+            await pv.release()
+
         await self._poll_fut
         for pg in self.parameter_groups.values():
             await pg.close()

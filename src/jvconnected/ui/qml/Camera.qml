@@ -98,6 +98,37 @@ Control {
             }
 
             CollapseGroupBox {
+                title: 'Video Preview'
+                Layout.fillWidth: true
+                onIsCollapsedChanged: {
+                    previewWindow.setVideoEnabled(!isCollapsed);
+                }
+                content: ColumnLayout {
+                    CameraPreview {
+                        id: previewWindow
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: width * .5625
+                        fillColor: '#000000ff'
+                        device: root.device
+                        onHeightChanged: { triggerUpdate() }
+                        onWidthChanged: { triggerUpdate() }
+                        onXChanged: { triggerUpdate() }
+                        onYChanged: { triggerUpdate() }
+                        onVideoEnabledChanged: {
+                            previewEnableBtn.checked = videoEnabled;
+                        }
+                    }
+                    Switch {
+                        id: previewEnableBtn
+                        checked: false
+                        onToggled: {
+                            previewWindow.setVideoEnabled(checked);
+                        }
+                    }
+                }
+            }
+
+            CollapseGroupBox {
                 title: 'Iris'
                 Layout.fillWidth: true
 

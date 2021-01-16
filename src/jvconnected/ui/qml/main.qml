@@ -9,6 +9,10 @@ ApplicationWindow {
     visible: true
     property alias running: engine.running
 
+    Component.onCompleted: {
+        engine.open();
+    }
+
     width: 800
     height: 600
 
@@ -35,18 +39,26 @@ ApplicationWindow {
     }
 
     header: ToolBar {
-        RowLayout {
+        id: toolBar
+        contentItem: RowLayout {
             anchors.fill: parent
+            Item { Layout.fillWidth: true }
             ToolButton {
                 text: 'Start'
                 enabled: !window.running
                 onClicked: engine.open()
             }
+            ToolSeparator { }
             ToolButton {
                 text: 'Stop'
                 enabled: window.running
                 onClicked: engine.close()
+                Layout.rightMargin: 12
             }
+        }
+        background: Rectangle {
+            implicitHeight: 40
+            color: toolBar.palette.light
         }
     }
 

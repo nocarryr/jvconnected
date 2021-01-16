@@ -74,6 +74,15 @@ class ReconnectStatus:
     num_attempts: int = 0
     """Number of reconnect attempts"""
 
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+    async def __aenter__(self):
+        await self.lock.acquire()
+        return None
+
+    async def __aexit__(self, *args):
+        self.lock.release()
+
 
 class Engine(Dispatcher):
     """Top level component to handle config, discovery and device control
@@ -183,6 +192,7 @@ class Engine(Dispatcher):
         self.discovery.bind_async(
             self.loop,
             on_service_added=self.on_discovery_service_added,
+            on_service_updated=self.on_discovery_service_updated,
             on_service_removed=self.on_discovery_service_removed,
         )
         await self.discovery.open()
@@ -212,6 +222,12 @@ class Engine(Dispatcher):
             except asyncio.CancelledError:
                 pass
         self.connection_status.clear()
+
+        for conf_device in self.discovered_devices.values():
+            conf_device.active = False
+            conf_device.online = False
+
+        await asyncio.sleep(0)
 
         async def close_device(device):
             try:
@@ -255,23 +271,25 @@ class Engine(Dispatcher):
         )
         device.device_index = device_conf.device_index
         self.devices[device_conf.id] = device
-        try:
-            await device.open()
-        except ClientError as exc:
-            status.state = ConnectionState.FAILED
-            del self.devices[device_conf.id]
-            await device.close()
-            await self.on_device_client_error(device, exc)
-            return
-        status.state = ConnectionState.CONNECTED
-        status.reason = RemovalReason.UNKNOWN
-        status.num_attempts = 0
-        device_conf.active = True
+        async with status:
+            try:
+                await device.open()
+            except ClientError as exc:
+                status.state = ConnectionState.FAILED
+                del self.devices[device_conf.id]
+                await device.close()
+                await self.on_device_client_error(device, exc, skip_status_lock=True)
+                return
+            status.state = ConnectionState.CONNECTED
+            status.reason = RemovalReason.UNKNOWN
+            status.num_attempts = 0
+            device_conf.active = True
         device.bind_async(self.loop, on_client_error=self.on_device_client_error)
         self.emit('on_device_added', device)
 
     @logger.catch
     async def on_device_client_error(self, device, exc, **kwargs):
+        skip_status_lock = kwargs.get('skip_status_lock', False)
         if not self.running:
             return
         if isinstance(exc, ClientNetworkError):
@@ -284,16 +302,23 @@ class Engine(Dispatcher):
         # logger.debug(f'device client error: device={device}, reason={reason}, exc={exc}')
         device_conf = self.discovered_devices[device.id]
         device_conf.active = False
-        try:
-            await device.close()
-        finally:
-            status = self.connection_status[device.id]
-            status.state = ConnectionState.FAILED
-            if device.id in self.devices:
-                del self.devices[device.id]
-            if reason == RemovalReason.TIMEOUT:
-                await self.device_reconnect_queue.put((device.id, reason))
-            self.emit('on_device_removed', device, reason)
+        status = self.connection_status[device.id]
+        async def handle_state():
+            try:
+                await device.close()
+            finally:
+                status.state = ConnectionState.FAILED
+                if device.id in self.devices:
+                    del self.devices[device.id]
+                if reason == RemovalReason.TIMEOUT and status.reason != RemovalReason.OFFLINE:
+                    await self.device_reconnect_queue.put((device.id, reason))
+        if skip_status_lock:
+            await handle_state()
+        else:
+            async with status:
+                await handle_state()
+
+        self.emit('on_device_removed', device, reason)
 
     @logger.catch
     async def on_discovery_service_added(self, name, **kwargs):
@@ -306,6 +331,7 @@ class Engine(Dispatcher):
             if device_conf is not None:
                 dev = self.config.add_device(device_conf)
                 assert dev is device_conf
+                device_conf.update_from_service_info(info)
             else:
                 device_conf = self.config.add_discovered_device(info)
                 self.discovered_devices[device_id] = device_conf
@@ -318,6 +344,17 @@ class Engine(Dispatcher):
                 await self.add_device_from_conf(device_conf)
         self.emit('on_device_discovered', device_conf)
 
+    async def on_discovery_service_updated(self, name, **kwargs):
+        logger.debug(f'on_discovery_service_updated: "{name}", {kwargs}')
+        info = kwargs['info']
+        old = kwargs['old']
+        device_id = DeviceConfig.get_id_for_service_info(old)
+        status = self.connection_status.get(device_id)
+        if status.task is not None and not status.task.done():
+            await status.task
+        await self.on_discovery_service_removed(name, info=old)
+        await self.on_discovery_service_added(name, info=info)
+
     async def on_discovery_service_removed(self, name, **kwargs):
         logger.debug(f'on_discovery_service_removed: {name}, {kwargs}')
         info = kwargs['info']
@@ -326,16 +363,17 @@ class Engine(Dispatcher):
         if device_conf is not None:
             device_conf.active = False
             device_conf.online = False
-        status = self.connection_status.get(device_id)
-        if status is not None:
+        status = self.connection_status[device_id]
+        async with status:
+            status.state = ConnectionState.FAILED
             status.reason = RemovalReason.OFFLINE
-        device = self.devices.get(device_id)
-        if device is not None:
-            try:
-                await device.close()
-            finally:
-                del self.devices[device_id]
-                self.emit('on_device_removed', device, RemovalReason.OFFLINE)
+            device = self.devices.get(device_id)
+            if device is not None:
+                try:
+                    await device.close()
+                finally:
+                    del self.devices[device_id]
+        self.emit('on_device_removed', device, RemovalReason.OFFLINE)
 
     def add_discovered_device(self, info: 'zeroconf.ServiceInfo') -> DeviceConfig:
         """Create a :class:`~jvconnected.config.DeviceConfig` and add it to
@@ -356,17 +394,18 @@ class Engine(Dispatcher):
         async def do_reconnect(status: ReconnectStatus):
             status.state = ConnectionState.SLEEPING
             await asyncio.sleep(self._device_reconnect_timeout)
-            if status.state != ConnectionState.SLEEPING:
-                return
-            if not self.running:
-                return
-            disco_conf = self.discovered_devices.get(status.device_id)
-            if disco_conf is None:
-                return
-            if not disco_conf.online:
-                return
-            logger.debug(f'reconnect to {disco_conf}')
-            status.num_attempts += 1
+            async with status:
+                if status.state != ConnectionState.SLEEPING:
+                    return
+                if not self.running:
+                    return
+                disco_conf = self.discovered_devices.get(status.device_id)
+                if disco_conf is None:
+                    return
+                if not disco_conf.online:
+                    return
+                logger.debug(f'reconnect to {disco_conf}')
+                status.num_attempts += 1
             await self.add_device_from_conf(disco_conf)
 
         while self.running:
@@ -377,22 +416,23 @@ class Engine(Dispatcher):
             device_id, reason = item
             status = self.connection_status[device_id]
             valid = True
-            if status.state != ConnectionState.FAILED:
-                valid = False
-            elif status.num_attempts >= self._device_reconnect_max_attempts:
-                logger.debug(f'max attempts reached for "{device_id}"')
-                valid = False
-            elif status.task is not None and not status.task.done():
-                logger.error(f'Active reconnect task exists for {status}')
-                valid = False
-            elif reason == RemovalReason.TIMEOUT and status.reason == RemovalReason.OFFLINE:
-                valid = False
+            async with status:
+                if status.state != ConnectionState.FAILED:
+                    valid = False
+                elif status.num_attempts >= self._device_reconnect_max_attempts:
+                    logger.debug(f'max attempts reached for "{device_id}"')
+                    valid = False
+                elif status.task is not None and not status.task.done():
+                    logger.error(f'Active reconnect task exists for {status}')
+                    valid = False
+                elif reason == RemovalReason.TIMEOUT and status.reason == RemovalReason.OFFLINE:
+                    valid = False
 
-            if valid:
-                status.reason = reason
-                status.state = ConnectionState.SCHEDULING
-                logger.debug(f'scheduling reconnect for {device_id}, num_attempts={status.num_attempts}')
-                status.task = asyncio.create_task(do_reconnect(status))
+                if valid:
+                    status.reason = reason
+                    status.state = ConnectionState.SCHEDULING
+                    logger.debug(f'scheduling reconnect for {device_id}, num_attempts={status.num_attempts}')
+                    status.task = asyncio.create_task(do_reconnect(status))
             q.task_done()
 
     async def _on_config_device_added(self, conf_device, **kwargs):

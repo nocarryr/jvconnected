@@ -1,4 +1,6 @@
-from typing import Any, Callable
+import asyncio
+import functools
+from typing import Any, Callable, Coroutine
 from PySide2 import QtCore
 
 
@@ -55,3 +57,13 @@ def connect_close_event(f: Callable):
     """
     app = QtCore.QCoreApplication.instance()
     app.aboutToQuit.connect(f)
+
+def connect_async_close_event(fn: Coroutine):
+    app = QtCore.QCoreApplication.instance()
+
+    @functools.wraps(fn)
+    def wrapper():
+        task = asyncio.create_task(fn())
+        while not task.done():
+            QtCore.QCoreApplication.instance().processEvents()
+    QtCore.QCoreApplication.instance().aboutToQuit.connect(wrapper)

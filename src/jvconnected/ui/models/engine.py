@@ -9,7 +9,7 @@ from PySide2.QtCore import Property, Signal
 from qasync import QEventLoop, asyncSlot, asyncClose
 
 from jvconnected.engine import Engine
-from jvconnected.ui.utils import GenericQObject, connect_close_event
+from jvconnected.ui.utils import GenericQObject, connect_async_close_event
 from jvconnected.ui.models.device import DeviceModel, DeviceConfigModel
 
 class EngineModel(GenericQObject):
@@ -57,7 +57,7 @@ class EngineModel(GenericQObject):
         self._devices = {}
         self._deviceViewIndices = []
         super().__init__(*args)
-        connect_close_event(self.appClose)
+        connect_async_close_event(self.appClose)
 
     @asyncSlot()
     async def open(self):
@@ -75,7 +75,6 @@ class EngineModel(GenericQObject):
         """
         await self.engine.close()
 
-    @asyncSlot()
     async def appClose(self):
         await self.close()
 
@@ -128,6 +127,12 @@ class EngineModel(GenericQObject):
 
     async def on_config_device_added(self, conf_device):
         if conf_device.id in self._device_configs:
+            model = self._device_configs[conf_device.id]
+            if model.device is not conf_device:
+                if model.device is not None:
+                    model.device.unbind(self)
+                model.device = conf_device
+                conf_device.bind(device_index=self._calc_device_view_indices)
             return
         logger.debug(f'adding conf_device: {conf_device}')
         conf_device.bind(device_index=self._calc_device_view_indices)
