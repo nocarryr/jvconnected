@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Controls 2.15
+import Fonts 1.0
 
 MyGroupBox {
     id: root
@@ -98,8 +99,12 @@ MyGroupBox {
             ToolButton {
                 z: 10
                 id: toggleBtn
-                text: root.isCollapsed ? "\u2b9e" : "\u2b9f"
-                onClicked: root.toggleCollapsed()
+                property IconFont iconFont: IconFont {
+                    iconName: root.isCollapsed ? 'faCaretRight' : 'faCaretDown'
+                }
+                text: iconFont.text
+                font: iconFont.iconFont
+                onClicked: { root.toggleCollapsed() }
             }
             Label {
                 z: 8

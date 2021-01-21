@@ -4,6 +4,7 @@ import QtQuick.Controls 2.15
 import Qt.labs.settings 1.0
 import DeviceModels 1.0
 import Controls 1.0
+import Fonts 1.0
 
 Control {
     id: root
@@ -61,7 +62,11 @@ Control {
                     }
                     RoundButton {
                         id: removeIndexBtn
-                        text: '\uD83D\uDDD9'
+                        property IconFont iconFont: IconFont {
+                            iconName: 'faTimes'
+                        }
+                        text: iconFont.text
+                        font: iconFont.iconFont
                         onClicked: {
                             root.device.removeDeviceIndex(root.device.deviceIndex);
                         }
