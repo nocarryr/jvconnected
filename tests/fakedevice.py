@@ -217,6 +217,13 @@ class CameraParams(FakeParamBase):
             elif btn == 'Cancel':
                 self.menu_status = 'Off'
 
+class BatteryParams(FakeParamBase):
+    _NAME = device.BatteryParams._NAME
+    _prop_attrs = device.BatteryParams._prop_attrs
+    info_str = Property('Time')
+    level_str = Property(1)
+    value_str = Property(0)
+
 def build_fstops():
     f = 0
     i = 0
@@ -443,7 +450,7 @@ class TallyParams(FakeParamBase):
         self.tally_status = value
 
 
-PARAMETER_GROUP_CLS = (CameraParams, ExposureParams, PaintParams, TallyParams)
+PARAMETER_GROUP_CLS = (CameraParams, BatteryParams, ExposureParams, PaintParams, TallyParams)
 
 
 

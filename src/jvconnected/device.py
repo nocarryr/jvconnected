@@ -341,6 +341,56 @@ class CameraParams(ParameterGroup):
             return
         super().on_prop(instance, value, **kwargs)
 
+class BatteryState(Enum):
+    UNKNOWN = auto()
+    ON_BATTERY = auto()
+    CHARGING = auto()
+
+class BatteryParams(ParameterGroup):
+    """Battery Info
+    """
+    _NAME = 'battery'
+    info_str = Property()
+    level_str = Property()
+    value_str = Property()
+
+    state = Property()
+    level = Property(1.)
+    minutes = Property(0)
+    percent = Property(0)
+    voltage = Property(0)
+    _prop_attrs = [
+        ('info_str', 'Battery.Info'),
+        ('level_str', 'Battery.Level'),
+        ('value_str', 'Battery.Value'),
+    ]
+    def __init__(self, device: Device, **kwargs):
+        super().__init__(device, **kwargs)
+        self.bind(**{k:self._fooprop for k in ['state', 'level', 'minutes', 'percent', 'voltage']})
+    def _fooprop(self, instance, value, **kwargs):
+        prop = kwargs['property']
+        logger.success(f'{prop.name} = "{value!r}"')
+    def on_prop(self, instance, value, **kwargs):
+        prop = kwargs['property']
+        if prop.name == 'level_str':
+            value = int(value)
+            if value <= 4:
+                self.state = BatteryState.UNKNOWN
+            elif value >= 10:
+                self.state = BatteryState.CHARGING
+                self.level = (value - 10) / 5
+            else:
+                self.state = BatteryState.ON_BATTERY
+                self.level = (value - 5) / 5
+        elif prop.name == 'value_str':
+            if self.info_str == 'Time':
+                self.minutes = int(value)
+            elif self.info_str == 'Capacity':
+                self.percent = int(value)
+            elif self.info_str == 'Voltage':
+                self.voltage = float(value) / 10
+        super().on_prop(instance, value, **kwargs)
+
 class ExposureParams(ParameterGroup):
     """Exposure parameters
 
@@ -724,7 +774,7 @@ class TallyParams(ParameterGroup):
             self.preview = value == 'Preview'
         super().on_prop(instance, value, **kwargs)
 
-PARAMETER_GROUP_CLS = (CameraParams, ExposureParams, PaintParams, TallyParams)
+PARAMETER_GROUP_CLS = (CameraParams, BatteryParams, ExposureParams, PaintParams, TallyParams)
 
 @logger.catch
 def main(hostaddr, auth_user, auth_pass, id_=None):

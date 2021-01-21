@@ -47,6 +47,27 @@ Control {
                     Layout.fillWidth: true
                 }
                 RowLayout {
+                    Item { Layout.fillWidth: true }
+                    Label {
+                        property IconFont iconFont: IconFont {
+                            iconName: model.battery.batteryState == 'ON_BATTERY' ? 'faCarBattery' :
+                                      model.battery.batteryState == 'CHARGING' ? 'faChargingStation' : 'faPlug'
+                        }
+                        text: iconFont.text
+                        font: iconFont.iconFont
+                    }
+                    Label {
+                        property IconFont iconFont: IconFont {
+                            iconName: model.battery.level <= .1 ? 'faBatteryEmpty' :
+                                      model.battery.level <= .25 ? 'faBatteryQuarter' :
+                                      model.battery.level <= .5 ? 'faBatteryHalf' :
+                                      model.battery.level <= .75 ? 'faBatteryThreeQuarters' : 'faBatteryFull'
+                        }
+                        text: iconFont.text
+                        font: iconFont.iconFont
+                    }
+                }
+                RowLayout {
                     LeftRightButtons {
                         onLeftClicked: {
                             var ix = root.device.deviceIndex - 1;

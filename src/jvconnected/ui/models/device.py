@@ -4,7 +4,7 @@ from typing import List, TYPE_CHECKING
 if TYPE_CHECKING:
     from jvconnected.config import DeviceConfig
     from jvconnected.device import Device, ParameterGroup
-from jvconnected.device import MenuChoices
+from jvconnected.device import MenuChoices, BatteryState
 
 from PySide2 import QtCore, QtQml
 from PySide2.QtCore import Property, Signal
@@ -471,6 +471,32 @@ class CameraParamsModel(ParamBase):
         enum_value = getattr(MenuChoices, value.upper())
         await self.paramGroup.send_menu_button(enum_value)
 
+class BatteryParamsModel(ParamBase):
+    _param_group_key = 'battery'
+    _prop_attr_map = {'state':'batteryState', 'level':'level'}
+    _n_batteryState = Signal()
+    _n_level = Signal()
+    def __init__(self, *args):
+        self._batteryState = BatteryState.UNKNOWN.name
+        self._charging = False
+        self._level = 0.
+        super().__init__(*args)
+
+    def _g_batteryState(self) -> str: return self._batteryState
+    def _s_batteryState(self, value: BatteryState):
+        if value is not None:
+            value = value.name
+        self._generic_setter('_batteryState', value)
+    batteryState = Property(str, _g_batteryState, _s_batteryState, notify=_n_batteryState)
+    """Alias for :attr:`jvconnected.device.BatteryParams.state`"""
+
+    def _g_level(self) -> float: return self._level
+    def _s_level(self, value: float): self._generic_setter('_level', value)
+    level = Property(float, _g_level, _s_level, notify=_n_level)
+    """Alias for :attr:`jvconnected.device.BatteryParams.level`"""
+
+
+
 class IrisModel(ParamBase):
     _param_group_key = 'exposure'
     _prop_attr_map = {
@@ -852,7 +878,7 @@ class TallyModel(ParamBase):
 
 
 MODEL_CLASSES = (
-    DeviceConfigModel, DeviceModel, CameraParamsModel, IrisModel,
+    DeviceConfigModel, DeviceModel, CameraParamsModel, IrisModel, BatteryParamsModel,
     GainModeModel, GainValueModel, MasterBlackModel, DetailModel, TallyModel,
     WbModeModel, WbColorTempModel, WbPaintModelBase, WbRedPaintModel, WbBluePaintModel,
 )
