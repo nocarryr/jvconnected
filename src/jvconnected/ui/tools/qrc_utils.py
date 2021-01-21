@@ -1,4 +1,4 @@
-from typing import List, Dict, ClassVar, Optional, Iterator
+from typing import List, Dict, ClassVar, Optional, Iterator, Union
 from pathlib import Path
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
@@ -170,6 +170,8 @@ class QRCDocument(QRCElement):
 
     def __init__(self, **kwargs):
         self.base_path = kwargs['base_path']
+        if not self.base_path.is_absolute():
+            raise ValueError('base_path must be absolute')
         super().__init__(**kwargs)
 
     @classmethod
@@ -318,22 +320,31 @@ class QRCResource(QRCElement):
         el = self.search_for_file(filename)
         if el is not None:
             return el
-
-        rel_fn = filename.resolve().relative_to(self.path.resolve())
+        rel_fn = self.normailize_child_filename(filename)
         kw = kwargs.copy()
         kw['tag'] = 'file'
         kw['filename'] = rel_fn
         return self.add_child(**kw)
 
+    def normailize_child_filename(self, filename: Path) -> Path:
+        """Translate the given path to be relative to the :attr:`~QRCDocument.base_path`.
+
+        If the filename given is not absolute, the :attr:`~QRCDocument.base_path`
+        will be prepended to it.
+        """
+        base = self.path
+        if not filename.is_absolute:
+            filename = base / filename
+        filename = filename.relative_to(base)
+        return filename
+
     def search_for_file(self, filename: Path) -> Optional['QRCFile']:
         """Search within this qresource for the :class:`QRCFile` element
         matching the given filename
         """
-        base_path = self.path
-        for c in self.children:
-            if not isinstance(c, QRCFile):
-                continue
-            if filename == base_path / c.filename:
+        rel_p = self.normailize_child_filename(filename)
+        for c in self.iter_files():
+            if c.filename == rel_p:
                 return c
 
     def iter_files(self) -> Iterator['QRCFile']:
@@ -343,8 +354,19 @@ class QRCResource(QRCElement):
             if isinstance(c, QRCFile):
                 yield c
 
+    def __str__(self):
+        return f'prefix={self.prefix}'
+
 class QRCFile(QRCElement):
     """A :class:`QRCElement` subclass representing a file resource
+
+    Keyword Arguments:
+        filename: See :attr:`filename`
+        filename_abs: See :attr:`filename_abs`
+        alias: See :attr:`alias`
+
+    Note:
+        Only one of the filename arguments may be present as keyword arguments
     """
 
     TAG: ClassVar[str] = 'file'
@@ -352,7 +374,9 @@ class QRCFile(QRCElement):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        for attr in ['filename', 'alias']:
+        if 'filename_abs' in kwargs and 'filename' in kwargs:
+            raise ValueError('cannot provide both "filename" and "filename_abs"')
+        for attr in ['filename', 'filename_abs', 'alias']:
             if attr in kwargs:
                 setattr(self, attr, kwargs[attr])
 
@@ -369,20 +393,35 @@ class QRCFile(QRCElement):
             return None
         return Path(s)
     @filename.setter
-    def filename(self, value):
+    def filename(self, value: Optional[Union[Path, str]]):
         if value is None:
             self.text = None
         else:
             if not isinstance(value, Path):
                 value = Path(value)
+            assert not value.is_absolute()
             self.text = str(value)
 
     @property
     def filename_abs(self) -> Path:
-        """Filename including the parent :attr:`QRCResource.path`
+        """Absolute filename including the parent :attr:`~QRCDocument.base_path`
+
+        When set, the :attr:`filename` will be updated using
+        :meth:`~QRCResource.normailize_child_filename`
         """
         base = self.parent.path
         return base / self.filename
+    @filename_abs.setter
+    def filename_abs(self, value: Optional[Union[Path, str]]):
+        if value is None:
+            self.text = None
+        else:
+            if not isinstance(value, Path):
+                value = Path(value)
+            if not value.is_absolute():
+                raise ValueError('path must be absolute')
+            p = self.parent.normailize_child_filename(value)
+            self.filename = p
 
     @property
     def alias(self) -> Optional[str]:
@@ -419,3 +458,5 @@ class QRCFile(QRCElement):
                     break
                 m.update(data)
         return m.hexdigest()
+    def __str__(self):
+        return f'filename={self.filename}, alias={self.alias}'
