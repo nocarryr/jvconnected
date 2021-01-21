@@ -291,29 +291,21 @@ class QRCResource(QRCElement):
 
     @property
     def prefix(self):
-        """The directory prefix used for all children of this element
+        """The prefix to be used for all children of this ``qresource``.
+
+        This only affects the way the child resources are accessed from within
+        the Qt Resource System and has no impact on local file paths.
         """
         return self.attrib.get('prefix')
     @prefix.setter
     def prefix(self, value: str):
-        self._path = None
         self.attrib['prefix'] = value
 
     @property
     def path(self) -> Path:
-        """The filesystem location for this element given the :attr:`~QRCDocument.base_path`
-        of the :attr:`root_element` and :attr:`prefix`
+        """Alias for :attr:`~QRCDocument.base_path` of the :attr:`root_element`
         """
-        p = self._path
-        if p is not None:
-            return p
-
-        root = self.root_element
-        p = root.base_path
-        if self.prefix and self.prefix != '/':
-            p = p / self.prefix.lstrip('/')
-        self._path = p
-        return p
+        return self.root_element.base_path
 
     def add_file(self, filename: Path, **kwargs) -> 'QRCFile':
         """Add a :class:`QRCFile` to the resource if it does not currently exist
