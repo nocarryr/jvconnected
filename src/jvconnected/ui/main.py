@@ -6,14 +6,14 @@ from pathlib import Path
 import argparse
 import importlib
 
-from PySide2 import QtCore, QtQml
+from PySide2 import QtCore, QtQml, QtGui
 from PySide2.QtWidgets import QApplication
 from PySide2.QtQuick import QQuickView
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 
 from jvconnected.ui import models
-from jvconnected.ui import rc_images, rc_qml
+from jvconnected.ui import rc_images, rc_qml, rc_resources
 from jvconnected.ui.tools.qrc_utils import QRCDocument
 from . import get_resource_filename
 
@@ -64,6 +64,7 @@ def run(argv=None):
     args, remaining = p.parse_known_args(argv)
 
     app = QApplication(remaining)
+    QtGui.QIcon.setThemeName('fa-icons')
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
     app.setOrganizationName('jvconnected')

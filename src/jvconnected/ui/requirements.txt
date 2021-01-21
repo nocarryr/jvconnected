@@ -1,2 +1,3 @@
 PySide2==5.15.1
 qasync>=0.9.5
+ruamel.yaml

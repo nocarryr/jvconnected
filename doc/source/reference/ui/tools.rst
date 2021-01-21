@@ -22,3 +22,9 @@ itself.
 
 .. automodule:: jvconnected.ui.tools.colorgradients
     :members:
+
+:mod:`jvconnected.ui.tools.fontawesome`
+---------------------------------------
+
+.. automodule:: jvconnected.ui.tools.fontawesome
+    :members:

@@ -15,6 +15,7 @@ from setuptools import Command
 from jvconnected.ui import get_resource_filename
 from jvconnected.ui.tools.qrc_utils import QRCDocument
 from jvconnected.ui.tools.colorgradients import build_wb_img_file
+from jvconnected.ui.tools import fontawesome as fa
 
 QML_QRC = get_resource_filename('qml.qrc')
 QML_DIR = get_resource_filename('qml')
@@ -114,6 +115,7 @@ class BuildQRC(Command):
 def main():
     build_images(build_rcc=True, sizes=IMG_SIZES)
     pack_qml(build_rcc=True)
+    fa.main()
 
 if __name__ == '__main__':
     main()
