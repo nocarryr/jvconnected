@@ -343,6 +343,9 @@ class QRCResource(QRCElement):
         matching the given filename
         """
         rel_p = self.normailize_child_filename(filename)
+        etsearch = self.element.findall(f'.//file[.="{rel_p}"]')
+        if not len(etsearch):
+            return None
         for c in self.iter_files():
             if c.filename == rel_p:
                 return c
