@@ -1,5 +1,6 @@
 from loguru import logger
 import asyncio
+from enum import Enum, auto
 
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
@@ -282,6 +283,19 @@ class ParameterGroup(Dispatcher):
     def __str__(self):
         return self.name
 
+class MenuChoices(Enum):
+    """Values used in :meth:`CameraParams.send_menu_button`
+    """
+    DISPLAY = auto()    #: DISPLAY
+    STATUS = auto()     #: STATUS
+    MENU = auto()       #: MENU
+    CANCEL = auto()     #: CANCEL
+    SET = auto()        #: SET
+    UP = auto()         #: UP
+    DOWN = auto()       #: DOWN
+    LEFT = auto()       #: LEFT
+    RIGHT = auto()      #: RIGHT
+
 class CameraParams(ParameterGroup):
     """Basic camera parameters
 
@@ -291,17 +305,36 @@ class CameraParams(ParameterGroup):
         mode (str): Camera record / media mode. One of
             ``['Normal', 'Pre', 'Clip', 'Frame', 'Interval', 'Variable']``
         timecode (str): The current timecode value
+        menu_status (bool): ``True`` if the camera menu is open
 
     """
     _NAME = 'camera'
     status = Property()
+    menu_status = Property(False)
     mode = Property()
     timecode = Property()
     _prop_attrs = [
         ('status', 'Camera.Status'),
         ('mode', 'Camera.Mode'),
         ('timecode', 'Camera.TC'),
+        ('menu_status', 'Camera.MenuStatus')
     ]
+
+    async def send_menu_button(self, value: MenuChoices):
+        """Send a menu button event
+
+        Arguments:
+            value: The menu button type as a member of :class:`MenuChoices`
+        """
+        param = value.name.title()
+        await self.device.send_web_button('Menu', param)
+
+    def set_prop_from_api(self, prop_attr, value):
+        if prop_attr == 'menu_status':
+            if isinstance(value, str):
+                value = 'On' in value
+        super().set_prop_from_api(prop_attr, value)
+
     def on_prop(self, instance, value, **kwargs):
         prop = kwargs['property']
         if prop.name == 'timecode':

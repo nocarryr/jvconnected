@@ -130,6 +130,13 @@ Control {
                             previewWindow.setVideoEnabled(checked);
                         }
                     }
+                    MenuButtons {
+                        id: menuButtons
+                        menuActive: model.cameraParams.menuStatus
+                        onClicked: {
+                            root.model.cameraParams.sendMenuButton(buttonType);
+                        }
+                    }
                 }
             }
 

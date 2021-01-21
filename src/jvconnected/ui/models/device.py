@@ -4,6 +4,7 @@ from typing import List, TYPE_CHECKING
 if TYPE_CHECKING:
     from jvconnected.config import DeviceConfig
     from jvconnected.device import Device, ParameterGroup
+from jvconnected.device import MenuChoices
 
 from PySide2 import QtCore, QtQml
 from PySide2.QtCore import Property, Signal
@@ -423,14 +424,16 @@ class ParamBase(GenericQObject):
 
 class CameraParamsModel(ParamBase):
     _n_status = Signal()
+    _n_menuStatus = Signal()
     _n_mode = Signal()
     _n_timecode = Signal()
     _param_group_key = 'camera'
     _prop_attr_map = {
-        'status':'status', 'mode':'mode', 'timecode':'timecode',
+        'status':'status', 'menu_status':'menuStatus', 'mode':'mode', 'timecode':'timecode',
     }
     def __init__(self, *args):
         self._status = None
+        self._menuStatus = False
         self._mode = None
         self._timecode = None
         super().__init__(*args)
@@ -439,6 +442,11 @@ class CameraParamsModel(ParamBase):
     def _s_status(self, value: str): self._generic_setter('_status', value)
     status = Property(str, _g_status, _s_status, notify=_n_status)
     """Alias for :attr:`jvconnected.device.CameraParams.status`"""
+
+    def _g_menuStatus(self) -> bool: return self._menuStatus
+    def _s_menuStatus(self, value: bool): self._generic_setter('_menuStatus', value)
+    menuStatus = Property(bool, _g_menuStatus, _s_menuStatus, notify=_n_menuStatus)
+    """Alias for :attr:`jvconnected.device.CameraParams.menu_status`"""
 
     def _g_mode(self) -> str: return self._mode
     def _s_mode(self, value: str): self._generic_setter('_mode', value)
@@ -449,6 +457,19 @@ class CameraParamsModel(ParamBase):
     def _s_timecode(self, value: str): self._generic_setter('_timecode', value)
     timecode = Property(str, _g_timecode, _s_timecode, notify=_n_timecode)
     """Alias for :attr:`jvconnected.device.CameraParams.status`"""
+
+    @asyncSlot(str)
+    async def sendMenuButton(self, value: str):
+        """Send a menu button event
+
+        Arguments:
+            value (str): The menu button type as a string. Must be the name of
+                a member of :class:`~jvconnected.device.MenuChoices`
+
+        See :meth:`jvconnected.device.CameraParams.send_menu_button`
+        """
+        enum_value = getattr(MenuChoices, value.upper())
+        await self.paramGroup.send_menu_button(enum_value)
 
 class IrisModel(ParamBase):
     _param_group_key = 'exposure'
