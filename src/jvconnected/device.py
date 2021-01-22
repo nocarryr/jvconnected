@@ -378,10 +378,10 @@ class BatteryParams(ParameterGroup):
                 self.state = BatteryState.UNKNOWN
             elif value >= 10:
                 self.state = BatteryState.CHARGING
-                self.level = (value - 10) / 5
+                self.level = (value - 9) / 4
             else:
                 self.state = BatteryState.ON_BATTERY
-                self.level = (value - 5) / 5
+                self.level = (value - 4) / 4
         elif prop.name == 'value_str':
             if self.info_str == 'Time':
                 self.minutes = int(value)
