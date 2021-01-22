@@ -189,6 +189,7 @@ class CameraParams(FakeParamBase):
     _NAME = device.CameraParams._NAME
     _prop_attrs = device.CameraParams._prop_attrs
     status = Property()
+    menu_status = Property('Off')
     mode = Property()
     timecode = Property('00:00:00;00')
 
@@ -202,6 +203,26 @@ class CameraParams(FakeParamBase):
     def update_status_dict(self, data: dict):
         self.timecode = self._get_now_tc()
         super().update_status_dict(data)
+
+    async def handle_web_button_event(self, request, payload):
+        params = payload['Request']['Params']
+        kind = params['Kind']
+        btn = params['Button']
+        if kind == 'Menu':
+            if btn == 'Menu':
+                if self.menu_status == 'Off':
+                    self.menu_status = 'On'
+                else:
+                    self.menu_status = 'Off'
+            elif btn == 'Cancel':
+                self.menu_status = 'Off'
+
+class BatteryParams(FakeParamBase):
+    _NAME = device.BatteryParams._NAME
+    _prop_attrs = device.BatteryParams._prop_attrs
+    info_str = Property('Time')
+    level_str = Property(1)
+    value_str = Property(0)
 
 def build_fstops():
     f = 0
@@ -429,7 +450,7 @@ class TallyParams(FakeParamBase):
         self.tally_status = value
 
 
-PARAMETER_GROUP_CLS = (CameraParams, ExposureParams, PaintParams, TallyParams)
+PARAMETER_GROUP_CLS = (CameraParams, BatteryParams, ExposureParams, PaintParams, TallyParams)
 
 
 

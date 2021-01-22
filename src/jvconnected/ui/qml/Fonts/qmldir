@@ -1,0 +1,5 @@
+module Fonts
+
+singleton IconFontNames 1.0 IconFontNames.qml
+singleton IconFonts 1.0 IconFonts.qml
+IconFont 1.0 IconFont.qml

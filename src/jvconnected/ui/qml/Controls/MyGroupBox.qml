@@ -13,7 +13,7 @@ Frame {
     property alias headerTextColor: lbl.textColor
 
     spacing: 6
-    topPadding: 0
+    topPadding: 2
 
 
     contentItem: ColumnLayout {

@@ -1,5 +1,6 @@
 from loguru import logger
 import asyncio
+from enum import Enum, auto
 
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
@@ -282,6 +283,19 @@ class ParameterGroup(Dispatcher):
     def __str__(self):
         return self.name
 
+class MenuChoices(Enum):
+    """Values used in :meth:`CameraParams.send_menu_button`
+    """
+    DISPLAY = auto()    #: DISPLAY
+    STATUS = auto()     #: STATUS
+    MENU = auto()       #: MENU
+    CANCEL = auto()     #: CANCEL
+    SET = auto()        #: SET
+    UP = auto()         #: UP
+    DOWN = auto()       #: DOWN
+    LEFT = auto()       #: LEFT
+    RIGHT = auto()      #: RIGHT
+
 class CameraParams(ParameterGroup):
     """Basic camera parameters
 
@@ -291,21 +305,130 @@ class CameraParams(ParameterGroup):
         mode (str): Camera record / media mode. One of
             ``['Normal', 'Pre', 'Clip', 'Frame', 'Interval', 'Variable']``
         timecode (str): The current timecode value
+        menu_status (bool): ``True`` if the camera menu is open
 
     """
     _NAME = 'camera'
     status = Property()
+    menu_status = Property(False)
     mode = Property()
     timecode = Property()
     _prop_attrs = [
         ('status', 'Camera.Status'),
         ('mode', 'Camera.Mode'),
         ('timecode', 'Camera.TC'),
+        ('menu_status', 'Camera.MenuStatus')
     ]
+
+    async def send_menu_button(self, value: MenuChoices):
+        """Send a menu button event
+
+        Arguments:
+            value: The menu button type as a member of :class:`MenuChoices`
+        """
+        param = value.name.title()
+        await self.device.send_web_button('Menu', param)
+
+    def set_prop_from_api(self, prop_attr, value):
+        if prop_attr == 'menu_status':
+            if isinstance(value, str):
+                value = 'On' in value
+        super().set_prop_from_api(prop_attr, value)
+
     def on_prop(self, instance, value, **kwargs):
         prop = kwargs['property']
         if prop.name == 'timecode':
             return
+        super().on_prop(instance, value, **kwargs)
+
+class BatteryState(Enum):
+    """Values used for :attr:`BatteryParams.state`
+    """
+    UNKNOWN = auto()    #: UNKNOWN
+    NO_BATTERY = auto() #: NO_BATTERY
+    ON_BATTERY = auto() #: ON_BATTERY
+    CHARGING = auto()   #: CHARGING
+    CHARGED = auto()    #: CHARGED
+
+class BatteryParams(ParameterGroup):
+    """Battery Info
+
+    Properties:
+        info_str (str): Type of value given to :attr:`value_str`. One of
+            ``['Time', 'Capacity', 'Voltage']``
+        level_str (str): Numeric value indicating various charging/discharging
+            states
+        value_str (str): One of remaining time (in minutes), capacity (percent)
+            or voltage (x10) depending on the value of :attr:`info_str`
+        state (BatteryState): The current battery state as a member
+            of :class:`BatteryState`
+        minutes (int): Minutes remaining until full (while charging) or battery
+            runtime (while on-battery). If unavailable, this will be ``-1``
+        percent (int): Capacity remaining. If unavailable, this will be ``-1``
+        voltage (float): Battery voltage. If unavailable, this will be ``-1``
+
+    """
+    _NAME = 'battery'
+    info_str = Property()
+    level_str = Property()
+    value_str = Property('0')
+
+    state = Property(BatteryState.UNKNOWN)
+    level = Property(1.)
+    minutes = Property(-1)
+    percent = Property(-1)
+    voltage = Property(-1)
+    _prop_attrs = [
+        ('info_str', 'Battery.Info'),
+        ('level_str', 'Battery.Level'),
+        ('value_str', 'Battery.Value'),
+    ]
+
+    _state_to_level_map = {
+        BatteryState.NO_BATTERY: [0],
+        BatteryState.ON_BATTERY: [2, 4, 5, 6, 7, 8, 9],
+        BatteryState.CHARGING: [10, 11, 12, 14],
+        BatteryState.CHARGED: [1, 13],
+
+    }
+    # Flatten the value lists from _state_to_level_map and use them as keys
+    _level_to_state_map = {v:k for k,l in _state_to_level_map.items() for v in l}
+
+    def __init__(self, device: Device, **kwargs):
+        super().__init__(device, **kwargs)
+        self.bind(**{k:self._fooprop for k in ['state', 'level', 'minutes', 'percent', 'voltage']})
+    def _fooprop(self, instance, value, **kwargs):
+        prop = kwargs['property']
+        logger.success(f'{prop.name} = "{value!r}"')
+    def on_prop(self, instance, value, **kwargs):
+        prop = kwargs['property']
+        if prop.name == 'info_str':
+            if value == 'Time':
+                self.minutes = int(self.value_str)
+                self.percent = -1
+                self.voltage = -1
+            elif value == 'Capacity':
+                self.minutes = -1
+                self.percent = int(self.value_str)
+                self.voltage = -1
+            elif value == 'Voltage':
+                self.minutes = -1
+                self.percent = -1
+                self.voltage = float(self.value_str) / 10
+        elif prop.name == 'level_str':
+            value = int(value)
+            self.state = self._level_to_state_map.get(value, BatteryState.UNKNOWN)
+            if value in range(5, 9):
+                self.level = (value - 4) / 4
+            elif value in range(10, 14):
+                self.level = (value - 9) / 4
+        elif prop.name == 'value_str':
+            if self.info_str == 'Time':
+                self.minutes = int(value)
+            elif self.info_str == 'Capacity':
+                self.percent = int(value)
+            elif self.info_str == 'Voltage':
+                self.voltage = float(value) / 10
         super().on_prop(instance, value, **kwargs)
 
 class ExposureParams(ParameterGroup):
@@ -691,7 +814,7 @@ class TallyParams(ParameterGroup):
             self.preview = value == 'Preview'
         super().on_prop(instance, value, **kwargs)
 
-PARAMETER_GROUP_CLS = (CameraParams, ExposureParams, PaintParams, TallyParams)
+PARAMETER_GROUP_CLS = (CameraParams, BatteryParams, ExposureParams, PaintParams, TallyParams)
 
 @logger.catch
 def main(hostaddr, auth_user, auth_pass, id_=None):

@@ -4,6 +4,7 @@ import QtQuick.Controls 2.15
 import Qt.labs.settings 1.0
 import DeviceModels 1.0
 import Controls 1.0
+import Fonts 1.0
 
 Control {
     id: root
@@ -45,6 +46,45 @@ Control {
                     orientation: Qt.Horizontal
                     Layout.fillWidth: true
                 }
+                GridLayout {
+                    columns: 3
+                    rows: 2
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.rowSpan: 2
+                    }
+                    Label {
+                        text: model.battery.batteryState == 'ON_BATTERY' ? model.battery.textStatus : ''
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
+                        font.pointSize: 9
+                        Layout.columnSpan: 2
+                    }
+                    Label {
+                        property IconFont iconFont: IconFont {
+                            pointSize: 12
+                            iconName: model.battery.batteryState == 'ON_BATTERY' ? 'faCarBattery' :
+                                      model.battery.batteryState == 'CHARGING' ? 'faChargingStation' :
+                                      model.battery.batteryState == 'CHARGED'? 'faPlug' : 'faPlug'
+                        }
+                        text: iconFont.text
+                        font: iconFont.iconFont
+                        color: '#5e5e5e'
+                    }
+                    Label {
+                        property IconFont iconFont: IconFont {
+                            pointSize: 12
+                            iconName: model.battery.level <= .1 ? 'faBatteryEmpty' :
+                                      model.battery.level <= .25 ? 'faBatteryQuarter' :
+                                      model.battery.level <= .5 ? 'faBatteryHalf' :
+                                      model.battery.level <= .75 ? 'faBatteryThreeQuarters' : 'faBatteryFull'
+                        }
+                        text: iconFont.text
+                        font: iconFont.iconFont
+                        color: model.battery.batteryState == 'ON_BATTERY' ?
+                              (model.battery.level >= .5 ? '#21be21' : '#d6c31e') : '#5e5e5e'
+                    }
+                }
                 RowLayout {
                     LeftRightButtons {
                         onLeftClicked: {
@@ -61,7 +101,11 @@ Control {
                     }
                     RoundButton {
                         id: removeIndexBtn
-                        text: '\uD83D\uDDD9'
+                        property IconFont iconFont: IconFont {
+                            iconName: 'faTimes'
+                        }
+                        text: iconFont.text
+                        font: iconFont.iconFont
                         onClicked: {
                             root.device.removeDeviceIndex(root.device.deviceIndex);
                         }
@@ -123,6 +167,13 @@ Control {
                         checked: false
                         onToggled: {
                             previewWindow.setVideoEnabled(checked);
+                        }
+                    }
+                    MenuButtons {
+                        id: menuButtons
+                        menuActive: model.cameraParams.menuStatus
+                        onClicked: {
+                            root.model.cameraParams.sendMenuButton(buttonType);
                         }
                     }
                 }

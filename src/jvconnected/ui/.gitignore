@@ -2,3 +2,6 @@ rc_images.py
 images.qrc
 rc_qml.py
 qml.qrc
+rc_resources.py
+resources.qrc
+resources

@@ -4,6 +4,7 @@ from typing import List, TYPE_CHECKING
 if TYPE_CHECKING:
     from jvconnected.config import DeviceConfig
     from jvconnected.device import Device, ParameterGroup
+from jvconnected.device import MenuChoices, BatteryState
 
 from PySide2 import QtCore, QtQml
 from PySide2.QtCore import Property, Signal
@@ -423,14 +424,16 @@ class ParamBase(GenericQObject):
 
 class CameraParamsModel(ParamBase):
     _n_status = Signal()
+    _n_menuStatus = Signal()
     _n_mode = Signal()
     _n_timecode = Signal()
     _param_group_key = 'camera'
     _prop_attr_map = {
-        'status':'status', 'mode':'mode', 'timecode':'timecode',
+        'status':'status', 'menu_status':'menuStatus', 'mode':'mode', 'timecode':'timecode',
     }
     def __init__(self, *args):
         self._status = None
+        self._menuStatus = False
         self._mode = None
         self._timecode = None
         super().__init__(*args)
@@ -439,6 +442,11 @@ class CameraParamsModel(ParamBase):
     def _s_status(self, value: str): self._generic_setter('_status', value)
     status = Property(str, _g_status, _s_status, notify=_n_status)
     """Alias for :attr:`jvconnected.device.CameraParams.status`"""
+
+    def _g_menuStatus(self) -> bool: return self._menuStatus
+    def _s_menuStatus(self, value: bool): self._generic_setter('_menuStatus', value)
+    menuStatus = Property(bool, _g_menuStatus, _s_menuStatus, notify=_n_menuStatus)
+    """Alias for :attr:`jvconnected.device.CameraParams.menu_status`"""
 
     def _g_mode(self) -> str: return self._mode
     def _s_mode(self, value: str): self._generic_setter('_mode', value)
@@ -449,6 +457,74 @@ class CameraParamsModel(ParamBase):
     def _s_timecode(self, value: str): self._generic_setter('_timecode', value)
     timecode = Property(str, _g_timecode, _s_timecode, notify=_n_timecode)
     """Alias for :attr:`jvconnected.device.CameraParams.status`"""
+
+    @asyncSlot(str)
+    async def sendMenuButton(self, value: str):
+        """Send a menu button event
+
+        Arguments:
+            value (str): The menu button type as a string. Must be the name of
+                a member of :class:`~jvconnected.device.MenuChoices`
+
+        See :meth:`jvconnected.device.CameraParams.send_menu_button`
+        """
+        enum_value = getattr(MenuChoices, value.upper())
+        await self.paramGroup.send_menu_button(enum_value)
+
+class BatteryParamsModel(ParamBase):
+    _param_group_key = 'battery'
+    _prop_attr_map = {'state':'batteryState', 'level':'level'}
+    _n_batteryState = Signal()
+    _n_level = Signal()
+    _n_textStatus = Signal()
+
+    def __init__(self, *args):
+        self._batteryState = BatteryState.UNKNOWN.name
+        self._textStatus = ''
+        self._level = 0.
+        super().__init__(*args)
+
+    def _g_batteryState(self) -> str: return self._batteryState
+    def _s_batteryState(self, value: BatteryState):
+        if value is not None:
+            value = value.name
+        self._generic_setter('_batteryState', value)
+    batteryState = Property(str, _g_batteryState, _s_batteryState, notify=_n_batteryState)
+    """Alias for :attr:`jvconnected.device.BatteryParams.state`"""
+
+    def _g_level(self) -> float: return self._level
+    def _s_level(self, value: float): self._generic_setter('_level', value)
+    level = Property(float, _g_level, _s_level, notify=_n_level)
+    """Alias for :attr:`jvconnected.device.BatteryParams.level`"""
+
+    def _g_textStatus(self) -> str: return self._textStatus
+    def _s_textStatus(self, value: BatteryState): self._generic_setter('_textStatus', value)
+    textStatus = Property(str, _g_textStatus, _s_textStatus, notify=_n_textStatus)
+    """Battery information from one of :attr:`~jvconnected.device.BatteryParams.minutes`,
+    :attr:`~jvconnected.device.BatteryParams.percent` or
+    :attr:`~jvconnected.device.BatteryParams.voltage` depending on availability
+    """
+
+    def _on_param_group_set(self, param_group):
+        super()._on_param_group_set(param_group)
+        props = ['minutes', 'percent', 'voltage']
+        param_group.bind(**{prop:self._update_text_status for prop in props})
+
+    def _update_text_status(self, instance, value, **kwargs):
+        if instance is not self.paramGroup:
+            return
+        if value == -1:
+            return
+        prop = kwargs['property']
+        if prop.name == 'minutes':
+            txt = f'{value}min'
+        elif prop.name == 'percent':
+            txt = f'{value}%'
+        elif prop.name == 'voltage':
+            txt = f'{value:.1f}V'
+        else:
+            txt = ''
+        self.textStatus = txt
 
 class IrisModel(ParamBase):
     _param_group_key = 'exposure'
@@ -831,7 +907,7 @@ class TallyModel(ParamBase):
 
 
 MODEL_CLASSES = (
-    DeviceConfigModel, DeviceModel, CameraParamsModel, IrisModel,
+    DeviceConfigModel, DeviceModel, CameraParamsModel, IrisModel, BatteryParamsModel,
     GainModeModel, GainValueModel, MasterBlackModel, DetailModel, TallyModel,
     WbModeModel, WbColorTempModel, WbPaintModelBase, WbRedPaintModel, WbBluePaintModel,
 )

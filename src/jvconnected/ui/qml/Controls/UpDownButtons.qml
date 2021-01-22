@@ -19,18 +19,18 @@ Control {
         implicitHeight: orientation == Qt.Horizontal ? Math.max(upBtn.implicitHeight, dnBtn.implicitHeight) : upBtn.implicitHeight + dnBtn.implicitHeight
         implicitWidth: orientation == Qt.Horizontal ? upBtn.implicitWidth + dnBtn.implicitWidth : Math.max(upBtn.implicitWidth, dnBtn.implicitWidth)
 
-        RoundButton {
+        ArrowButton {
             id: upBtn
-            text: '\u25b2'
+            direction: Qt.UpArrow
             autoRepeat: root.autoRepeat
             autoRepeatDelay: root.autoRepeatDelay
             autoRepeatInterval: root.autoRepeatInterval
             onClicked: root.upClicked()
         }
         // Item { }
-        RoundButton {
+        ArrowButton {
             id: dnBtn
-            text: '\u25bc'
+            direction: Qt.DownArrow
             autoRepeat: root.autoRepeat
             autoRepeatDelay: root.autoRepeatDelay
             autoRepeatInterval: root.autoRepeatInterval
