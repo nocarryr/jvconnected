@@ -51,7 +51,8 @@ Control {
                     Label {
                         property IconFont iconFont: IconFont {
                             iconName: model.battery.batteryState == 'ON_BATTERY' ? 'faCarBattery' :
-                                      model.battery.batteryState == 'CHARGING' ? 'faChargingStation' : 'faPlug'
+                                      model.battery.batteryState == 'CHARGING' ? 'faChargingStation' :
+                                      model.battery.batteryState == 'CHARGED'? 'faPlug' : 'faPlug'
                         }
                         text: iconFont.text
                         font: iconFont.iconFont

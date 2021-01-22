@@ -345,8 +345,10 @@ class BatteryState(Enum):
     """Values used for :attr:`BatteryParams.state`
     """
     UNKNOWN = auto()    #: UNKNOWN
+    NO_BATTERY = auto() #: NO_BATTERY
     ON_BATTERY = auto() #: ON_BATTERY
     CHARGING = auto()   #: CHARGING
+    CHARGED = auto()    #: CHARGED
 
 class BatteryParams(ParameterGroup):
     """Battery Info
@@ -381,6 +383,17 @@ class BatteryParams(ParameterGroup):
         ('level_str', 'Battery.Level'),
         ('value_str', 'Battery.Value'),
     ]
+
+    _state_to_level_map = {
+        BatteryState.NO_BATTERY: [0],
+        BatteryState.ON_BATTERY: [2, 4, 5, 6, 7, 8, 9],
+        BatteryState.CHARGING: [10, 11, 12, 14],
+        BatteryState.CHARGED: [1, 13],
+
+    }
+    # Flatten the value lists from _state_to_level_map and use them as keys
+    _level_to_state_map = {v:k for k,l in _state_to_level_map.items() for v in l}
+
     def __init__(self, device: Device, **kwargs):
         super().__init__(device, **kwargs)
         self.bind(**{k:self._fooprop for k in ['state', 'level', 'minutes', 'percent', 'voltage']})
@@ -404,14 +417,11 @@ class BatteryParams(ParameterGroup):
                 self.voltage = float(self.value_str) / 10
         elif prop.name == 'level_str':
             value = int(value)
-            if value <= 4:
-                self.state = BatteryState.UNKNOWN
-            elif value >= 10:
-                self.state = BatteryState.CHARGING
-                self.level = (value - 9) / 4
-            else:
-                self.state = BatteryState.ON_BATTERY
+            self.state = self._level_to_state_map.get(value, BatteryState.UNKNOWN)
+            if value in range(5, 9):
                 self.level = (value - 4) / 4
+            elif value in range(10, 14):
+                self.level = (value - 9) / 4
         elif prop.name == 'value_str':
             if self.info_str == 'Time':
                 self.minutes = int(value)
