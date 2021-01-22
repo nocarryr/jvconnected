@@ -342,12 +342,29 @@ class CameraParams(ParameterGroup):
         super().on_prop(instance, value, **kwargs)
 
 class BatteryState(Enum):
-    UNKNOWN = auto()
-    ON_BATTERY = auto()
-    CHARGING = auto()
+    """Values used for :attr:`BatteryParams.state`
+    """
+    UNKNOWN = auto()    #: UNKNOWN
+    ON_BATTERY = auto() #: ON_BATTERY
+    CHARGING = auto()   #: CHARGING
 
 class BatteryParams(ParameterGroup):
     """Battery Info
+
+    Properties:
+        info_str (str): Type of value given to :attr:`value_str`. One of
+            ``['Time', 'Capacity', 'Voltage']``
+        level_str (str): Numeric value indicating various charging/discharging
+            states
+        value_str (str): One of remaining time (in minutes), capacity (percent)
+            or voltage (x10) depending on the value of :attr:`info_str`
+        state (BatteryState): The current battery state as a member
+            of :class:`BatteryState`
+        minutes (int): Minutes remaining until full (while charging) or battery
+            runtime (while on-battery). If unavailable, this will be ``-1``
+        percent (int): Capacity remaining. If unavailable, this will be ``-1``
+        voltage (float): Battery voltage. If unavailable, this will be ``-1``
+
     """
     _NAME = 'battery'
     info_str = Property()
