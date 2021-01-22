@@ -352,13 +352,13 @@ class BatteryParams(ParameterGroup):
     _NAME = 'battery'
     info_str = Property()
     level_str = Property()
-    value_str = Property()
+    value_str = Property('0')
 
-    state = Property()
+    state = Property(BatteryState.UNKNOWN)
     level = Property(1.)
-    minutes = Property(0)
-    percent = Property(0)
-    voltage = Property(0)
+    minutes = Property(-1)
+    percent = Property(-1)
+    voltage = Property(-1)
     _prop_attrs = [
         ('info_str', 'Battery.Info'),
         ('level_str', 'Battery.Level'),
@@ -372,7 +372,20 @@ class BatteryParams(ParameterGroup):
         logger.success(f'{prop.name} = "{value!r}"')
     def on_prop(self, instance, value, **kwargs):
         prop = kwargs['property']
-        if prop.name == 'level_str':
+        if prop.name == 'info_str':
+            if value == 'Time':
+                self.minutes = int(self.value_str)
+                self.percent = -1
+                self.voltage = -1
+            elif value == 'Capacity':
+                self.minutes = -1
+                self.percent = int(self.value_str)
+                self.voltage = -1
+            elif value == 'Voltage':
+                self.minutes = -1
+                self.percent = -1
+                self.voltage = float(self.value_str) / 10
+        elif prop.name == 'level_str':
             value = int(value)
             if value <= 4:
                 self.state = BatteryState.UNKNOWN
