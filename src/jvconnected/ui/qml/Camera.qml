@@ -46,19 +46,34 @@ Control {
                     orientation: Qt.Horizontal
                     Layout.fillWidth: true
                 }
-                RowLayout {
-                    Item { Layout.fillWidth: true }
+                GridLayout {
+                    columns: 3
+                    rows: 2
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.rowSpan: 2
+                    }
+                    Label {
+                        text: model.battery.batteryState == 'ON_BATTERY' ? model.battery.textStatus : ''
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
+                        font.pointSize: 9
+                        Layout.columnSpan: 2
+                    }
                     Label {
                         property IconFont iconFont: IconFont {
+                            pointSize: 12
                             iconName: model.battery.batteryState == 'ON_BATTERY' ? 'faCarBattery' :
                                       model.battery.batteryState == 'CHARGING' ? 'faChargingStation' :
                                       model.battery.batteryState == 'CHARGED'? 'faPlug' : 'faPlug'
                         }
                         text: iconFont.text
                         font: iconFont.iconFont
+                        color: '#5e5e5e'
                     }
                     Label {
                         property IconFont iconFont: IconFont {
+                            pointSize: 12
                             iconName: model.battery.level <= .1 ? 'faBatteryEmpty' :
                                       model.battery.level <= .25 ? 'faBatteryQuarter' :
                                       model.battery.level <= .5 ? 'faBatteryHalf' :
@@ -66,6 +81,8 @@ Control {
                         }
                         text: iconFont.text
                         font: iconFont.iconFont
+                        color: model.battery.batteryState == 'ON_BATTERY' ?
+                              (model.battery.level >= .5 ? '#21be21' : '#d6c31e') : '#5e5e5e'
                     }
                 }
                 RowLayout {

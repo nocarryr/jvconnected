@@ -476,9 +476,11 @@ class BatteryParamsModel(ParamBase):
     _prop_attr_map = {'state':'batteryState', 'level':'level'}
     _n_batteryState = Signal()
     _n_level = Signal()
+    _n_textStatus = Signal()
+
     def __init__(self, *args):
         self._batteryState = BatteryState.UNKNOWN.name
-        self._charging = False
+        self._textStatus = ''
         self._level = 0.
         super().__init__(*args)
 
@@ -495,7 +497,34 @@ class BatteryParamsModel(ParamBase):
     level = Property(float, _g_level, _s_level, notify=_n_level)
     """Alias for :attr:`jvconnected.device.BatteryParams.level`"""
 
+    def _g_textStatus(self) -> str: return self._textStatus
+    def _s_textStatus(self, value: BatteryState): self._generic_setter('_textStatus', value)
+    textStatus = Property(str, _g_textStatus, _s_textStatus, notify=_n_textStatus)
+    """Battery information from one of :attr:`~jvconnected.device.BatteryParams.minutes`,
+    :attr:`~jvconnected.device.BatteryParams.percent` or
+    :attr:`~jvconnected.device.BatteryParams.voltage` depending on availability
+    """
 
+    def _on_param_group_set(self, param_group):
+        super()._on_param_group_set(param_group)
+        props = ['minutes', 'percent', 'voltage']
+        param_group.bind(**{prop:self._update_text_status for prop in props})
+
+    def _update_text_status(self, instance, value, **kwargs):
+        if instance is not self.paramGroup:
+            return
+        if value == -1:
+            return
+        prop = kwargs['property']
+        if prop.name == 'minutes':
+            txt = f'{value}min'
+        elif prop.name == 'percent':
+            txt = f'{value}%'
+        elif prop.name == 'voltage':
+            txt = f'{value:.1f}V'
+        else:
+            txt = ''
+        self.textStatus = txt
 
 class IrisModel(ParamBase):
     _param_group_key = 'exposure'
