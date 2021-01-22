@@ -3,12 +3,18 @@ import QtQuick 2.15
 QtObject {
     id: root
     property QtObject iconNames: IconFontNames.solid
+    property real pointSize: 16
+    property int weight: Font.Normal
     property font iconFont: Qt.font({
         family: IconFonts.solid,
         styleName: 'Solid',
-        pointSize: 16,
+        pointSize: root.pointSize,
+        weight: root.weight,
     })
     property string currentStyle: 'solid'
+
+    onPointSizeChanged: { iconFont.pointSize = pointSize }
+    onWeightChanged: { iconFont.weight = weight }
 
     onCurrentStyleChanged: {
         root.iconFont.family = getStyleName(currentStyle);
