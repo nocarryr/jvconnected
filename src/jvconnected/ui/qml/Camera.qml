@@ -4,6 +4,7 @@ import QtQuick.Controls 2.15
 import Qt.labs.settings 1.0
 import DeviceModels 1.0
 import Controls 1.0
+import ControlGroups 1.0
 import Fonts 1.0
 
 Control {
@@ -46,45 +47,7 @@ Control {
                     orientation: Qt.Horizontal
                     Layout.fillWidth: true
                 }
-                GridLayout {
-                    columns: 3
-                    rows: 2
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.rowSpan: 2
-                    }
-                    Label {
-                        text: model.battery.batteryState == 'ON_BATTERY' ? model.battery.textStatus : ''
-                        horizontalAlignment: Text.AlignHCenter
-                        Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
-                        font.pointSize: 9
-                        Layout.columnSpan: 2
-                    }
-                    Label {
-                        property IconFont iconFont: IconFont {
-                            pointSize: 12
-                            iconName: model.battery.batteryState == 'ON_BATTERY' ? 'faCarBattery' :
-                                      model.battery.batteryState == 'CHARGING' ? 'faChargingStation' :
-                                      model.battery.batteryState == 'CHARGED'? 'faPlug' : 'faPlug'
-                        }
-                        text: iconFont.text
-                        font: iconFont.iconFont
-                        color: '#5e5e5e'
-                    }
-                    Label {
-                        property IconFont iconFont: IconFont {
-                            pointSize: 12
-                            iconName: model.battery.level <= .1 ? 'faBatteryEmpty' :
-                                      model.battery.level <= .25 ? 'faBatteryQuarter' :
-                                      model.battery.level <= .5 ? 'faBatteryHalf' :
-                                      model.battery.level <= .75 ? 'faBatteryThreeQuarters' : 'faBatteryFull'
-                        }
-                        text: iconFont.text
-                        font: iconFont.iconFont
-                        color: model.battery.batteryState == 'ON_BATTERY' ?
-                              (model.battery.level >= .5 ? '#21be21' : '#d6c31e') : '#5e5e5e'
-                    }
-                }
+                BatteryControls { model: root.model }
                 RowLayout {
                     LeftRightButtons {
                         onLeftClicked: {
@@ -112,24 +75,7 @@ Control {
                     }
                 }
             }
-            RowLayout {
-                Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
-                Indicator {
-                    orientation: Qt.Vertical
-                    labelText: 'Online'
-                    valueState: root.confDevice ? root.confDevice.deviceOnline : false
-                }
-                Indicator {
-                    orientation: Qt.Vertical
-                    labelText: 'Active'
-                    valueState: root.confDevice ? root.confDevice.deviceActive : false
-                }
-                Indicator {
-                    orientation: Qt.Vertical
-                    labelText: 'Stored'
-                    valueState: root.confDevice ? root.confDevice.storedInConfig : false
-                }
-            }
+            ConnectionControls { model: root.model }
             ValueLabel {
                 labelText: 'Status'
                 valueText: root.connected ? 'Connected' : 'Not Connected'
@@ -183,130 +129,21 @@ Control {
                 title: 'Iris'
                 Layout.fillWidth: true
 
-                content: ColumnLayout {
-
-                    RowLayout {
-
-                        Label {
-                            text: 'Mode'
-                        }
-
-                        Item { }
-
-                        ComboBox {
-                            property string currentMode: root.model.iris.mode
-                            model: ['Auto', 'Manual']
-
-                            function updateCurrentMode(){
-                                if (typeof(currentMode) != 'undefined'){
-                                    currentIndex = indexOfValue(currentMode);
-                                }
-                            }
-
-                            onCurrentModeChanged: { updateCurrentMode() }
-
-                            Component.onCompleted: { updateCurrentMode() }
-
-                            onActivated: {
-                                var modeBool = true ? currentText == 'Auto' : false
-                                root.model.iris.setAutoIris(modeBool);
-                                updateCurrentMode();
-                            }
-                        }
-                    }
-
-                    RowLayout {
-
-                        ValueLabel {
-                            labelText: 'F-Stop'
-                            valueText: model.iris.fstop
-                            orientation: Qt.Vertical
-                        }
-
-                        Item { Layout.fillWidth: true }
-
-                        LeftRightButtons {
-                            enabled: model.iris.mode == 'Manual'
-                            onRightClicked: model.iris.increase()
-                            onLeftClicked: model.iris.decrease()
-                        }
-
-                        Slider {
-                            enabled: model.iris.mode == 'Manual'
-                            orientation: Qt.Horizontal
-                            from: 0
-                            to: 255
-                            stepSize: 1
-                            snapMode: Slider.SnapAlways
-                            property real irisValue: model.iris.pos
-                            property bool captured: false
-                            onIrisValueChanged: {
-                                if (!captured){
-                                    value = irisValue;
-                                }
-                            }
-                            onPressedChanged: {
-                                captured = pressed;
-                            }
-                            onValueChanged: {
-                                if (captured && pressed){
-                                    model.iris.setPos(value);
-                                }
-                            }
-                        }
-                    }
-                }
+                content: IrisControls { model: root.model }
             }
 
             CollapseGroupBox {
                 title: 'Gain'
                 Layout.fillWidth: true
 
-                content: ColumnLayout {
-                    // anchors.fill: parent
-
-                    ValueLabel {
-                        labelText: 'Mode'
-                        valueText: model.gainMode.value
-                        Layout.fillWidth: true
-                    }
-
-                    RowLayout {
-
-                        ValueLabel {
-                            labelText: 'Value'
-                            valueText: model.gainValue.value
-                        }
-
-                        Item { Layout.fillWidth: true }
-
-                        UpDownButtons {
-                            onUpClicked: model.gainValue.increase()
-                            onDownClicked: model.gainValue.decrease()
-                        }
-                    }
-                }
+                content: GainControls { model: root.model }
             }
 
             CollapseGroupBox {
                 title: 'Master Black'
                 Layout.fillWidth: true
 
-                content: RowLayout {
-                    // anchors.fill: parent
-
-                    ValueLabel {
-                        labelText: 'Value'
-                        valueText: model.masterBlack.value
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    UpDownButtons {
-                        onUpClicked: model.masterBlack.increase()
-                        onDownClicked: model.masterBlack.decrease()
-                    }
-                }
+                content: MasterBlackControls { model: root.model }
             }
 
             CollapseGroupBox {
@@ -331,40 +168,7 @@ Control {
                     MyGroupBox {
                         title: 'White Balance'
                         content: ColumnLayout {
-                            RowLayout {
-                                Label {
-                                    text: 'Mode'
-                                }
-                                Item { }
-                                ComboBox {
-                                    property string currentMode: root.model.paint.mode.value
-
-                                    model: [
-                                        'Faw', 'Preset', 'A', 'B', 'Adjust',
-                                        'WhPaintRP', 'WhPaintRM', 'WhPaintBP', 'WhPaintBM',
-                                        'Awb', '3200K', '5600K', 'Manual',
-                                    ]
-
-                                    onCurrentModeChanged: { updateCurrentMode() }
-
-                                    function updateCurrentMode(){
-                                        if (typeof(currentMode) != 'undefined'){
-                                            currentIndex = indexOfValue(currentMode);
-                                        }
-                                    }
-
-                                    Component.onCompleted: { updateCurrentMode() }
-
-                                    onActivated: {
-                                        root.model.paint.mode.setMode(currentText);
-                                        updateCurrentMode();
-                                    }
-                                }
-                            }
-                            ValueLabel {
-                                labelText: 'Color Temp'
-                                valueText: model.paint.colorTemp.value
-                            }
+                            WhiteBalanceControls { model: root.model }
                             PaintControl {
                                 model: model
                                 // colorType: PaintControl.ColorType.Red
@@ -376,49 +180,7 @@ Control {
             ToolBar {
                 position: ToolBar.Footer
                 Layout.fillWidth: true
-                RowLayout {
-                    anchors.fill: parent
-                    Label {
-                        text: 'Tally Status'
-                    }
-                    Item { Layout.fillWidth: true }
-                    ToolButton {
-                        id: pgmTallyBtn
-                        text: 'PGM'
-                        // enabled: false
-                        checkable: true
-                        checked: model.tally.program
-                        onToggled: {
-                            model.tally.setProgram(checked);
-                        }
-                        background: Rectangle {
-                            implicitWidth: 80
-                            implicitHeight: 40
-                            // visible: !control.flat || control.down || control.checked || control.highlighted
-                            color: pgmTallyBtn.checked ? '#ff0000' : '#800000'
-                            // color: Color.blend(control.checked || control.highlighted ? control.palette.dark : control.palette.button,
-                            //                                                             control.palette.mid, control.down ? 0.5 : 0.0)
-                            border.color: pgmTallyBtn.palette.highlight
-                            // border.width: control.visualFocus ? 2 : 0
-                        }
-                    }
-                    ToolButton {
-                        id: pvwTallyBtn
-                        text: 'PVW'
-                        // enabled: false
-                        checkable: true
-                        checked: model.tally.preview
-                        onToggled: {
-                            model.tally.setPreview(checked);
-                        }
-                        background: Rectangle {
-                            implicitWidth: 80
-                            implicitHeight: 40
-                            color: pvwTallyBtn.checked ? '#00ff00' : '#008000'
-                            border.color: pvwTallyBtn.palette.highlight
-                        }
-                    }
-                }
+                TallyControls { model: root.model }
             }
         }
     }
