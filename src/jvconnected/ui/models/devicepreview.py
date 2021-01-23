@@ -29,6 +29,7 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
         value._n_connected.connect(self._on_device_connected)
         self._n_device.emit()
     device = Property(DeviceModel, _g_device, _s_device, notify=_n_device)
+    """The :class:`~jvconnected.ui.models.DeviceModel` instance"""
 
     @asyncSlot()
     async def _on_device_connected(self):
@@ -42,9 +43,12 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
         self._videoEnabled = value
         self._n_videoEnabled.emit()
     videoEnabled = Property(bool, _g_videoEnabled, _s_videoEnabled, notify=_n_videoEnabled)
+    """Whether the image capture is currently active"""
 
     @asyncSlot(bool)
     async def setVideoEnabled(self, enabled: bool):
+        """Begin or end encoding and retreiving image frames from the device
+        """
         if enabled == self.videoEnabled:
             return
         self.videoEnabled = enabled
@@ -62,6 +66,12 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
 
     @logger.catch
     async def capture_loop(self):
+        """Open the :attr:`~jvconnected.device.Device.devicepreview` and continuously
+        request image frames while :attr:`videoEnabled` is ``True``.
+
+        Each frame is then placed into a ``QPixmap`` and an update is requested
+        via ``QPainter``
+        """
         device = self.device.device
         async with device.devicepreview as src:
             async for img_bytes in src:

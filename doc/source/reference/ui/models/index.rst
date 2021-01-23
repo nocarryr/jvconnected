@@ -6,4 +6,5 @@
 
     engine
     device
+    devicepreview
     midi
