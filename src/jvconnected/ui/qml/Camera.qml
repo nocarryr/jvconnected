@@ -157,16 +157,7 @@ Control {
                     MyGroupBox {
                         title: 'Detail'
 
-                        content: RowLayout {
-                            ValueLabel {
-                                labelText: 'Value'
-                                valueText: model.detail.value
-                            }
-                            LeftRightButtons {
-                                onRightClicked: model.detail.increase()
-                                onLeftClicked: model.detail.decrease()
-                            }
-                        }
+                        content: DetailControls { model: root.model }
                     }
                     MyGroupBox {
                         title: 'White Balance'
