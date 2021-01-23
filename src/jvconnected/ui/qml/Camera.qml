@@ -126,24 +126,27 @@ Control {
             }
 
             CollapseGroupBox {
-                title: 'Iris'
+                title: 'Exposure'
                 Layout.fillWidth: true
 
-                content: IrisControls { model: root.model }
-            }
+                content: ColumnLayout {
+                    MyGroupBox {
+                        title: 'Iris'
+                        content: IrisControls { model: root.model }
+                    }
+                    MyGroupBox {
+                        title: 'Gain'
+                        Layout.fillWidth: true
 
-            CollapseGroupBox {
-                title: 'Gain'
-                Layout.fillWidth: true
+                        content: GainControls { model: root.model }
+                    }
+                    MyGroupBox {
+                        title: 'Master Black'
+                        Layout.fillWidth: true
 
-                content: GainControls { model: root.model }
-            }
-
-            CollapseGroupBox {
-                title: 'Master Black'
-                Layout.fillWidth: true
-
-                content: MasterBlackControls { model: root.model }
+                        content: MasterBlackControls { model: root.model }
+                    }
+                }
             }
 
             CollapseGroupBox {
