@@ -7,6 +7,7 @@ MyGroupBox {
     id: root
 
     property bool isCollapsed: state == 'collapsed'
+    signal stateChangeTriggered(string newState)
 
     states: [
         State {
@@ -123,6 +124,7 @@ MyGroupBox {
             hoverEnabled: false
             onClicked: {
                 root.toggleCollapsed();
+                root.stateChangeTriggered(root.state);
                 toggleBtn.checked = root.isCollapsed;
             }
         }

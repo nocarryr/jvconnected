@@ -87,7 +87,8 @@ Control {
                 Layout.fillWidth: true
             }
 
-            CollapseGroupBox {
+            PanelGroup {
+                groupName: 'cameraPreview'
                 title: 'Video Preview'
                 Layout.fillWidth: true
                 onIsCollapsedChanged: {
@@ -125,8 +126,9 @@ Control {
                 }
             }
 
-            CollapseGroupBox {
+            PanelGroup {
                 title: 'Exposure'
+                groupName: 'exposure'
                 Layout.fillWidth: true
 
                 content: ColumnLayout {
@@ -149,8 +151,9 @@ Control {
                 }
             }
 
-            CollapseGroupBox {
+            PanelGroup {
                 title: 'Paint'
+                groupName: 'paint'
                 Layout.fillWidth: true
 
                 content: ColumnLayout {

@@ -11,3 +11,5 @@ MyGroupBox 1.0 MyGroupBox.qml
 CollapseGroupBox 1.0 CollapseGroupBox.qml
 MyTabButton 1.0 MyTabButton.qml
 MyTabBar 1.0 MyTabBar.qml
+PanelGroup 1.0 PanelGroup.qml
+singleton UiState 1.0 ../UiState.qml
