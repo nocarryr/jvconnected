@@ -15,8 +15,8 @@ RowLayout {
 
     Item { Layout.fillWidth: true }
 
-    UpDownButtons {
-        onUpClicked: root.model.masterBlack.increase()
-        onDownClicked: root.model.masterBlack.decrease()
+    PlusMinusButtons {
+        onPlusClicked: root.model.masterBlack.increase()
+        onMinusClicked: root.model.masterBlack.decrease()
     }
 }

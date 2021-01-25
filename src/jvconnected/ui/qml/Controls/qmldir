@@ -6,6 +6,7 @@ Indicator 1.0 Indicator.qml
 ArrowButton 1.0 ArrowButton.qml
 UpDownButtons 1.0 UpDownButtons.qml
 LeftRightButtons 1.0 LeftRightButtons.qml
+PlusMinusButtons 1.0 PlusMinusButtons.qml
 HeaderLabel 1.0 HeaderLabel.qml
 MyGroupBox 1.0 MyGroupBox.qml
 CollapseGroupBox 1.0 CollapseGroupBox.qml

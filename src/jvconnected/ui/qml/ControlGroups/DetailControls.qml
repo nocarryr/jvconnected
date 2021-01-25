@@ -12,8 +12,8 @@ RowLayout {
         labelText: 'Value'
         valueText: model.detail.value
     }
-    LeftRightButtons {
-        onRightClicked: model.detail.increase()
-        onLeftClicked: model.detail.decrease()
+    PlusMinusButtons {
+        onPlusClicked: model.detail.increase()
+        onMinusClicked: model.detail.decrease()
     }
 }

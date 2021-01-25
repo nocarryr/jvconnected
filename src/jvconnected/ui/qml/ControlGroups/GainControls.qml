@@ -21,9 +21,9 @@ ColumnLayout {
         }
 
 
-        UpDownButtons {
-            onUpClicked: root.model.gainValue.increase()
-            onDownClicked: root.model.gainValue.decrease()
+        PlusMinusButtons {
+            onPlusClicked: model.detail.increase()
+            onMinusClicked: model.detail.decrease()
         }
     }
 }
