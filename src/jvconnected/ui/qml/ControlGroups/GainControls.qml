@@ -11,7 +11,6 @@ ColumnLayout {
     ValueLabel {
         labelText: 'Mode'
         valueText: root.model ? root.model.gainMode.value : ''
-        Layout.fillWidth: true
     }
 
     RowLayout {
@@ -21,7 +20,6 @@ ColumnLayout {
             valueText: root.model ? model.gainValue.value : ''
         }
 
-        Item { Layout.fillWidth: true }
 
         UpDownButtons {
             onUpClicked: root.model.gainValue.increase()

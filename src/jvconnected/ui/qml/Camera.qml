@@ -134,19 +134,24 @@ Control {
                 content: ColumnLayout {
                     MyGroupBox {
                         title: 'Iris'
+                        Layout.fillWidth: true
                         content: IrisControls { model: root.model }
                     }
-                    MyGroupBox {
-                        title: 'Gain'
-                        Layout.fillWidth: true
+                    RowLayout {
+                        MyGroupBox {
+                            title: 'Gain'
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
 
-                        content: GainControls { model: root.model }
-                    }
-                    MyGroupBox {
-                        title: 'Master Black'
-                        Layout.fillWidth: true
+                            content: GainControls { model: root.model }
+                        }
+                        MyGroupBox {
+                            title: 'Master Black'
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
 
-                        content: MasterBlackControls { model: root.model }
+                            content: MasterBlackControls { model: root.model }
+                        }
                     }
                 }
             }

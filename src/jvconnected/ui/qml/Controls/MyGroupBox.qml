@@ -13,7 +13,7 @@ Frame {
     property alias headerTextColor: lbl.textColor
 
     spacing: 6
-    topPadding: 2
+    topPadding: 0
 
 
     contentItem: ColumnLayout {
@@ -24,6 +24,7 @@ Frame {
         spacing: root.spacing
         Control {
             id: hdr
+            Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
             Layout.fillWidth: true
             padding: 0
             contentItem: HeaderLabel {

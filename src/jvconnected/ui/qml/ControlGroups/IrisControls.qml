@@ -36,24 +36,15 @@ ColumnLayout {
                 updateCurrentMode();
             }
         }
-    }
-
-    RowLayout {
-
+        Item { Layout.fillWidth: true }
         ValueLabel {
             labelText: 'F-Stop'
             valueText: root.model ? root.model.iris.fstop : ''
-            orientation: Qt.Vertical
+            orientation: Qt.Horizontal
         }
+    }
 
-        Item { Layout.fillWidth: true }
-
-        LeftRightButtons {
-            enabled: root.model ? model.iris.mode == 'Manual' : false
-            onRightClicked: root.model.iris.increase()
-            onLeftClicked: root.model.iris.decrease()
-        }
-
+    RowLayout {
         Slider {
             enabled: root.model ? root.model.iris.mode == 'Manual' : false
             orientation: Qt.Horizontal
@@ -76,6 +67,12 @@ ColumnLayout {
                     root.model.iris.setPos(value);
                 }
             }
+        }
+        Item { Layout.fillWidth: true }
+        LeftRightButtons {
+            enabled: root.model ? model.iris.mode == 'Manual' : false
+            onRightClicked: root.model.iris.increase()
+            onLeftClicked: root.model.iris.decrease()
         }
     }
 }
