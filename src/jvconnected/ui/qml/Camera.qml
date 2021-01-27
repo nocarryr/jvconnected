@@ -198,4 +198,17 @@ Control {
             }
         }
     }
+    background: Rectangle {
+        color: root.model.tally.program ? '#ff0000' : root.model.tally.preview ? '#00e000' : 'transparent'
+        border.color: root.palette.dark
+        border.width: 2
+        radius: 6
+        Rectangle {
+            color: root.palette.window
+            x: root.leftPadding
+            y: parent.y + root.topPadding
+            width: root.availableWidth
+            height: root.availableHeight
+        }
+    }
 }
