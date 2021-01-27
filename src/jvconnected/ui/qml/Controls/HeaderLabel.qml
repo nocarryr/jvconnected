@@ -8,6 +8,7 @@ Frame {
     bottomPadding: 8
     leftPadding: 0
     rightPadding: 0
+    property Item control
 
     // property alias text: lbl.text
     property string text
@@ -17,16 +18,10 @@ Frame {
 
     font.pointSize: 10
 
-    // implicitHeight: lbl.implicitHeight
-    SystemPalette {
-        id: palette
-        colorGroup: SystemPalette.Active
-    }
-
     background: Rectangle {
         id: bgRect
         border.color: palette.dark
-        color: palette.midlight
+        color: palette.alternateBase
         radius: 2
     }
 

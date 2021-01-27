@@ -30,6 +30,7 @@ Frame {
             contentItem: HeaderLabel {
                 id: lbl
                 // anchors.fill: parent
+                control: root
                 text: root.title
             }
         }

@@ -2,6 +2,8 @@ import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Controls 2.15
 import Controls 1.0
+import QtQuick.Controls.Fusion 2.15
+import QtQuick.Controls.Fusion.impl 2.15
 
 RowLayout {
     id: root
@@ -15,37 +17,41 @@ RowLayout {
     ToolButton {
         id: pgmTallyBtn
         text: 'PGM'
+        horizontalPadding: 8
         // enabled: false
         checkable: true
         checked: root.model.tally.program
+        palette.button: checked ? '#e00000' : '#500000'
+        palette.buttonText: '#202020'
         onToggled: {
             root.model.tally.setProgram(checked);
         }
-        background: Rectangle {
-            implicitWidth: 80
-            implicitHeight: 40
-            // visible: !control.flat || control.down || control.checked || control.highlighted
-            color: pgmTallyBtn.checked ? '#ff0000' : '#800000'
-            // color: Color.blend(control.checked || control.highlighted ? control.palette.dark : control.palette.button,
-            //                                                             control.palette.mid, control.down ? 0.5 : 0.0)
-            border.color: pgmTallyBtn.palette.highlight
-            // border.width: control.visualFocus ? 2 : 0
+        background: ButtonPanel {
+            implicitWidth: 20
+            implicitHeight: 20
+
+            control: pgmTallyBtn
+            visible: true//control.down || control.checked || control.highlighted || control.visualFocus || control.hovered
         }
     }
     ToolButton {
         id: pvwTallyBtn
         text: 'PVW'
+        horizontalPadding: 8
         // enabled: false
         checkable: true
+        palette.button: checked ? '#00e000' : '#004500'
+        palette.buttonText: '#202020'
         checked: root.model.tally.preview
         onToggled: {
             root.model.tally.setPreview(checked);
         }
-        background: Rectangle {
-            implicitWidth: 80
-            implicitHeight: 40
-            color: pvwTallyBtn.checked ? '#00ff00' : '#008000'
-            border.color: pvwTallyBtn.palette.highlight
+        background: ButtonPanel {
+            implicitWidth: 20
+            implicitHeight: 20
+
+            control: pvwTallyBtn
+            visible: true//control.down || control.checked || control.highlighted || control.visualFocus || control.hovered
         }
     }
 }

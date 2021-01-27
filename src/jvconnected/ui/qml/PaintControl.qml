@@ -5,9 +5,8 @@ import Qt.labs.settings 1.0
 import DeviceModels 1.0
 import Controls 1.0
 
-MyGroupBox {
+Control {
     id: root
-    title: 'RB Paint'
 
     property CameraModel model
     property WbRedPaintModel redPaint: model ? model.paint.redPaint : null
@@ -15,7 +14,7 @@ MyGroupBox {
 
     implicitWidth: 200
 
-    content: ColumnLayout {
+    contentItem: ColumnLayout {
 
         Item {
             id: yuvPlane

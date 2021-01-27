@@ -12,6 +12,7 @@ ApplicationWindow {
     Component.onCompleted: {
         engine.open();
     }
+    palette: paletteManager.currentPalette
 
     width: 800
     height: 600
@@ -55,10 +56,6 @@ ApplicationWindow {
                 onClicked: engine.close()
                 Layout.rightMargin: 12
             }
-        }
-        background: Rectangle {
-            implicitHeight: 40
-            color: toolBar.palette.light
         }
     }
 
@@ -134,6 +131,7 @@ ApplicationWindow {
             anchors.fill: parent
             Row {
                 id: cameraContainer
+                spacing: 8
 
                 move: Transition {
                     NumberAnimation { properties: "x,y"; duration: 400; easing.type: Easing.OutCubic }

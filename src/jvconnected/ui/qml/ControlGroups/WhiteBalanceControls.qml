@@ -8,11 +8,10 @@ ColumnLayout {
 
     property CameraModel model
 
-    RowLayout {
+    ColumnLayout {
         Label {
             text: 'Mode'
         }
-        Item { }
         ComboBox {
             property string currentMode: root.model ? root.model.paint.mode.value : ''
 
@@ -39,7 +38,7 @@ ColumnLayout {
         }
     }
     ValueLabel {
-        labelText: 'Color Temp'
+        labelText: ''
         valueText: root.model ? model.paint.colorTemp.value : ''
     }
 }

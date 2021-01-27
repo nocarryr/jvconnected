@@ -26,6 +26,10 @@ IMG_SCRIPT = get_resource_filename('rc_images.py')
 IMG_DIR = get_resource_filename('img')
 IMG_SIZES = (64, 128, 256)
 
+STYLE_CONF = get_resource_filename('qtquickcontrols2.conf')
+STYLE_QRC = get_resource_filename('style.qrc')
+STYLE_SCRIPT = get_resource_filename('rc_style.py')
+
 def rcc(qrc_file: Path, rc_script: Path):
     """Run `pyside2-rcc`_, the PySide2 wrapper for `rcc`_ to compile resources
     into a python module
@@ -102,6 +106,24 @@ def pack_qml(qrc_file: Path = QML_QRC, qml_dir: Path = QML_DIR,
     if build_rcc:
         rcc(qrc_file, qrc_script)
 
+def build_style(conf_file: Path = STYLE_CONF,
+                qrc_file: Path = STYLE_QRC,
+                qrc_script: Path = STYLE_SCRIPT):
+    """Build the `Qt Quick Controls Configuration File`_ into the
+    Qt Resouce System
+
+    Arguments:
+        conf_file: The configuration file
+        qrc_file: The qrc filename to register the config file in
+        qrc_script: Filename for the :func:`rcc` script to generate
+
+    .. _Qt Quick Controls Configuration File: https://doc.qt.io/qt-5.15/qtquickcontrols2-configuration.html
+    """
+    qrc_doc = QRCDocument.create(base_path=qrc_file.parent)
+    qrc_doc.add_file(conf_file)
+    qrc_doc.write(qrc_file)
+    rcc(qrc_file, qrc_script)
+
 class BuildQRC(Command):
     description = "Build qml and image resources"
     user_options = []
@@ -116,6 +138,7 @@ def main():
     build_images(build_rcc=True, sizes=IMG_SIZES)
     pack_qml(build_rcc=True)
     fa.main()
+    build_style()
 
 if __name__ == '__main__':
     main()

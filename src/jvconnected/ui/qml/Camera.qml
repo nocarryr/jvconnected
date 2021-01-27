@@ -25,7 +25,7 @@ Control {
     // Layout.rightMargin: 4
     Layout.alignment: Qt.AlignLeft | Qt.AlignTop
     // Layout.column: deviceIndex
-    horizontalPadding: 4
+    padding: 8
 
     CameraModel {
         id: model
@@ -35,7 +35,8 @@ Control {
     contentItem: MyGroupBox {
         // anchors.fill: parent
         title: root.labelText
-        headerBackgroundColor: '#8080ca'
+        headerBackgroundColor: '#215c98'
+        headerTextColor: '#ffffff'
         horizontalPadding: 8
 
         content: ColumnLayout {
@@ -162,19 +163,30 @@ Control {
                 Layout.fillWidth: true
 
                 content: ColumnLayout {
-                    MyGroupBox {
-                        title: 'Detail'
+                    RowLayout {
+                        MyGroupBox {
+                            title: 'White Balance'
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
 
-                        content: DetailControls { model: root.model }
+                            content: ColumnLayout {
+                                WhiteBalanceControls { model: root.model }
+                            }
+                        }
+                        MyGroupBox {
+                            title: 'Detail'
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            content: DetailControls { model: root.model }
+                        }
                     }
                     MyGroupBox {
-                        title: 'White Balance'
-                        content: ColumnLayout {
-                            WhiteBalanceControls { model: root.model }
-                            PaintControl {
-                                model: model
-                                // colorType: PaintControl.ColorType.Red
-                            }
+                        title: 'Wb Paint Adjust'
+                        Layout.fillWidth: true
+                        content: PaintControl {
+                            model: model
+                            Layout.fillWidth: true
                         }
                     }
                 }
@@ -182,7 +194,7 @@ Control {
             ToolBar {
                 position: ToolBar.Footer
                 Layout.fillWidth: true
-                TallyControls { model: root.model }
+                TallyControls { Layout.fillWidth: true; model: root.model }
             }
         }
     }

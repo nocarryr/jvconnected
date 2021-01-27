@@ -32,7 +32,7 @@ Control {
             font: root.iconFont.iconFont
         }
         // Item { }
-        ArrowButton {
+        RoundButton {
             id: rightBtn
             autoRepeat: root.autoRepeat
             autoRepeatDelay: root.autoRepeatDelay

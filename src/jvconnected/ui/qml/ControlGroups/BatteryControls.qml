@@ -31,7 +31,7 @@ GridLayout {
         }
         text: iconFont.text
         font: iconFont.iconFont
-        color: '#5e5e5e'
+        color: palette.buttonText
     }
     Label {
         property IconFont iconFont: IconFont {
@@ -44,6 +44,6 @@ GridLayout {
         text: iconFont.text
         font: iconFont.iconFont
         color: root.model.battery.batteryState == 'ON_BATTERY' ?
-              (root.model.battery.level >= .5 ? '#21be21' : '#d6c31e') : '#5e5e5e'
+              (root.model.battery.level >= .5 ? '#21be21' : '#d6c31e') : palette.buttonText
     }
 }
