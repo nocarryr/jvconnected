@@ -22,8 +22,8 @@ ColumnLayout {
 
 
         PlusMinusButtons {
-            onPlusClicked: model.detail.increase()
-            onMinusClicked: model.detail.decrease()
+            onPlusClicked: model.gainValue.increase()
+            onMinusClicked: model.gainValue.decrease()
         }
     }
 }

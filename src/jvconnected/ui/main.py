@@ -7,6 +7,7 @@ import argparse
 import importlib
 
 from PySide2 import QtCore, QtQml, QtGui
+from PySide2.QtCore import Qt
 from PySide2.QtWidgets import QApplication
 from PySide2.QtQuick import QQuickView
 
@@ -66,6 +67,7 @@ def run(argv=None):
     p.add_argument('--palette', dest='palette', choices=['system', 'dark'], default='dark')
     args, remaining = p.parse_known_args(argv)
 
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     app = QApplication(remaining)
     QtGui.QIcon.setThemeName('fa-icons')
     loop = QEventLoop(app)
