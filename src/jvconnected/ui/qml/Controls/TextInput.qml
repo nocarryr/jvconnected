@@ -51,6 +51,7 @@ Control {
     }
 
     background: Rectangle {
+        color: 'transparent'
         border.color: root.palette.midlight
         border.width: 1
         radius: 3

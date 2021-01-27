@@ -13,11 +13,13 @@ from PySide2.QtQuick import QQuickView
 from qasync import QEventLoop, asyncSlot, asyncClose
 
 from jvconnected.ui import models
-from jvconnected.ui import rc_images, rc_qml, rc_resources
+from jvconnected.ui import rc_images, rc_qml, rc_resources, rc_style
 from jvconnected.ui.tools.qrc_utils import QRCDocument
+from . import palette
 from . import get_resource_filename
 
 def register_qml_types():
+    palette.register_qml_types()
     models.register_qml_types()
 
 QML_PATH = get_resource_filename('qml')
@@ -61,6 +63,7 @@ def run(argv=None):
     p.add_argument('-l', '--local-qml', dest='local_qml', action='store_true',
         help='Use local qml files (development mode)',
     )
+    p.add_argument('--palette', dest='palette', choices=['system', 'dark'], default='dark')
     args, remaining = p.parse_known_args(argv)
 
     app = QApplication(remaining)
@@ -80,6 +83,13 @@ def run(argv=None):
         qml_main = 'qrc:/qml/main.qml'
     register_qml_types()
     engine.addImportPath(qml_import)
+    palette_manager = palette.PaletteManager(
+        qmlEngine=engine,
+        defaultPaletteName=args.palette,
+    )
+    context = engine.rootContext()
+    context.setContextProperty('paletteManager', palette_manager)
+
     engine.load(qml_main)
     win = engine.rootObjects()[0]
     win.show()

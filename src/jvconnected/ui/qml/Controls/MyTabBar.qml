@@ -19,12 +19,6 @@ TabBar {
         control.maxItemWidth = maxW;
     }
 
-    background: Rectangle {
-        color: bar.palette.light
-        border.color: bar.palette.midlight
-        border.width: 1
-    }
-
     Component.onCompleted: {
         updateMaxItemWidth();
     }

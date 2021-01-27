@@ -56,6 +56,7 @@ Control {
             text: device ? device.displayName : deviceId
             font.italic: edited
             font.bold: edited
+            padding: 4
 
             property string localDeviceId: deviceId
             property DeviceConfigModel device
@@ -80,9 +81,10 @@ Control {
             }
         }
         highlight: Rectangle {
-            color: 'lightsteelblue'
+            color: root.palette.highlight
+            opacity: .5
             radius: 5
-            border.color: root.palette.highlight
+            border.color: Qt.darker(root.palette.text, 1.2)
         }
         focus: true
 

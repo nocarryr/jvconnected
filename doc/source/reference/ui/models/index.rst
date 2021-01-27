@@ -6,5 +6,6 @@
 
     engine
     device
+    devicepreview
     midi
     netlinx

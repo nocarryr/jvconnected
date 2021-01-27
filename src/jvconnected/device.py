@@ -68,6 +68,9 @@ class Device(Dispatcher):
 
     @property
     def devicepreview(self) -> JpegSource:
+        """Instance of :class:`jvconnected.devicepreview.JpegSource` to
+        acquire real-time jpeg images
+        """
         pv = self._devicepreview
         if pv is None:
             pv = self._devicepreview = JpegSource(self)

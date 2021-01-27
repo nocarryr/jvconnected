@@ -8,6 +8,7 @@ RoundButton {
     property bool round: true
     property int direction: Qt.LeftArrow
     radius: round ? width : 0
+    property alias iconName: iconFont.iconName
 
     IconFont {
         id: iconFont

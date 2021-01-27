@@ -5,3 +5,5 @@ qml.qrc
 rc_resources.py
 resources.qrc
 resources
+rc_style.py
+style.qrc

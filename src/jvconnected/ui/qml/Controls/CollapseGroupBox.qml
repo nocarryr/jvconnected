@@ -1,12 +1,15 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Controls 2.15
+import QtQuick.Controls.Fusion 2.15
+import QtQuick.Controls.Fusion.impl 2.15
 import Fonts 1.0
 
 MyGroupBox {
     id: root
 
     property bool isCollapsed: state == 'collapsed'
+    signal stateChangeTriggered(string newState)
 
     states: [
         State {
@@ -94,7 +97,14 @@ MyGroupBox {
     }
 
     header: ToolBar {
+        id: hdr
+        position: ToolBar.Header
+        property bool flat: false
+        property bool highlighted: false
+        contentHeight: Math.max(toggleBtn.implicitHeight, lbl.implicitHeight)
+        contentWidth: (toggleBtn.implicitWidth * 2) + lbl.implicitWidth + row.spacing
         RowLayout {
+            id: row
             anchors.fill: parent
             ToolButton {
                 z: 10
@@ -104,28 +114,42 @@ MyGroupBox {
                 }
                 text: iconFont.text
                 font: iconFont.iconFont
+                Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
                 onClicked: { root.toggleCollapsed() }
+                background: Rectangle {
+                    color: 'transparent'
+                }
             }
             Label {
+                id: lbl
                 z: 8
                 text: root.title
                 elide: Label.ElideRight
                 horizontalAlignment: Qt.AlignHCenter
                 verticalAlignment: Qt.AlignVCenter
+                Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
                 Layout.fillWidth: true
             }
-            Item { z:8; implicitWidth: toggleBtn.implicitWidth }
+            Item { id:filler; z:8; implicitWidth: toggleBtn.implicitWidth }
         }
         MouseArea {
+            id: mse
             z: 9
             anchors.fill: parent
             // cursorShape: Qt.PointingHandCursor
             hoverEnabled: false
             onClicked: {
                 root.toggleCollapsed();
+                root.stateChangeTriggered(root.state);
                 toggleBtn.checked = root.isCollapsed;
             }
         }
-    }
+        background: ButtonPanel {
+            implicitWidth: 20
+            implicitHeight: 20
 
+            control: hdr
+            // visible: toggleBtn.down || toggleBtn.checked || toggleBtn.highlighted || toggleBtn.visualFocus || mse.hovered
+        }
+    }
 }

@@ -51,6 +51,7 @@ Control {
         anchors.fill: parent
         border.color: root.palette.midlight
         border.width: 1
+        color: 'transparent'
         radius: 3
     }
 }

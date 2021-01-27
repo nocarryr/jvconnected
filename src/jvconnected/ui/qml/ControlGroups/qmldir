@@ -1,0 +1,11 @@
+Module ControlGroups
+
+BatteryControls 1.0 BatteryControls.qml
+ConnectionControls 1.0 ConnectionControls.qml
+DetailControls 1.0 DetailControls.qml
+GainControls 1.0 GainControls.qml
+IrisControls 1.0 IrisControls.qml
+MasterBlackControls 1.0 MasterBlackControls.qml
+TallyControls 1.0 TallyControls.qml
+WhiteBalanceControls 1.0 WhiteBalanceControls.qml
+CameraModel 1.0 ../CameraModel.qml
