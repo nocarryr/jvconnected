@@ -35,6 +35,7 @@ Control {
     contentItem: MyGroupBox {
         // anchors.fill: parent
         title: root.labelText
+        headerFont.pointSize: 16
         headerBackgroundColor: '#215c98'
         headerTextColor: '#ffffff'
         horizontalPadding: 8
@@ -49,43 +50,16 @@ Control {
                     Layout.fillWidth: true
                 }
                 BatteryControls { model: root.model }
-                RowLayout {
-                    LeftRightButtons {
-                        onLeftClicked: {
-                            var ix = root.device.deviceIndex - 1;
-                            if (ix < 0){
-                                return;
-                            }
-                            root.device.setDeviceIndex(ix);
-                        }
-                        onRightClicked: {
-                            var ix = root.device.deviceIndex + 1;
-                            root.device.setDeviceIndex(ix);
-                        }
-                    }
-                    RoundButton {
-                        id: removeIndexBtn
-                        property IconFont iconFont: IconFont {
-                            iconName: 'faTimes'
-                        }
-                        text: iconFont.text
-                        font: iconFont.iconFont
-                        onClicked: {
-                            root.device.removeDeviceIndex(root.device.deviceIndex);
-                        }
-                    }
+            }
+            RowLayout {
+                ValueLabel {
+                    labelText: 'Timecode:'
+                    valueText: model.cameraParams.timecode
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
                 }
-            }
-            ConnectionControls { model: root.model }
-            ValueLabel {
-                labelText: 'Status'
-                valueText: root.connected ? 'Connected' : 'Not Connected'
-                Layout.fillWidth: true
-            }
-            ValueLabel {
-                labelText: 'TC'
-                valueText: model.cameraParams.timecode
-                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                ConnectionControls { model: root.model }
             }
 
             PanelGroup {
