@@ -7,7 +7,7 @@ Control {
     property string labelText
     property int orientation: Qt.Horizontal
     property color activeColor: '#00ff00'
-    property color inactiveColor: '#004000'
+    property color inactiveColor: calcInactiveColor(activeColor)
     property bool valueState: false
     implicitWidth: grid.implicitWidth + leftPadding + rightPadding
     implicitHeight: grid.implicitHeight + topPadding + bottomPadding
@@ -15,6 +15,11 @@ Control {
     horizontalPadding: 4
     verticalPadding: 4
     font.pointSize: 9
+
+    function calcInactiveColor(baseColor){
+        var l = baseColor.hslLightness * .3;
+        return Qt.hsla(baseColor.hslHue, baseColor.hslSaturation, l);
+    }
 
     contentItem: GridLayout {
         id: grid

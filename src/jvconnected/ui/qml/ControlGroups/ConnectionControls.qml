@@ -15,15 +15,11 @@ RowLayout {
         orientation: Qt.Vertical
         labelText: 'Online'
         valueState: root.confDevice ? root.confDevice.deviceOnline : false
+        activeColor: '#0051ed'
     }
     Indicator {
         orientation: Qt.Vertical
         labelText: 'Active'
         valueState: root.confDevice ? root.confDevice.deviceActive : false
-    }
-    Indicator {
-        orientation: Qt.Vertical
-        labelText: 'Stored'
-        valueState: root.confDevice ? root.confDevice.storedInConfig : false
     }
 }

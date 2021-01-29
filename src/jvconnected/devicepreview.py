@@ -45,6 +45,7 @@ class JpegSource:
         if self.encoding:
             return
         await self.client.request('JpegEncode', {'Operate':'Start'})
+        logger.success('JpegEncode acquired')
         self.__encoding = True
 
     async def release(self):
