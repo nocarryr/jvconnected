@@ -125,6 +125,11 @@ Control {
                         }
                     }
                 }
+                Component.onCompleted: {
+                    if (!isCollapsed){
+                        previewWindow.setVideoEnabled(true);
+                    }
+                }
             }
 
             PanelGroup {
