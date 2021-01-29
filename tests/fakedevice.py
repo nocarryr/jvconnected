@@ -1,5 +1,7 @@
 from loguru import logger
+from typing import Sequence
 import asyncio
+from pathlib import Path
 from contextvars import ContextVar
 import socket
 import datetime
@@ -20,12 +22,78 @@ from jvconnected import device
 from jvconnected.discovery import PROCAM_FQDN
 
 
+PREVIEW_IMAGE_DIR = Path(__file__).resolve().parent / 'test_images'
+
+def get_image_filenames(img_dir: Path = PREVIEW_IMAGE_DIR) -> Sequence[Path]:
+    d = {}
+    for p in img_dir.glob('*.jpg'):
+        num = int(p.stem)
+        d[num] = p
+    if not len(d):
+        logger.warning('No test images exist')
+    return [d[num] for num in sorted(d.keys())]
+
 class NotUniqueError(Exception):
     pass
 class NameNotUnique(NotUniqueError):
     pass
 class PortNotUnique(NotUniqueError):
     pass
+
+class ImageServer:
+    def __init__(self):
+        self.loop = asyncio.get_event_loop()
+        self.fps = 1
+        self.frame_dur = 1 / self.fps
+        self.image_filenames = get_image_filenames()
+        self.current_index = 0
+        self.max_index = len(self.image_filenames) - 1
+        self.last_frame_time = None
+        self.encoding = False
+        self.lock = asyncio.Lock()
+        self.current_img_data = None
+
+    async def set_encoding(self, value: bool):
+        if value == self.encoding:
+            return
+        logger.debug(f'encoding: {value}')
+        async with self.lock:
+            self.encoding = value
+            self.current_img_data = None
+            self.last_frame_time = None
+            self.current_index = 0
+
+    async def get_file_response(self, request):
+        if not self.encoding:
+            return web.Response(status=404, reason='Not Found', text='Not found')
+        async with self.lock:
+            file_changed = self.check_increment()
+            img_data = self.current_img_data
+        if file_changed or img_data is None:
+            await self.load_file()
+        return web.Response(body=img_data, content_type='image/jpeg')
+
+    async def load_file(self):
+        filepath = self.image_filenames[self.current_index]
+        data = filepath.read_bytes()
+        async with self.lock:
+            self.current_img_data = data
+
+    def check_increment(self):
+        now = self.loop.time()
+        last_t = self.last_frame_time
+        if last_t is None:
+            self.last_frame_time = now
+            return False
+        elapsed = now - last_t
+        if elapsed < self.frame_dur:
+            return False
+        ix = self.current_index + 1
+        if ix > self.max_index:
+            ix = 0
+        self.current_index = ix
+        self.last_frame_time = now
+        return True
 
 class FakeDevice(Dispatcher):
     model_name = Property('GY-HC500')
@@ -39,6 +107,7 @@ class FakeDevice(Dispatcher):
     parameter_groups = DictProperty()
     zc_service_info = Property()
     def __init__(self, **kwargs):
+        self.image_server = ImageServer()
         keys = ['model_name', 'serial_number', 'hostaddr', 'hostport', 'dns_name_prefix']
         for key in keys:
             if key in kwargs:
@@ -52,6 +121,7 @@ class FakeDevice(Dispatcher):
             'SetWebSliderEvent':self.handle_web_slider_event,
             'SetWebXYFieldEvent':self.handle_web_xy_event,
             'SetStudioTally':self.handle_tally_request,
+            'JpegEncode':self.handle_jpg_encode_request,
         }
         self.zc_service_info = self._build_zc_service_info()
         attrs = ['dns_name_prefix', 'serial_number', 'hostaddr', 'hostport']
@@ -84,6 +154,9 @@ class FakeDevice(Dispatcher):
                 resp_data['Response']['Data'] = data
             resp_data['Response']['Result'] = 'Success'
         return web.json_response(resp_data)
+
+    async def handle_jpg_req(self, request):
+        return await self.image_server.get_file_response(request)
 
     async def handle_system_info_req(self, request, payload):
         data = {
@@ -121,6 +194,11 @@ class FakeDevice(Dispatcher):
 
     async def handle_tally_request(self, request, payload):
         await self.parameter_groups['tally'].handle_tally_request(request, payload)
+
+    async def handle_jpg_encode_request(self, request, payload):
+        params = payload['Request']['Params']
+        encode = params['Operate'] == 'Start'
+        await self.image_server.set_encoding(encode)
 
     def _build_zc_service_info(self) -> 'ServiceInfo':
         return ServiceInfo(
@@ -647,7 +725,20 @@ def init_func(argv=None, **kwargs):
 
     @routes.get('/api.php')
     async def handle_auth_req(request):
-        return web.Response(text='Ok')
+        resp = web.Response(text='Ok')
+        resp.set_cookie('SessionID', '1234')
+        return resp
+
+    @routes.get('/cgi-bin/get_jpg.cgi')
+    async def handle_jpg_req(request):
+        hostaddr, port = request.host.split(':')
+        s_id = (hostaddr, int(port))
+        servers = request.app['servers']
+        d = request.app['servers'].get(s_id)
+        if d is not None:
+            device = d['device']
+            return await device.handle_jpg_req(request)
+        return web.Response(status=404, reason='Not Found', text='Not found')
 
     app.add_routes(routes)
 
