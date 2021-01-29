@@ -682,6 +682,8 @@ APP_LEVEL = ContextVar('APP_LEVEL', default=-1)
 
 def init_func(argv=None, **kwargs):
     num_devices = kwargs.get('num_devices', 1)
+    leave_published = kwargs.get('leave_published', False)
+    port_offset = kwargs.get('port_offset', 0)
 
     app = web.Application()
     routes = web.RouteTableDef()
@@ -698,7 +700,7 @@ def init_func(argv=None, **kwargs):
         await zc.open()
         coros = []
         for _ in range(num_devices):
-            coros.append(build_device(app))
+            coros.append(build_device(app, port_offset=port_offset))
         await asyncio.gather(*coros)
         logger.success('Servers ready')
 
@@ -710,7 +712,8 @@ def init_func(argv=None, **kwargs):
         await zc.close()
 
     app.on_startup.append(on_startup)
-    app.on_shutdown.append(on_shutdown)
+    if not leave_published:
+        app.on_shutdown.append(on_shutdown)
 
     @routes.post('/cgi-bin/api.cgi')
     async def handle_command_req(request):
@@ -745,7 +748,9 @@ def init_func(argv=None, **kwargs):
     return app
 
 async def build_device(app, **kwargs):
+    port_offset = kwargs.pop('port_offset', 0)
     device = FakeDevice(**kwargs)
+    device.hostport += port_offset
     zc = app['zeroconf']
     i = 0
     unique = False
@@ -784,9 +789,11 @@ if __name__ == '__main__':
     import argparse
     p = argparse.ArgumentParser()
     p.add_argument('-n', '--num-devices', dest='num_devices', type=int, default=1)
+    p.add_argument('--leave-published', dest='leave_published', action='store_true')
+    p.add_argument('--port-offset', dest='port_offset', type=int, default=0)
     args = p.parse_args()
 
-    app = init_func(num_devices=args.num_devices)
+    app = init_func(**vars(args))
     web.run_app(app)
     # loop = asyncio.get_event_loop()
     # loop.run_forever()
