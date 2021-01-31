@@ -110,17 +110,19 @@ class DeviceConfigModel(DeviceBase):
     _n_deviceOnline = Signal()
     _n_deviceActive = Signal()
     _n_storedInConfig = Signal()
+    _n_alwaysConnect = Signal()
     _n_editedProperties = Signal()
     _prop_attr_map = {
-        'online':'deviceOnline', 'active':'deviceActive',
+        'online':'deviceOnline', 'active':'deviceActive', 'always_connect':'alwaysConnect',
         'stored_in_config':'storedInConfig', 'device_index':'deviceIndex',
         'display_name':'displayName', 'auth_user':'authUser', 'auth_pass':'authPass'
     }
-    _editable_properties = ['display_name', 'device_index', 'auth_user', 'auth_pass']
+    _editable_properties = ['display_name', 'device_index', 'auth_user', 'auth_pass', 'always_connect']
     def __init__(self, *args):
         self._deviceOnline = False
         self._deviceActive = False
         self._storedInConfig = False
+        self._alwaysConnect = False
         self._editedProperties = []
         self._updating_from_device = False
         super().__init__(*args)
@@ -140,6 +142,11 @@ class DeviceConfigModel(DeviceBase):
     storedInConfig = Property(bool, _g_storedInConfig, _s_storedInConfig, notify=_n_storedInConfig)
     """Alias for :attr:`jvconnected.config.DeviceConfig.stored_in_config`"""
 
+    def _g_alwaysConnect(self): return self._alwaysConnect
+    def _s_alwaysConnect(self, value): self._generic_setter('_alwaysConnect', value)
+    alwaysConnect = Property(bool, _g_alwaysConnect, _s_alwaysConnect, notify=_n_alwaysConnect)
+    """Alias for :attr:`jvconnected.config.DeviceConfig.always_connect`"""
+
     def _g_editedProperties(self) -> List[str]: return self._editedProperties
     def _s_editedProperties(self, value: List[str]):
         self._generic_setter('_editedProperties', value)
@@ -151,7 +158,7 @@ class DeviceConfigModel(DeviceBase):
     def _generic_setter(self, attr, value):
         super()._generic_setter(attr, value)
         attr = attr.lstrip('_')
-        if attr in ['displayName', 'deviceIndex', 'authUser', 'authPass']:
+        if attr in ['displayName', 'deviceIndex', 'authUser', 'authPass', 'alwaysConnect']:
             if self._updating_from_device or self.device is None:
                 return
             if attr in self.editedProperties:
@@ -221,6 +228,7 @@ class DeviceConfigModel(DeviceBase):
         self.storedInConfig = device.stored_in_config
         self.deviceIndex = device.device_index
         self.displayName = device.display_name
+        self.alwaysConnect = device.always_connect
         # keys = ['online', 'active', 'stored_in_config', 'device_index']
         keys = self._prop_attr_map.keys()
         device.bind(**{key:self.on_device_prop_change for key in keys})

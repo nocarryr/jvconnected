@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 import jsonfactory
 
+from zeroconf import ServiceInfo
 from jvconnected.utils import IndexedDict
 
 def get_config_dir(app_name: str) -> 'pathlib.Path':
@@ -268,6 +269,9 @@ class DeviceConfig(Dispatcher):
         device_index (int): Index for the device for organization purposes.
             If ``None`` (default), no index is assigned. Otherwise, the index
             will be assigned according to :meth:`jvconnected.utils.IndexedDict.add`
+        always_connect (bool): If ``True``, the :class:`~jvconnected.engine.Engine`
+            will attempt to connect to this device without it being discovered
+            on the network
         online (bool): ``True`` if the device is currently active on the network
         active (bool): ``True`` if a :class:`jvconnected.device.Device` is
             currently communicating with the device
@@ -287,17 +291,22 @@ class DeviceConfig(Dispatcher):
     auth_user = Property(None)
     auth_pass = Property(None)
     device_index = Property(None)
+    always_connect = Property(False)
     stored_in_config = Property(False)
     online = Property(False)
     active = Property(False)
 
-    _all_prop_names = (
-        'name', 'dns_name', 'fqdn', 'display_name',
-        'hostaddr', 'hostport', 'auth_user', 'auth_pass', 'device_index',
+    _zeroconf_prop_names = (
+        'name', 'dns_name', 'fqdn', 'hostaddr', 'hostport',
     )
     _immutable_prop_names = (
         'model_name', 'serial_number',
     )
+    _user_def_prop_names = (
+        'display_name', 'always_connect', 'device_index',
+        'auth_user', 'auth_pass',
+    )
+    _all_prop_names = _zeroconf_prop_names + _user_def_prop_names
 
     _events_ = ['on_change']
     def __init__(self, model_name: str, serial_number: str, **kwargs):
@@ -363,6 +372,19 @@ class DeviceConfig(Dispatcher):
         kw = cls.get_props_from_service_info(info)
         return cls(**kw)
 
+    def build_service_info(self) -> ServiceInfo:
+        """Create a :class:`zeroconf.ServiceInfo` from the values in this instance
+        """
+        info = ServiceInfo(
+            name=self.fqdn,
+            type_='.'.join(self.fqdn.split('.')[1:]),
+            server=self.dns_name,
+            properties={b'model':bytes(self.model_name, 'UTF-8')},
+            port=self.hostport,
+            parsed_addresses=[self.hostaddr],
+        )
+        return info
+
     def update_from_service_info(self, info: 'zeroconf.ServiceInfo'):
         """Update instance attributes from a :class:`zeroconf.ServiceInfo`
         """
@@ -371,7 +393,7 @@ class DeviceConfig(Dispatcher):
             if key in self._immutable_prop_names:
                 assert getattr(self, key) == val
                 continue
-            elif key == 'display_name':
+            elif key in self._user_def_prop_names:
                 continue
             setattr(self, key, val)
 
@@ -385,6 +407,8 @@ class DeviceConfig(Dispatcher):
             elif attr == 'display_name':
                 if val == other.name:
                     continue
+            elif attr == 'always_connect':
+                val = self.always_connect or other.always_connect
             elif val is None:
                 continue
             setattr(self, attr, val)

@@ -15,6 +15,7 @@ Control {
     property string authPass: ''
     property int deviceIndex: 0
     property string displayName: ''
+    property alias alwaysConnect: alwaysConnectSwitch.checked
     property bool hasChanges: false
 
     signal setDevice(DeviceConfigModel dev)
@@ -37,6 +38,7 @@ Control {
         authPass = device.authPass;
         deviceIndex = device.deviceIndex;
         displayName = device.displayName;
+        alwaysConnect = device.alwaysConnect;
         // hasChanges = false;
         checkValues();
     }
@@ -47,6 +49,7 @@ Control {
             device.authPass = root.authPass;
             device.deviceIndex = root.deviceIndex;
             device.displayName = root.displayName;
+            device.alwaysConnect = root.alwaysConnect;
             device.sendValuesToDevice();
             checkValues();
         }
@@ -57,7 +60,7 @@ Control {
         hasChanges = (
             authUser != device.authUser || authPass != device.authPass ||
             deviceIndex != device.deviceIndex || device.editedProperties.length > 0 ||
-            displayName != device.displayName
+            displayName != device.displayName || alwaysConnect !== device.alwaysConnect
         );
     }
 
@@ -98,6 +101,15 @@ Control {
                 onSubmit: {
                     root.authPass = value;
                     root.checkValues();
+                }
+            }
+            RowLayout {
+                Label {
+                    text: 'Always Connect'
+                }
+                Switch {
+                    id: alwaysConnectSwitch
+                    onToggled: { root.checkValues() }
                 }
             }
             RowLayout {
