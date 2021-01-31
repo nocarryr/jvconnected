@@ -94,7 +94,7 @@ class MidiPortsModel(GenericQObject):
     def _g_engine(self) -> Optional[EngineModel]:
         return self._engine
     def _s_engine(self, value: EngineModel):
-        if value == self._engine:
+        if value is None or value == self._engine:
             return
         assert self._engine is None
         self._engine = value
