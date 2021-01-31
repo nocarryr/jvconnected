@@ -339,10 +339,10 @@ class Engine(Dispatcher):
             device_conf = self.add_discovered_device(info)
 
         device_conf.online = True
+        self.emit('on_device_discovered', device_conf)
         if self.auto_add_devices:
             if device_conf.id not in self.devices:
                 await self.add_device_from_conf(device_conf)
-        self.emit('on_device_discovered', device_conf)
 
     async def on_discovery_service_updated(self, name, **kwargs):
         logger.debug(f'on_discovery_service_updated: "{name}", {kwargs}')

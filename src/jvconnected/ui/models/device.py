@@ -271,17 +271,19 @@ class DeviceModel(DeviceBase):
     """Instance of :class:`DeviceConfigModel` matching this device"""
 
     def _do_set_device(self, device):
+        old = self._device
+        if old is not None:
+            old.unbind(self)
         if device is not None:
-            old = self._device
             if old is not None:
                 assert not old.connected
                 assert device.id == self.deviceId
-                old.unbind(self)
             self._device = device
             self._on_device_set(device)
             self._n_device.emit()
         else:
-            self._generic_setter('_device', value)
+            self._generic_setter('_device', device)
+            self.connected = False
 
     def _g_connected(self) -> bool: return self._connected
     def _s_connected(self, value: bool): self._generic_setter('_connected', value)
@@ -364,16 +366,10 @@ class ParamBase(GenericQObject):
     def _s_device(self, value: DeviceModel):
         if value is not None and value is self._device:
             return
+        self._generic_setter('_device', value)
+        self._on_device_set(value)
         if value is not None:
-            old = self._device
-            if old is not None:
-                old.unbind(self)
-            self._device = value
-            self._n_device.emit()
-            self._on_device_set(value)
             value._n_device.connect(self.on_device_changed)
-        else:
-            self._generic_setter('_device', value)
     device = Property(DeviceModel, _g_device, _s_device, notify=_n_device)
     """The parent :class:`DeviceModel`"""
 
@@ -381,20 +377,19 @@ class ParamBase(GenericQObject):
     def _s_paramGroup(self, value: 'ParameterGroup'):
         if value is not None and value is self._paramGroup:
             return
-        if value is not None:
-            old = self._paramGroup
-            if old is not None:
-                old.unbind(self)
-            self._paramGroup = value
-            self._n_paramGroup.emit()
-        else:
-            self._generic_setter('_paramGroup', value)
+        old = self._paramGroup
+        if old is not None:
+            old.unbind(self)
+        self._generic_setter('_paramGroup', value)
     paramGroup = Property(object, _g_paramGroup, _s_paramGroup, notify=_n_paramGroup)
     """The :class:`jvconnected.device.ParameterGroup` for this object. Retreived
     from the :attr:`device`
     """
 
     def _on_device_set(self, device):
+        if device is None or device.device is None:
+            self.paramGroup = None
+            return
         p = self.paramGroup = device.device.parameter_groups[self._param_group_key]
         self._on_param_group_set(p)
 
