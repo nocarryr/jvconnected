@@ -684,6 +684,7 @@ def init_func(argv=None, **kwargs):
     num_devices = kwargs.get('num_devices', 1)
     leave_published = kwargs.get('leave_published', False)
     port_offset = kwargs.get('port_offset', 0)
+    no_publish = kwargs.get('no_publish', False)
 
     app = web.Application()
     routes = web.RouteTableDef()
@@ -700,7 +701,7 @@ def init_func(argv=None, **kwargs):
         await zc.open()
         coros = []
         for _ in range(num_devices):
-            coros.append(build_device(app, port_offset=port_offset))
+            coros.append(build_device(app, port_offset=port_offset, no_publish=no_publish))
         await asyncio.gather(*coros)
         logger.success('Servers ready')
 
@@ -749,6 +750,7 @@ def init_func(argv=None, **kwargs):
 
 async def build_device(app, **kwargs):
     port_offset = kwargs.pop('port_offset', 0)
+    no_publish = kwargs.pop('no_publish', False)
     device = FakeDevice(**kwargs)
     device.hostport += port_offset
     zc = app['zeroconf']
@@ -781,8 +783,9 @@ async def build_device(app, **kwargs):
     app['servers'][s_id] = {'device':device, 'runner':runner, 'site':site}
     logger.debug(f'start site for {s_id}')
     await site.start()
-    logger.debug(f'publishing service for {s_id}')
-    service.published = True
+    if no_publish is False:
+        logger.debug(f'publishing service for {s_id}')
+        service.published = True
     return device, runner, site
 
 if __name__ == '__main__':
@@ -790,6 +793,7 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('-n', '--num-devices', dest='num_devices', type=int, default=1)
     p.add_argument('--leave-published', dest='leave_published', action='store_true')
+    p.add_argument('--no-publish', dest='no_publish', action='store_true')
     p.add_argument('--port-offset', dest='port_offset', type=int, default=0)
     args = p.parse_args()
 
