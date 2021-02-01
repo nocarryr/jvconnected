@@ -119,6 +119,8 @@ class DeviceConfigModel(DeviceBase):
     }
     _editable_properties = ['display_name', 'device_index', 'auth_user', 'auth_pass', 'always_connect']
     def __init__(self, *args):
+        prop_map, editable = self._prop_attr_map, self._editable_properties
+        self._editable_props_camel_case = [prop_map[prop] for prop in editable]
         self._deviceOnline = False
         self._deviceActive = False
         self._storedInConfig = False
@@ -158,7 +160,7 @@ class DeviceConfigModel(DeviceBase):
     def _generic_setter(self, attr, value):
         super()._generic_setter(attr, value)
         attr = attr.lstrip('_')
-        if attr in ['displayName', 'deviceIndex', 'authUser', 'authPass', 'alwaysConnect']:
+        if attr in self._editable_props_camel_case:
             if self._updating_from_device or self.device is None:
                 return
             if attr in self.editedProperties:
@@ -223,13 +225,9 @@ class DeviceConfigModel(DeviceBase):
         self._updating_from_device = False
 
     def _on_device_set(self, device):
-        self.deviceOnline = device.online
-        self.deviceActive = device.active
-        self.storedInConfig = device.stored_in_config
-        self.deviceIndex = device.device_index
-        self.displayName = device.display_name
-        self.alwaysConnect = device.always_connect
-        # keys = ['online', 'active', 'stored_in_config', 'device_index']
+        for dev_attr, self_attr in self._prop_attr_map.items():
+            val = getattr(device, dev_attr)
+            setattr(self, self_attr, val)
         keys = self._prop_attr_map.keys()
         device.bind(**{key:self.on_device_prop_change for key in keys})
         # device.bind(device_index=self.on_device_index_changed)
