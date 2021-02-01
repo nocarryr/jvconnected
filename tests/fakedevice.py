@@ -5,6 +5,7 @@ from pathlib import Path
 from contextvars import ContextVar
 import socket
 import datetime
+import ipaddress
 
 import pkg_resources
 ZC_VERSION = pkg_resources.get_distribution('zeroconf').parsed_version
@@ -16,6 +17,7 @@ else:
 from aiohttp import web
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 import zeroconf
+import ifaddr
 # from zeroconf import ServiceInfo
 
 from jvconnected import device
@@ -39,6 +41,24 @@ class NameNotUnique(NotUniqueError):
     pass
 class PortNotUnique(NotUniqueError):
     pass
+
+
+def get_non_loopback_ip() -> ipaddress.IPv4Interface:
+    """Find the first non-loopback network address on the system. If none is
+    found, fall back to the loopback ip.
+    """
+    loopback_ip = None
+    for nic in ifaddr.get_adapters():
+        for ip in nic.ips:
+            if not ip.is_IPv4:
+                continue
+            net = ipaddress.ip_interface(f'{ip.ip}/{ip.network_prefix}')
+            if net.is_loopback:
+                loopback_ip = net
+                continue
+            return net
+    return loopback_ip
+
 
 class ImageServer:
     def __init__(self):
@@ -109,6 +129,7 @@ class FakeDevice(Dispatcher):
     def __init__(self, **kwargs):
         self.image_server = ImageServer()
         keys = ['model_name', 'serial_number', 'hostaddr', 'hostport', 'dns_name_prefix']
+        kwargs.setdefault('hostaddr', str(get_non_loopback_ip().ip))
         for key in keys:
             if key in kwargs:
                 setattr(self, key, kwargs[key])
