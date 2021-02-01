@@ -42,7 +42,7 @@ Control {
             font: root.font
             // font.family: 'Droid Sans Mono'
             Layout.alignment: root.orientation == Qt.Horizontal ? Layout.AlignVCenter | Layout.AlignRight : Layout.AlignVCenter | Layout.AlignLeft
-            Layout.fillWidth: root.orientation == Qt.Vertical ? true : false
+            Layout.fillWidth: true
             Layout.fillHeight: root.orientation == Qt.Horizontal ? true : false
             onEditingFinished: {
                 root.submit(text);

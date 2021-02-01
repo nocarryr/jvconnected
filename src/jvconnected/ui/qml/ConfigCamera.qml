@@ -13,6 +13,8 @@ Control {
 
     property string authUser: ''
     property string authPass: ''
+    property string hostaddr: ''
+    property int hostport: 80
     property int deviceIndex: 0
     property string displayName: ''
     property alias alwaysConnect: alwaysConnectSwitch.checked
@@ -36,6 +38,8 @@ Control {
         device.getValuesFromDevice();
         authUser = device.authUser;
         authPass = device.authPass;
+        hostaddr = device.hostaddr;
+        hostport = device.hostport;
         deviceIndex = device.deviceIndex;
         displayName = device.displayName;
         alwaysConnect = device.alwaysConnect;
@@ -47,6 +51,8 @@ Control {
         if (hasChanges){
             device.authUser = root.authUser;
             device.authPass = root.authPass;
+            device.hostaddr = root.hostaddr;
+            device.hostport = root.hostport;
             device.deviceIndex = root.deviceIndex;
             device.displayName = root.displayName;
             device.alwaysConnect = root.alwaysConnect;
@@ -60,7 +66,8 @@ Control {
         hasChanges = (
             authUser != device.authUser || authPass != device.authPass ||
             deviceIndex != device.deviceIndex || device.editedProperties.length > 0 ||
-            displayName != device.displayName || alwaysConnect !== device.alwaysConnect
+            displayName != device.displayName || alwaysConnect !== device.alwaysConnect ||
+            hostaddr != device.hostaddr || hostport != device.hostport
         );
     }
 
@@ -85,22 +92,44 @@ Control {
                     root.checkValues();
                 }
             }
-            TextInput {
-                labelText: 'Username'
-                valueText: root.authUser
+            GridLayout {
+                columns: 2
                 Layout.fillWidth: true
-                onSubmit: {
-                    root.authUser = value;
-                    root.checkValues();
+                TextInput {
+                    labelText: 'Username'
+                    valueText: root.authUser
+                    Layout.fillWidth: true
+                    onSubmit: {
+                        root.authUser = value;
+                        root.checkValues();
+                    }
                 }
-            }
-            TextInput {
-                labelText: 'Password'
-                valueText: root.authPass
-                Layout.fillWidth: true
-                onSubmit: {
-                    root.authPass = value;
-                    root.checkValues();
+                TextInput {
+                    labelText: 'Password'
+                    valueText: root.authPass
+                    Layout.fillWidth: true
+                    onSubmit: {
+                        root.authPass = value;
+                        root.checkValues();
+                    }
+                }
+                TextInput {
+                    labelText: 'IP Address'
+                    valueText: root.hostaddr
+                    Layout.fillWidth: true
+                    onSubmit: {
+                        root.hostaddr = value;
+                        root.checkValues();
+                    }
+                }
+                TextInput {
+                    labelText: 'Port'
+                    valueText: root.hostport.toString()
+                    Layout.fillWidth: true
+                    onSubmit: {
+                        root.hostport = parseInt(value);
+                        root.checkValues();
+                    }
                 }
             }
             RowLayout {

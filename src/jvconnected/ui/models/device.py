@@ -23,6 +23,7 @@ class DeviceBase(GenericQObject):
     _n_serialNumber = Signal()
     _n_displayName = Signal()
     _n_hostaddr = Signal()
+    _n_hostport = Signal()
     _n_authUser = Signal()
     _n_authPass = Signal()
     def __init__(self, *args):
@@ -34,6 +35,7 @@ class DeviceBase(GenericQObject):
         self._serialNumber = None
         self._displayName = ''
         self._hostaddr = None
+        self._hostport = 80
         self._authUser = None
         self._authPass = None
         super().__init__(*args)
@@ -53,6 +55,7 @@ class DeviceBase(GenericQObject):
         self.modelName = device.model_name
         self.serialNumber = device.serial_number
         self.hostaddr = device.hostaddr
+        self.hostport = device.hostport
         self.authUser = device.auth_user
         self.authPass = device.auth_pass
 
@@ -81,6 +84,10 @@ class DeviceBase(GenericQObject):
     def _g_hostaddr(self): return self._hostaddr
     def _s_hostaddr(self, value): self._generic_setter('_hostaddr', value)
     hostaddr = Property(str, _g_hostaddr, _s_hostaddr, notify=_n_hostaddr)
+
+    def _g_hostport(self): return self._hostport
+    def _s_hostport(self, value): self._generic_setter('_hostport', value)
+    hostport = Property(int, _g_hostport, _s_hostport, notify=_n_hostport)
 
     def _g_authUser(self): return self._authUser
     def _s_authUser(self, value): self._generic_setter('_authUser', value)
@@ -115,9 +122,13 @@ class DeviceConfigModel(DeviceBase):
     _prop_attr_map = {
         'online':'deviceOnline', 'active':'deviceActive', 'always_connect':'alwaysConnect',
         'stored_in_config':'storedInConfig', 'device_index':'deviceIndex',
-        'display_name':'displayName', 'auth_user':'authUser', 'auth_pass':'authPass'
+        'display_name':'displayName', 'auth_user':'authUser', 'auth_pass':'authPass',
+        'hostaddr':'hostaddr', 'hostport':'hostport',
     }
-    _editable_properties = ['display_name', 'device_index', 'auth_user', 'auth_pass', 'always_connect']
+    _editable_properties = [
+        'display_name', 'device_index', 'auth_user', 'auth_pass',
+        'hostaddr', 'hostport', 'always_connect',
+    ]
     def __init__(self, *args):
         prop_map, editable = self._prop_attr_map, self._editable_properties
         self._editable_props_camel_case = [prop_map[prop] for prop in editable]
