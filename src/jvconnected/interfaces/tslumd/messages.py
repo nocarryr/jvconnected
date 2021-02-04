@@ -51,9 +51,9 @@ class Display:
         kw = dict(
             index=hdr[0],
             rh_tally=TallyColor(ctrl & 0b11),
-            txt_tally=TallyColor(ctrl << 2 & 0b11),
-            lh_tally=TallyColor(ctrl << 4 & 0b11),
-            brightness=ctrl << 6 & 0b11,
+            txt_tally=TallyColor(ctrl >> 2 & 0b11),
+            lh_tally=TallyColor(ctrl >> 4 & 0b11),
+            brightness=ctrl >> 6 & 0b11,
         )
         is_control_data = ctrl & 0x0f == 0x0f
         if is_control_data:
