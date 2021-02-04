@@ -99,10 +99,10 @@ class Message:
         remaining = msg[byte_count:]
         msg = msg[6:byte_count]
         obj = cls(**kw)
-        if Flags.is_control_data in obj.flags:
+        if Flags.SCONTROL in obj.flags:
             obj.scontrol = msg
             return obj
         while len(msg):
-            disp, msg = Display.from_dmsg(msg)
+            disp, msg = Display.from_dmsg(obj.flags, msg)
             obj.displays.append(disp)
         return obj, remaining
