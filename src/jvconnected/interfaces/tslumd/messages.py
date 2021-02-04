@@ -21,7 +21,7 @@ class Flags(enum.IntFlag):
     """Indicates the message contains ``SCONTROL`` data if set, otherwise ``DMESG``
     """
 
-class TallyColor(enum.Enum):
+class TallyColor(enum.IntEnum):
     """Color enum for tally indicators"""
     OFF = 0   #: Off
     RED = 1   #: Red
