@@ -70,6 +70,23 @@ class Display:
             kw['text'] = txt
         return cls(**kw), dmsg
 
+    def to_dmsg(self, flags: Flags) -> bytes:
+        """Build ``dmsg`` bytes to be included in a message
+        (called from :meth:`Message.build_message`)
+        """
+        ctrl = self.rh_tally & 0b11
+        ctrl += (self.txt_tally & 0b11) << 2
+        ctrl += (self.lh_tally & 0b11) << 4
+        ctrl += (self.brightness & 0b11) << 6
+        if Flags.UTF16 in flags:
+            txt_bytes = bytes(self.text, 'UTF16-le')
+        else:
+            txt_bytes = bytes(self.text, 'UTF-8')
+        txt_byte_len = len(txt_bytes)
+        data = bytearray(struct.pack('>3H', self.index, ctrl, txt_byte_len))
+        data.extend(txt_bytes)
+        return data
+
 @dataclass
 class Message:
     """A single UMDv5 message packet
@@ -106,3 +123,19 @@ class Message:
             disp, msg = Display.from_dmsg(obj.flags, msg)
             obj.displays.append(disp)
         return obj, remaining
+
+    def build_message(self) -> bytes:
+        """Build a message packet from data in this instance
+        """
+        if Flags.SCONTROL in self.flags:
+            payload = bytearray(self.scontrol)
+        else:
+            payload = bytearray()
+            for display in self.displays:
+                payload.extend(display.to_dmsg(self.flags))
+        payload_byte_count = len(payload)
+        fmt = f'>HBBH{payload_byte_count}B'
+        pbc = struct.calcsize(fmt)
+        data = bytearray(struct.pack('>HBBH', pbc, self.version, self.flags, self.screen))
+        data.extend(payload)
+        return bytes(data)
