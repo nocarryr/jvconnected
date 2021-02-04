@@ -14,7 +14,7 @@ class Flags(enum.IntFlag):
     """Message flags
     """
     NO_FLAGS = 0 #: No flags set
-    UNICODE = 1
+    UTF16 = 1
     """Indicates text formatted as ``UTF-16LE`` if set, otherwise ``UTF-8``"""
 
     SCONTROL = 2
@@ -63,7 +63,7 @@ class Display:
             dmsg = dmsg[2:]
             txt_bytes = dmsg[:txt_byte_len]
             dmsg = dmsg[txt_byte_len:]
-            if Flags.UNICODE in flags:
+            if Flags.UTF16 in flags:
                 txt = txt_bytes.decode('UTF-16le')
             else:
                 txt = txt_bytes.decode('UTF-8')
