@@ -148,6 +148,7 @@ class Engine(Dispatcher):
         self.discovery = Discovery()
         self.device_reconnect_queue = asyncio.Queue()
         self._device_reconnect_main_task = None
+        self._run_pending = False
         self.connection_status = {}
         for name, cls in interfaces.registry:
             obj = cls()
@@ -181,6 +182,7 @@ class Engine(Dispatcher):
         """
         if self.running:
             return
+        self._run_pending = True
         t = asyncio.create_task(self._reconnect_devices())
         self._device_reconnect_main_task = t
         for obj in self.interfaces.values():
@@ -195,9 +197,27 @@ class Engine(Dispatcher):
             on_service_updated=self.on_discovery_service_updated,
             on_service_removed=self.on_discovery_service_removed,
         )
-        await self.discovery.open()
         self.running = True
+        self._run_pending = False
+        await self.add_always_connected_devices()
+        await self.discovery.open()
         logger.success('Engine open')
+
+    async def add_always_connected_devices(self):
+        """Create and open any devices with
+        :attr:`~jvconnected.config.DeviceConfig.always_connect` set to True
+        """
+        coros = []
+        for device_conf in self.config.devices.values():
+            if not device_conf.always_connect:
+                continue
+            assert device_conf.id not in self.discovered_devices
+            info = device_conf.build_service_info()
+            coros.append(self.on_discovery_service_added(info.name, info=info))
+        if len(coros):
+            await asyncio.sleep(.01)
+            await asyncio.gather(*coros)
+            await asyncio.sleep(.01)
 
     async def close(self):
         """Close the discovery engine and any running device clients
@@ -271,13 +291,12 @@ class Engine(Dispatcher):
         )
         device.device_index = device_conf.device_index
         self.devices[device_conf.id] = device
+        self.emit('on_device_added', device)
         async with status:
             try:
                 await device.open()
             except ClientError as exc:
-                status.state = ConnectionState.FAILED
-                del self.devices[device_conf.id]
-                await device.close()
+                await asyncio.sleep(0)
                 await self.on_device_client_error(device, exc, skip_status_lock=True)
                 return
             status.state = ConnectionState.CONNECTED
@@ -285,7 +304,6 @@ class Engine(Dispatcher):
             status.num_attempts = 0
             device_conf.active = True
         device.bind_async(self.loop, on_client_error=self.on_device_client_error)
-        self.emit('on_device_added', device)
 
     @logger.catch
     async def on_device_client_error(self, device, exc, **kwargs):
@@ -339,10 +357,10 @@ class Engine(Dispatcher):
             device_conf = self.add_discovered_device(info)
 
         device_conf.online = True
+        self.emit('on_device_discovered', device_conf)
         if self.auto_add_devices:
             if device_conf.id not in self.devices:
                 await self.add_device_from_conf(device_conf)
-        self.emit('on_device_discovered', device_conf)
 
     async def on_discovery_service_updated(self, name, **kwargs):
         logger.debug(f'on_discovery_service_updated: "{name}", {kwargs}')
@@ -361,8 +379,10 @@ class Engine(Dispatcher):
         device_id = DeviceConfig.get_id_for_service_info(info)
         device_conf = self.discovered_devices.get(device_id)
         if device_conf is not None:
-            device_conf.active = False
             device_conf.online = False
+            if device_conf.always_connect:
+                return
+            device_conf.active = False
         status = self.connection_status[device_id]
         async with status:
             status.state = ConnectionState.FAILED
@@ -408,7 +428,7 @@ class Engine(Dispatcher):
                 status.num_attempts += 1
             await self.add_device_from_conf(disco_conf)
 
-        while self.running:
+        while self.running or self._run_pending:
             item = await q.get()
             if item is None or not self.running:
                 q.task_done()

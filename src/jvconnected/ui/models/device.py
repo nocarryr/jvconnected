@@ -23,6 +23,7 @@ class DeviceBase(GenericQObject):
     _n_serialNumber = Signal()
     _n_displayName = Signal()
     _n_hostaddr = Signal()
+    _n_hostport = Signal()
     _n_authUser = Signal()
     _n_authPass = Signal()
     def __init__(self, *args):
@@ -34,6 +35,7 @@ class DeviceBase(GenericQObject):
         self._serialNumber = None
         self._displayName = ''
         self._hostaddr = None
+        self._hostport = 80
         self._authUser = None
         self._authPass = None
         super().__init__(*args)
@@ -53,6 +55,7 @@ class DeviceBase(GenericQObject):
         self.modelName = device.model_name
         self.serialNumber = device.serial_number
         self.hostaddr = device.hostaddr
+        self.hostport = device.hostport
         self.authUser = device.auth_user
         self.authPass = device.auth_pass
 
@@ -82,6 +85,10 @@ class DeviceBase(GenericQObject):
     def _s_hostaddr(self, value): self._generic_setter('_hostaddr', value)
     hostaddr = Property(str, _g_hostaddr, _s_hostaddr, notify=_n_hostaddr)
 
+    def _g_hostport(self): return self._hostport
+    def _s_hostport(self, value): self._generic_setter('_hostport', value)
+    hostport = Property(int, _g_hostport, _s_hostport, notify=_n_hostport)
+
     def _g_authUser(self): return self._authUser
     def _s_authUser(self, value): self._generic_setter('_authUser', value)
     authUser = Property(str, _g_authUser, _s_authUser, notify=_n_authUser)
@@ -110,17 +117,25 @@ class DeviceConfigModel(DeviceBase):
     _n_deviceOnline = Signal()
     _n_deviceActive = Signal()
     _n_storedInConfig = Signal()
+    _n_alwaysConnect = Signal()
     _n_editedProperties = Signal()
     _prop_attr_map = {
-        'online':'deviceOnline', 'active':'deviceActive',
+        'online':'deviceOnline', 'active':'deviceActive', 'always_connect':'alwaysConnect',
         'stored_in_config':'storedInConfig', 'device_index':'deviceIndex',
-        'display_name':'displayName', 'auth_user':'authUser', 'auth_pass':'authPass'
+        'display_name':'displayName', 'auth_user':'authUser', 'auth_pass':'authPass',
+        'hostaddr':'hostaddr', 'hostport':'hostport',
     }
-    _editable_properties = ['display_name', 'device_index', 'auth_user', 'auth_pass']
+    _editable_properties = [
+        'display_name', 'device_index', 'auth_user', 'auth_pass',
+        'hostaddr', 'hostport', 'always_connect',
+    ]
     def __init__(self, *args):
+        prop_map, editable = self._prop_attr_map, self._editable_properties
+        self._editable_props_camel_case = [prop_map[prop] for prop in editable]
         self._deviceOnline = False
         self._deviceActive = False
         self._storedInConfig = False
+        self._alwaysConnect = False
         self._editedProperties = []
         self._updating_from_device = False
         super().__init__(*args)
@@ -140,6 +155,11 @@ class DeviceConfigModel(DeviceBase):
     storedInConfig = Property(bool, _g_storedInConfig, _s_storedInConfig, notify=_n_storedInConfig)
     """Alias for :attr:`jvconnected.config.DeviceConfig.stored_in_config`"""
 
+    def _g_alwaysConnect(self): return self._alwaysConnect
+    def _s_alwaysConnect(self, value): self._generic_setter('_alwaysConnect', value)
+    alwaysConnect = Property(bool, _g_alwaysConnect, _s_alwaysConnect, notify=_n_alwaysConnect)
+    """Alias for :attr:`jvconnected.config.DeviceConfig.always_connect`"""
+
     def _g_editedProperties(self) -> List[str]: return self._editedProperties
     def _s_editedProperties(self, value: List[str]):
         self._generic_setter('_editedProperties', value)
@@ -151,7 +171,7 @@ class DeviceConfigModel(DeviceBase):
     def _generic_setter(self, attr, value):
         super()._generic_setter(attr, value)
         attr = attr.lstrip('_')
-        if attr in ['displayName', 'deviceIndex', 'authUser', 'authPass']:
+        if attr in self._editable_props_camel_case:
             if self._updating_from_device or self.device is None:
                 return
             if attr in self.editedProperties:
@@ -216,12 +236,9 @@ class DeviceConfigModel(DeviceBase):
         self._updating_from_device = False
 
     def _on_device_set(self, device):
-        self.deviceOnline = device.online
-        self.deviceActive = device.active
-        self.storedInConfig = device.stored_in_config
-        self.deviceIndex = device.device_index
-        self.displayName = device.display_name
-        # keys = ['online', 'active', 'stored_in_config', 'device_index']
+        for dev_attr, self_attr in self._prop_attr_map.items():
+            val = getattr(device, dev_attr)
+            setattr(self, self_attr, val)
         keys = self._prop_attr_map.keys()
         device.bind(**{key:self.on_device_prop_change for key in keys})
         # device.bind(device_index=self.on_device_index_changed)
@@ -271,17 +288,19 @@ class DeviceModel(DeviceBase):
     """Instance of :class:`DeviceConfigModel` matching this device"""
 
     def _do_set_device(self, device):
+        old = self._device
+        if old is not None:
+            old.unbind(self)
         if device is not None:
-            old = self._device
             if old is not None:
                 assert not old.connected
                 assert device.id == self.deviceId
-                old.unbind(self)
             self._device = device
             self._on_device_set(device)
             self._n_device.emit()
         else:
-            self._generic_setter('_device', value)
+            self._generic_setter('_device', device)
+            self.connected = False
 
     def _g_connected(self) -> bool: return self._connected
     def _s_connected(self, value: bool): self._generic_setter('_connected', value)
@@ -364,16 +383,10 @@ class ParamBase(GenericQObject):
     def _s_device(self, value: DeviceModel):
         if value is not None and value is self._device:
             return
+        self._generic_setter('_device', value)
+        self._on_device_set(value)
         if value is not None:
-            old = self._device
-            if old is not None:
-                old.unbind(self)
-            self._device = value
-            self._n_device.emit()
-            self._on_device_set(value)
             value._n_device.connect(self.on_device_changed)
-        else:
-            self._generic_setter('_device', value)
     device = Property(DeviceModel, _g_device, _s_device, notify=_n_device)
     """The parent :class:`DeviceModel`"""
 
@@ -381,20 +394,19 @@ class ParamBase(GenericQObject):
     def _s_paramGroup(self, value: 'ParameterGroup'):
         if value is not None and value is self._paramGroup:
             return
-        if value is not None:
-            old = self._paramGroup
-            if old is not None:
-                old.unbind(self)
-            self._paramGroup = value
-            self._n_paramGroup.emit()
-        else:
-            self._generic_setter('_paramGroup', value)
+        old = self._paramGroup
+        if old is not None:
+            old.unbind(self)
+        self._generic_setter('_paramGroup', value)
     paramGroup = Property(object, _g_paramGroup, _s_paramGroup, notify=_n_paramGroup)
     """The :class:`jvconnected.device.ParameterGroup` for this object. Retreived
     from the :attr:`device`
     """
 
     def _on_device_set(self, device):
+        if device is None or device.device is None:
+            self.paramGroup = None
+            return
         p = self.paramGroup = device.device.parameter_groups[self._param_group_key]
         self._on_param_group_set(p)
 

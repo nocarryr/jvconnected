@@ -44,7 +44,7 @@ class EngineModel(GenericQObject):
     configDeviceAdded = Signal(DeviceConfigModel)
     def __init__(self, *args):
         self.loop = asyncio.get_event_loop()
-        self.engine = Engine(auto_add_devices=False)
+        self.engine = Engine(auto_add_devices=True)
         self.engine.bind_async(self.loop,
             running=self.on_engine_running,
             on_config_device_added=self.on_config_device_added,
@@ -110,21 +110,6 @@ class EngineModel(GenericQObject):
     def on_engine_running(self, instance, value, **kwargs):
         self.running = value
 
-    async def _build_device_from_conf(self, device_id):
-        conf_device = self.engine.discovered_devices[device_id]
-        device = await self.engine.add_device_from_conf(conf_device)
-        return device
-
-    async def _add_device_from_conf(self, device_id):
-        conf_device = self.engine.config.devices[device_id]
-        conf_device_model = self._device_configs[device_id]
-        device = self.engine.devices.get(device_id)
-        if device is None:
-            if conf_device.device_index is None:
-                conf_device.device_index = -1
-            device = await self._build_device_from_conf(device_id)
-        logger.debug(f'_build_device_from_conf: {device}')
-
     async def on_config_device_added(self, conf_device):
         if conf_device.id in self._device_configs:
             model = self._device_configs[conf_device.id]
@@ -144,10 +129,7 @@ class EngineModel(GenericQObject):
     @logger.catch
     async def on_device_discovered(self, conf_device, **kwargs):
         logger.info(f'engine.on_device_discovered: {conf_device}')
-        conf_device = self.engine.config.add_device(conf_device)
-        self.engine.discovered_devices[conf_device.id] = conf_device
         await self.on_config_device_added(conf_device)
-        await self._add_device_from_conf(conf_device.id)
 
     async def _engine_device_added(self, device, **kwargs):
         logger.info(f'engine.on_device_added: {device}')
@@ -172,6 +154,9 @@ class EngineModel(GenericQObject):
 
     async def _engine_device_removed(self, device, reason, **kwargs):
         logger.info(f'engine.on_device_removed: {device}, {reason}')
+        model = self._devices.get(device.id)
+        if model is not None:
+            model.device = None
 
     def _calc_device_view_indices(self, *args, **kwargs):
         devices = self.engine.config.devices
