@@ -18,6 +18,7 @@ Dialog {
 
         MyTabButton { text: 'Devices'; width: bar.maxItemWidth }
         MyTabButton { text: 'Midi'; width: bar.maxItemWidth }
+        MyTabButton { text: 'Tally'; width: bar.maxItemWidth }
     }
 
     StackLayout {
@@ -44,6 +45,10 @@ Dialog {
 
         MidiSettings {
             id: midiSettings
+            engine: root.engine
+        }
+        TallySettings {
+            id: tallySettings
             engine: root.engine
         }
     }
