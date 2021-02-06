@@ -4,11 +4,7 @@ import dataclasses
 from dataclasses import dataclass, field
 import enum
 import struct
-from typing import List, Tuple
-
-from pydispatch import Dispatcher, Property, DictProperty, ListProperty
-
-from jvconnected.interfaces import Interface
+from typing import List, Tuple, Dict
 
 class Flags(enum.IntFlag):
     """Message flags
@@ -86,6 +82,9 @@ class Display:
         data = bytearray(struct.pack('>3H', self.index, ctrl, txt_byte_len))
         data.extend(txt_bytes)
         return data
+
+    def to_dict(self) -> Dict:
+        return dataclasses.asdict(self)
 
 @dataclass
 class Message:

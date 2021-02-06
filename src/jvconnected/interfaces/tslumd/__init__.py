@@ -4,3 +4,6 @@ and other production display/control purposes.
 .. _UMDv5.0 Protocol: https://tslproducts.com/media/1959/tsl-umd-protocol.pdf
 .. _TSL Products: https://tslproducts.com
 """
+from jvconnected.interfaces import registry
+from .umd_io import UmdIo
+registry.register('tslumd', UmdIo)
