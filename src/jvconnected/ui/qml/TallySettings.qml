@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Controls 2.15 as QQC2
 import QtQuick.Controls 1.4 as QQC1
+import QtQuick.Extras 1.4
 import Qt.labs.settings 1.0
 import DeviceModels 1.0
 import UmdModels 1.0
@@ -99,40 +100,25 @@ QQC2.Control {
             QQC1.TableViewColumn {
                 role: 'rhTally'
                 title: 'rhTally'
-                delegate: Item {
-                    implicitWidth: 40
-                    Rectangle {
-                        width: height
-                        height: parent.height
-                        anchors.centerIn: parent
-                        color: styleData.value
-                    }
+                delegate: StatusIndicator {
+                    color: styleData.value
+                    active: Qt.colorEqual(styleData.value, '#00000000') ? false : true
                 }
             }
             QQC1.TableViewColumn {
                 role: 'txtTally'
                 title: 'txtTally'
-                delegate: Item {
-                    implicitWidth: 40
-                    Rectangle {
-                        width: height
-                        height: parent.height
-                        anchors.centerIn: parent
-                        color: styleData.value
-                    }
+                delegate: StatusIndicator {
+                    color: styleData.value
+                    active: Qt.colorEqual(styleData.value, '#00000000') ? false : true
                 }
             }
             QQC1.TableViewColumn {
                 role: 'lhTally'
                 title: 'lhTally'
-                delegate: Item {
-                    implicitWidth: 40
-                    Rectangle {
-                        width: height
-                        height: parent.height
-                        anchors.centerIn: parent
-                        color: styleData.value
-                    }
+                delegate: StatusIndicator {
+                    color: styleData.value
+                    active: Qt.colorEqual(styleData.value, '#00000000') ? false : true
                 }
             }
             QQC1.TableViewColumn {
