@@ -1,5 +1,6 @@
 from loguru import logger
 import asyncio
+import enum
 from typing import Optional
 from bisect import bisect_left
 
@@ -45,11 +46,28 @@ from jvconnected.interfaces.tslumd.umd_io import Tally
 #     def update_tally(self, tally: Tally, props_changed):
 #         pass
 
-class TallyListModel(QtCore.QAbstractTableModel):
+class TallyRoles(enum.IntEnum):
     IndexRole = Qt.UserRole + 1
     RhTallyRole = Qt.UserRole + 2
     TxtTallyRole = Qt.UserRole + 3
     LhTallyRole = Qt.UserRole + 4
+    TextRole = int(Qt.DisplayRole)
+    def get_tally_prop(self):
+        prop = self.name.split('Role')[0]
+        if 'Tally' in prop:
+            s = prop.split('Tally')[0].lower()
+            return f'{s}_tally'
+        return prop.lower()
+    def get_qt_prop(self):
+        if self.name == 'IndexRole':
+            return 'tallyIndex'
+        prop = self.name.split('Role')[0]
+        if 'Tally' in prop:
+            s = prop.split('Tally')[0].lower()
+            return f'{s}Tally'
+        return prop.lower()
+
+class TallyListModel(QtCore.QAbstractTableModel):
     _n_engine = Signal()
     _prop_attrs = ('index', 'rh_tally', 'txt_tally', 'lh_tally', 'text')
     tally_qcolors = {
@@ -58,7 +76,6 @@ class TallyListModel(QtCore.QAbstractTableModel):
         TallyColor.GREEN: QtGui.QColor(Qt.green),
         TallyColor.AMBER: QtGui.QColor(Qt.yellow),
     }
-    headers = ('tallyIndex', 'rhTally', 'txtTally', 'lhTally', 'display')
     def __init__(self, *args, **kwargs):
         self._engine = None
         self.umd_io = None
@@ -104,13 +121,7 @@ class TallyListModel(QtCore.QAbstractTableModel):
         self.dataChanged.emit(tl, br)
 
     def roleNames(self):
-        return {
-            TallyListModel.IndexRole: b'tallyIndex',
-            TallyListModel.RhTallyRole: b'rhTally',
-            TallyListModel.TxtTallyRole: b'txtTally',
-            TallyListModel.LhTallyRole: b'lhTally',
-            Qt.DisplayRole: b'text',
-        }
+        return {m:m.get_qt_prop().encode() for m in TallyRoles.__members__.values()}
 
     def columnCount(self, parent):
         return len(self._prop_attrs)
@@ -133,16 +144,11 @@ class TallyListModel(QtCore.QAbstractTableModel):
 
         if tally is None:
             return None
-        if role == TallyListModel.IndexRole:
-            return tally.index
-        elif role == TallyListModel.RhTallyRole:
-            return self.tally_qcolors[tally.rh_tally]
-        elif role == TallyListModel.TxtTallyRole:
-            return self.tally_qcolors[tally.txt_tally]
-        elif role == TallyListModel.LhTallyRole:
-            return self.tally_qcolors[tally.lh_tally]
-        elif role == Qt.DisplayRole:
-            return tally.text
+        role = TallyRoles(role)
+        val = getattr(tally, role.get_tally_prop())
+        if isinstance(val, TallyColor):
+            val = self.tally_qcolors[val]
+        return val
 
 MODEL_CLASSES = (TallyListModel,)
 
