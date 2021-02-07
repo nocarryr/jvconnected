@@ -51,7 +51,7 @@ class Display:
             lh_tally=TallyColor(ctrl >> 4 & 0b11),
             brightness=ctrl >> 6 & 0b11,
         )
-        is_control_data = ctrl & 0x0f == 0x0f
+        is_control_data = ctrl & 0x8000 == 0x8000
         if is_control_data:
             raise ValueError('Control data undefined for UMDv5.0')
         else:
