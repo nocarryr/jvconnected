@@ -50,6 +50,13 @@ Dialog {
         TallySettings {
             id: tallySettings
             engine: root.engine
+            Connections {
+                target: root
+                function onAccepted() { tallySettings.submit() }
+                function onApplied() { tallySettings.submit() }
+                function onRejected() { tallySettings.cancel() }
+                function onReset() { tallySettings.cancel() }
+            }
         }
     }
 

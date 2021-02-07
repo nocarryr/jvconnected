@@ -8,3 +8,4 @@
     device
     devicepreview
     midi
+    tslumd
