@@ -62,6 +62,8 @@ class Display:
             if Flags.UTF16 in flags:
                 txt = txt_bytes.decode('UTF-16le')
             else:
+                if b'\0' in txt_bytes:
+                    txt_bytes = txt_bytes.split(b'\0')[0]
                 txt = txt_bytes.decode('UTF-8')
             kw['text'] = txt
         return cls(**kw), dmsg
