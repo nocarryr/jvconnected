@@ -112,8 +112,9 @@ class Message:
             flags=Flags(flags),
             screen=screen,
         )
+        msg = msg[2:]
         remaining = msg[byte_count:]
-        msg = msg[6:byte_count]
+        msg = msg[4:byte_count]
         obj = cls(**kw)
         if Flags.SCONTROL in obj.flags:
             obj.scontrol = msg
@@ -134,7 +135,7 @@ class Message:
                 payload.extend(display.to_dmsg(self.flags))
         payload_byte_count = len(payload)
         fmt = f'<HBBH{payload_byte_count}B'
-        pbc = struct.calcsize(fmt)
+        pbc = struct.calcsize(fmt) - 2
         data = bytearray(struct.pack('<HBBH', pbc, self.version, self.flags, self.screen))
         data.extend(payload)
         return bytes(data)
