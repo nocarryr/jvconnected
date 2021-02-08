@@ -41,7 +41,7 @@ class Display:
         Any remaining message data after the relevant ``DMSG`` is returned along
         with the instance.
         """
-        hdr = struct.unpack('>2H', dmsg[:4])
+        hdr = struct.unpack('<2H', dmsg[:4])
         dmsg = dmsg[4:]
         ctrl = hdr[1]
         kw = dict(
@@ -55,7 +55,7 @@ class Display:
         if is_control_data:
             raise ValueError('Control data undefined for UMDv5.0')
         else:
-            txt_byte_len = struct.unpack('>H', dmsg[:2])[0]
+            txt_byte_len = struct.unpack('<H', dmsg[:2])[0]
             dmsg = dmsg[2:]
             txt_bytes = dmsg[:txt_byte_len]
             dmsg = dmsg[txt_byte_len:]
@@ -79,7 +79,7 @@ class Display:
         else:
             txt_bytes = bytes(self.text, 'UTF-8')
         txt_byte_len = len(txt_bytes)
-        data = bytearray(struct.pack('>3H', self.index, ctrl, txt_byte_len))
+        data = bytearray(struct.pack('<3H', self.index, ctrl, txt_byte_len))
         data.extend(txt_bytes)
         return data
 
@@ -105,7 +105,7 @@ class Message:
 
         Any remaining message data after parsing is returned along with the instance.
         """
-        data = struct.unpack('>HBBH', msg[:6])
+        data = struct.unpack('<HBBH', msg[:6])
         byte_count, version, flags, screen = data
         kw = dict(
             version=version,
@@ -133,8 +133,8 @@ class Message:
             for display in self.displays:
                 payload.extend(display.to_dmsg(self.flags))
         payload_byte_count = len(payload)
-        fmt = f'>HBBH{payload_byte_count}B'
+        fmt = f'<HBBH{payload_byte_count}B'
         pbc = struct.calcsize(fmt)
-        data = bytearray(struct.pack('>HBBH', pbc, self.version, self.flags, self.screen))
+        data = bytearray(struct.pack('<HBBH', pbc, self.version, self.flags, self.screen))
         data.extend(payload)
         return bytes(data)
