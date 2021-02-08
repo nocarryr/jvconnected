@@ -117,7 +117,7 @@ class Message:
         obj = cls(**kw)
         if Flags.SCONTROL in obj.flags:
             obj.scontrol = msg
-            return obj
+            return obj, remaining
         while len(msg):
             disp, msg = Display.from_dmsg(obj.flags, msg)
             obj.displays.append(disp)
