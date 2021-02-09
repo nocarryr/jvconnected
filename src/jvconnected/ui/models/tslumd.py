@@ -161,12 +161,6 @@ class TallyRoles(enum.IntEnum):
 class TallyListModel(QtCore.QAbstractTableModel):
     _n_engine = Signal()
     _prop_attrs = ('index', 'rh_tally', 'txt_tally', 'lh_tally', 'text')
-    tally_qcolors = {
-        TallyColor.OFF: QtGui.QColor(Qt.transparent),
-        TallyColor.RED: QtGui.QColor(Qt.red),
-        TallyColor.GREEN: QtGui.QColor(Qt.green),
-        TallyColor.AMBER: QtGui.QColor(Qt.yellow),
-    }
     def __init__(self, *args, **kwargs):
         self._engine = None
         self.umd_io = None
@@ -238,7 +232,7 @@ class TallyListModel(QtCore.QAbstractTableModel):
         role = TallyRoles(role)
         val = getattr(tally, role.get_tally_prop())
         if isinstance(val, TallyColor):
-            val = self.tally_qcolors[val]
+            val = val.name
         return val
 
 MODEL_CLASSES = (UmdModel, TallyListModel)

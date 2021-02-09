@@ -101,24 +101,24 @@ QQC2.Control {
                 role: 'rhTally'
                 title: 'rhTally'
                 delegate: StatusIndicator {
-                    color: styleData.value
-                    active: Qt.colorEqual(styleData.value, '#00000000') ? false : true
+                    color: styleData.value == 'OFF' ? 'grey' : styleData.value
+                    active: styleData.value != 'OFF'
                 }
             }
             QQC1.TableViewColumn {
                 role: 'txtTally'
                 title: 'txtTally'
                 delegate: StatusIndicator {
-                    color: styleData.value
-                    active: Qt.colorEqual(styleData.value, '#00000000') ? false : true
+                    color: styleData.value == 'OFF' ? 'grey' : styleData.value
+                    active: styleData.value != 'OFF'
                 }
             }
             QQC1.TableViewColumn {
                 role: 'lhTally'
                 title: 'lhTally'
                 delegate: StatusIndicator {
-                    color: styleData.value
-                    active: Qt.colorEqual(styleData.value, '#00000000') ? false : true
+                    color: styleData.value == 'OFF' ? 'grey' : styleData.value
+                    active: styleData.value != 'OFF'
                 }
             }
             QQC1.TableViewColumn {
