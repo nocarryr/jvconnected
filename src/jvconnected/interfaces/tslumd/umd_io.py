@@ -67,7 +67,7 @@ class Tally(Dispatcher):
             props_changed.add(attr)
             setattr(self, attr, kwargs[attr])
             if log_updated:
-                logger.debug(f'{self!r}.{attr} = {val}')
+                logger.debug(f'{self!r}.{attr} = {val!r}')
         self._updating_props = False
         if len(props_changed):
             self.emit('on_update', self, props_changed)
@@ -114,10 +114,10 @@ class Tally(Dispatcher):
         return self.to_dict() != other.to_dict()
 
     def __repr__(self):
-        return f'<{self.__class__.__name__}: "{self}">'
+        return f'<{self.__class__.__name__}: ({self})>'
 
     def __str__(self):
-        return str(self.index)
+        return f'{self.index} - "{self.text}"'
 
 
 class UmdProtocol(asyncio.DatagramProtocol):
@@ -235,7 +235,7 @@ class UmdIo(Interface):
         if rx_display.index not in self.tallies:
             tally = Tally.from_display(rx_display)
             self.tallies[rx_display.index] = tally
-            logger.debug(f'New Tally: {tally!r}')
+            logger.debug(f'New Tally: {tally}')
             self.emit('on_tally_added', self.tallies[rx_display.index])
             return
         tally = self.tallies[rx_display.index]
