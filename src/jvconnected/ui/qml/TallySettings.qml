@@ -93,6 +93,28 @@ QQC2.Control {
             Layout.fillWidth: true
             Layout.fillHeight: true
             model: listModel
+
+            Component {
+                id: tallyTableDelegate
+                StatusIndicator {
+                    color: styleData.value == 'OFF' ? 'grey' : styleData.value
+                    active: styleData.value != 'OFF'
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.RightButton
+                        onClicked: {
+                            // console.log(styleData.row, styleData.column);
+                            var tallyIndex = listModel.getIndexForRow(styleData.row),
+                                tallyType = listModel.getTallyTypeForColumn(styleData.column);
+                            // console.log(tallyIndex, tallyType);
+                            tallyTableCtxMenu.tallyIndex = tallyIndex;
+                            tallyTableCtxMenu.tallyType = tallyType;
+                            tallyTableCtxMenu.popup();
+                        }
+                    }
+                }
+            }
+
             QQC1.TableViewColumn {
                 role: 'tallyIndex'
                 title: 'Index'
@@ -100,31 +122,52 @@ QQC2.Control {
             QQC1.TableViewColumn {
                 role: 'rhTally'
                 title: 'rhTally'
-                delegate: StatusIndicator {
-                    color: styleData.value == 'OFF' ? 'grey' : styleData.value
-                    active: styleData.value != 'OFF'
-                }
+                delegate: tallyTableDelegate
             }
             QQC1.TableViewColumn {
                 role: 'txtTally'
                 title: 'txtTally'
-                delegate: StatusIndicator {
-                    color: styleData.value == 'OFF' ? 'grey' : styleData.value
-                    active: styleData.value != 'OFF'
-                }
+                delegate: tallyTableDelegate
             }
             QQC1.TableViewColumn {
                 role: 'lhTally'
                 title: 'lhTally'
-                delegate: StatusIndicator {
-                    color: styleData.value == 'OFF' ? 'grey' : styleData.value
-                    active: styleData.value != 'OFF'
-                }
+                delegate: tallyTableDelegate
             }
             QQC1.TableViewColumn {
                 role: 'text'
                 title: 'text'
             }
+            QQC2.Menu {
+                id: tallyTableCtxMenu
+                property int tallyIndex: -1
+                property string tallyType: ''
+                QQC2.MenuItem {
+                    text: 'Map..'
+                    onTriggered: {
+                        tallyMapDlg.tallyType = tallyTableCtxMenu.tallyType;
+                        tallyMapDlg.tallyIndex = tallyTableCtxMenu.tallyIndex;
+                        tallyMapDlg.open();
+                    }
+                }
+                QQC2.MenuItem {
+                    text: 'UnMap'
+                    onTriggered: {
+                        tallyUnmapDialog.tallyType = tallyTableCtxMenu.tallyType;
+                        tallyUnmapDialog.tallyIndex = tallyTableCtxMenu.tallyIndex;
+                        tallyUnmapDialog.updateModel();
+                        tallyUnmapDialog.open();
+                    }
+                }
+            }
         }
+    }
+    TallyMapDialog {
+        id: tallyMapDlg
+        umdModel: umdModel
+    }
+    TallyUnmapDialog {
+        id: tallyUnmapDialog
+        umdModel: umdModel
     }
 }

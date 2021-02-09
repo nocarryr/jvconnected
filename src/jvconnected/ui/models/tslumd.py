@@ -1,6 +1,7 @@
 from loguru import logger
 import asyncio
 import enum
+import dataclasses
 from typing import Optional, List
 from bisect import bisect_left
 
@@ -15,6 +16,9 @@ from jvconnected.ui.models.engine import EngineModel
 
 from jvconnected.interfaces.tslumd.messages import TallyColor
 from jvconnected.interfaces.tslumd.umd_io import Tally, UmdIo
+from jvconnected.interfaces.tslumd.mapper import (
+    DeviceMapping, TallyMap, TallyType,
+)
 
 class UmdModel(GenericQObject):
     _n_engine = Signal()
@@ -217,6 +221,14 @@ class TallyListModel(QtCore.QAbstractTableModel):
     def flags(self, index):
         return Qt.ItemFlags.ItemIsEnabled
 
+    @QtCore.Slot(int, result=int)
+    def getIndexForRow(self, row: int) -> int:
+        return self._tally_indices[row]
+
+    @QtCore.Slot(int, result=str)
+    def getTallyTypeForColumn(self, column: int) -> str:
+        return self._prop_attrs[column]
+
     def data(self, index, role):
         if not index.isValid():
             return None
@@ -235,7 +247,126 @@ class TallyListModel(QtCore.QAbstractTableModel):
             val = val.name
         return val
 
-MODEL_CLASSES = (UmdModel, TallyListModel)
+
+class TallyMapBase(GenericQObject):
+    _n_tallyIndex = Signal()
+    _n_tallyType = Signal()
+    def __init__(self, *args):
+        self._tallyIndex = -1
+        self._tallyType = ''
+        super().__init__(*args)
+
+    def _g_tallyIndex(self) -> int: return self._tallyIndex
+    def _s_tallyIndex(self, value: int): self._generic_setter('_tallyIndex', value)
+    tallyIndex = Property(int, _g_tallyIndex, _s_tallyIndex, notify=_n_tallyIndex)
+
+    def _g_tallyType(self) -> str: return self._tallyType
+    def _s_tallyType(self, value: str): self._generic_setter('_tallyType', value)
+    tallyType = Property(str, _g_tallyType, _s_tallyType, notify=_n_tallyType)
+
+
+class TallyMapModel(TallyMapBase):
+    _n_deviceIndex = Signal()
+    _n_destTallyType = Signal()
+    def __init__(self, *args):
+        self._deviceIndex = -1
+        self._destTallyType = ''
+        super().__init__(*args)
+
+    def _g_deviceIndex(self) -> int: return self._deviceIndex
+    def _s_deviceIndex(self, value: int): self._generic_setter('_deviceIndex', value)
+    deviceIndex = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
+
+    def _g_destTallyType(self) -> str: return self._destTallyType
+    def _s_destTallyType(self, value: str): self._generic_setter('_destTallyType', value)
+    destTallyType = Property(str, _g_destTallyType, _s_destTallyType, notify=_n_destTallyType)
+
+    @QtCore.Slot(result=bool)
+    def checkValid(self) -> bool:
+        if -1 in [self.tallyIndex, self.deviceIndex]:
+            return False
+        if self.tallyType not in TallyType.__members__:
+            return False
+        if self.destTallyType.lower() not in ['preview', 'program']:
+            return False
+        return True
+
+    @asyncSlot(UmdModel)
+    async def applyMap(self, umd_model: UmdModel):
+        await self._apply_map(umd_model)
+
+    @logger.catch
+    async def _apply_map(self, umd_model: UmdModel):
+        assert self.checkValid()
+        umd_io = umd_model.umd_io
+        dev_map = umd_io.device_maps.get(self.deviceIndex)
+        if dev_map is None:
+            dev_map = self.create_device_map()
+        else:
+            dev_map = self.merge_with_device_map(dev_map)
+        await umd_io.add_device_mapping(dev_map)
+
+    def create_device_map(self):
+        kw = dict(device_index=self.deviceIndex)
+        tmap = TallyMap(
+            tally_index=self.tallyIndex,
+            tally_type=getattr(TallyType, self.tallyType),
+        )
+        kw[self.destTallyType.lower()] = tmap
+        return DeviceMapping(**kw)
+
+    def merge_with_device_map(self, existing_map: DeviceMapping) -> DeviceMapping:
+        my_map = self.create_device_map()
+        attr = self.destTallyType.lower()
+        kw = {attr:getattr(my_map, attr)}
+        return dataclasses.replace(existing_map, **kw)
+
+
+class TallyUnmapModel(TallyMapBase):
+    @QtCore.Slot(UmdModel, result='QVariantList')
+    def getMappedDeviceIndices(self, umd_model: UmdModel) -> List[int]:
+        d = self.get_mapped(umd_model)
+        return list(sorted(d.keys()))
+
+    def get_mapped(self, umd_model: UmdModel):
+        d = {}
+        for device_index, device_map in umd_model.umd_io.device_maps.items():
+            for attr in ['program', 'preview']:
+                tmap = getattr(device_map, attr)
+                if tmap.tally_index != self.tallyIndex:
+                    continue
+                if tmap.tally_type == TallyType.no_tally:
+                    continue
+                if device_index not in d:
+                    d[device_index] = {'map':device_map, 'matching':set()}
+                d[device_index]['matching'].add(attr)
+        return d
+
+    @asyncSlot(UmdModel, 'QVariantList')
+    async def unmapByIndices(self, umd_model: UmdModel, indices: List[int]):
+        data = self.get_mapped(umd_model)
+        umd_io = umd_model.umd_io
+        for ix in indices:
+            if ix not in data:
+                continue
+            d = data[ix]
+            device_map = d['map']
+            if 'program' in d['matching'] and 'preview' in d['matching']:
+                await umd_io.remove_device_mapping(ix)
+                continue
+            elif 'program' in d['matching']:
+                attr = 'program'
+            elif 'preview' in d['matching']:
+                attr = 'preview'
+            else:
+                raise Exception()
+            tmap = TallyMap(tally_type=TallyType.no_tally)
+            new_device_map = dataclasses.replace(device_map, **{attr:tmap})
+            logger.debug(f'{new_device_map}')
+            await umd_io.add_device_mapping(new_device_map)
+
+
+MODEL_CLASSES = (UmdModel, TallyListModel, TallyMapModel, TallyUnmapModel)
 
 def register_qml_types():
     for cls in MODEL_CLASSES:
