@@ -290,12 +290,25 @@ class UmdIo(Interface):
         self.device_maps[ix] = device_map
         mapped_device = self.mapped_devices.get(ix)
         if mapped_device is not None:
-            mapped_device.device = None
+            await mapped_device.set_device(None)
             del self.mapped_devices[ix]
         device = self.get_device_by_index(ix)
         mapped_device = MappedDevice(map=device_map, umd_io=self)
         self.mapped_devices[ix] = mapped_device
         await mapped_device.set_device(device)
+        self.update_config()
+
+    async def remove_device_mapping(self, device_index: int):
+        """Remove a :class:`~.mapper.DeviceMapping` and its associated
+        :class:`~.mapper.MappedDevice` by the given device index
+        """
+        if device_index not in self.device_maps:
+            return
+        del self.device_maps[device_index]
+        mapped_device = self.mapped_devices.get(device_index)
+        if mapped_device is not None:
+            await mapped_device.set_device(None)
+            del self.mapped_devices[device_index]
         self.update_config()
 
     async def on_engine_device_added(self, device, **kwargs):

@@ -99,6 +99,9 @@ class MappedDevice:
         """Set the :attr:`device` and update its tally state
         """
         # logger.debug(f'{self.map}.device = {device}')
+        old = self.device
+        if old is not None and old is not device:
+            await old.tally.set_tally_light('Off')
         self.device = device
         if device is not None:
             await self.update_device_tally()
