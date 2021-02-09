@@ -159,7 +159,7 @@ class UmdIo(Interface):
             Fired when any :class:`Tally` instance has been updated
     """
     hostaddr = Property('0.0.0.0')
-    hostport = Property(60000)
+    hostport = Property(65000)
     config = Property()
     tallies = DictProperty()
     device_maps = DictProperty()
