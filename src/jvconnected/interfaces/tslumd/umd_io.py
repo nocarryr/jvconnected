@@ -1,11 +1,12 @@
 from loguru import logger
 import asyncio
-from typing import Dict, Tuple, Set
+from typing import Dict, Tuple, Set, Optional
 
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
 from jvconnected.interfaces import Interface
 from jvconnected.interfaces.tslumd.messages import Message, Display, TallyColor
+from jvconnected.interfaces.tslumd.mapper import DeviceMapping, MappedDevice
 
 class Tally(Dispatcher):
     """A single tally object
@@ -139,6 +140,12 @@ class UmdIo(Interface):
         hostport (int): The port to listen on. Defaults to ``60000``
         tallies (Dict[int, Tally]): Mapping of :class:`Tally` objects using the
             :attr:`~Tally.index` as keys
+        device_maps (Dict[int, DeviceMapping]): A ``dict`` of
+            :class:`~.mapper.DeviceMapping` definitions stored with their
+            :attr:`~.mapper.DeviceMapping.device_index` as keys
+        mapped_devices (Dict[int, MappedDevice]): A ``dict`` of
+            :class:`~.mapper.MappedDevice` stored with the ``device_index``
+            of their :attr:`~.mapper.MappedDevice.map` as keys
         config: Instance of :class:`jvconnected.config.Config`. This is gathered
             from the :attr:`engine` after :meth:`set_engine` has been called.
 
@@ -155,6 +162,8 @@ class UmdIo(Interface):
     hostport = Property(60000)
     config = Property()
     tallies = DictProperty()
+    device_maps = DictProperty()
+    mapped_devices = DictProperty()
     _events_ = ['on_tally_added', 'on_tally_updated']
 
     def __init__(self):
@@ -162,7 +171,10 @@ class UmdIo(Interface):
         self._config_read = asyncio.Event()
         self._connect_lock = asyncio.Lock()
         super().__init__()
-        self.bind_async(self.loop, config=self.read_config)
+        self.bind_async(self.loop,
+            config=self.read_config,
+            on_tally_added=self._on_own_tally_added,
+        )
         self.bind(**{prop:self.update_config for prop in ['hostaddr', 'hostport']})
 
     async def set_engine(self, engine: 'jvconnected.engine.Engine'):
@@ -173,6 +185,11 @@ class UmdIo(Interface):
         self.config = engine.config
         await self._config_read.wait()
         await super().set_engine(engine)
+        engine.bind_async(
+            self.loop,
+            on_device_added=self.on_engine_device_added,
+            on_device_removed=self.on_engine_device_removed,
+        )
 
     async def open(self):
         async with self._connect_lock:
@@ -219,6 +236,7 @@ class UmdIo(Interface):
         """
         await self.set_bind_address(self.hostaddr, hostport)
 
+    @logger.catch
     def parse_incoming(self, data: bytes, addr: Tuple[str, int]):
         """Parse data received by the server
         """
@@ -243,6 +261,53 @@ class UmdIo(Interface):
         if changed:
             self.emit('on_tally_updated', tally)
 
+    async def _on_own_tally_added(self, tally, **kwargs):
+        for mapped_device in self.mapped_devices.values():
+            if mapped_device.have_tallies:
+                continue
+            r = mapped_device.get_tallies()
+            if r:
+                await mapped_device.update_device_tally()
+
+    def get_device_by_index(self, ix: int) -> Optional['jvconnected.device.Device']:
+        device = None
+        if self.engine is not None:
+            device_conf = self.engine.config.indexed_devices.get_by_index(ix)
+            if device_conf is not None:
+                device = self.engine.devices.get(device_conf.id)
+        return device
+
+    @logger.catch
+    async def add_device_mapping(self, device_map: 'DeviceMapping'):
+        """Add a :class:`~.mapper.DeviceMapping` definition to :attr:`device_maps`
+        and update the :attr:`config`.
+
+        An instance of :class:`~.mapper.MappedDevice` is also created and
+        associated with its :class:`~jvconnected.device.Device`
+        if found in the :attr:`engine`.
+        """
+        ix = device_map.device_index
+        self.device_maps[ix] = device_map
+        mapped_device = self.mapped_devices.get(ix)
+        if mapped_device is not None:
+            mapped_device.device = None
+            del self.mapped_devices[ix]
+        device = self.get_device_by_index(ix)
+        mapped_device = MappedDevice(map=device_map, umd_io=self)
+        self.mapped_devices[ix] = mapped_device
+        await mapped_device.set_device(device)
+        self.update_config()
+
+    async def on_engine_device_added(self, device, **kwargs):
+        mapped_device = self.mapped_devices.get(device.device_index)
+        if mapped_device is not None:
+            await mapped_device.set_device(device)
+
+    async def on_engine_device_removed(self, device, reason, **kwargs):
+        mapped_device = self.mapped_devices.get(device.device_index)
+        if mapped_device is not None:
+            await mapped_device.set_device(None)
+
     def update_config(self, *args, **kwargs):
         """Update the :attr:`config` with current state
         """
@@ -258,7 +323,10 @@ class UmdIo(Interface):
         d = config['interfaces']['tslumd']
         d['hostaddr'] = self.hostaddr
         d['hostport'] = self.hostport
+        m = self.device_maps
+        d['device_maps'] = [m[k] for k in sorted(m.keys())]
 
+    @logger.catch
     async def read_config(self, *args, **kwargs):
         config = self.config
         if config is None:
@@ -267,6 +335,10 @@ class UmdIo(Interface):
         self._reading_config = True
         hostaddr = d.get('hostaddr', self.hostaddr)
         hostport = d.get('hostport', self.hostport)
+        coros = []
+        for dev_map in d.get('device_maps', []):
+            coros.append(self.add_device_mapping(dev_map))
+        await asyncio.gather(*coros)
         await self.set_bind_address(hostaddr, hostport)
         self._reading_config = False
         self._config_read.set()

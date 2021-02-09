@@ -15,3 +15,9 @@
 
 .. automodule:: jvconnected.interfaces.tslumd.messages
     :members:
+
+:mod:`jvconnected.interfaces.tslumd.mapper`
+-------------------------------------------
+
+.. automodule:: jvconnected.interfaces.tslumd.mapper
+    :members:
