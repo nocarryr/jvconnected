@@ -28,6 +28,11 @@ QQC2.Control {
         onDataChanged: { tallyTable.resizeColumnsToContents() }
     }
 
+    TallyMapListModel {
+        id: mapListModel
+        engine: root.engine
+    }
+
     signal submit()
     signal cancel()
 
@@ -60,8 +65,10 @@ QQC2.Control {
         }
     }
 
-    contentItem: RowLayout {
-        ColumnLayout {
+    contentItem: GridLayout {
+        columns: 2
+        RowLayout {
+            Layout.columnSpan: 2
             Layout.preferredWidth: 100
             Layout.fillHeight: true
             Indicator {
@@ -72,6 +79,7 @@ QQC2.Control {
             TextInput {
                 labelText: 'Host Address'
                 valueText: umdModel.hostaddr
+                orientation: Qt.Vertical
                 Layout.fillWidth: true
                 onSubmit: {
                     umdModel.hostaddr = value;
@@ -81,6 +89,7 @@ QQC2.Control {
             TextInput {
                 labelText: 'Host Port'
                 valueText: root.hostport.toString()
+                orientation: Qt.Vertical
                 Layout.fillWidth: true
                 onSubmit: {
                     umdModel.hostport = parseInt(value);
@@ -89,7 +98,44 @@ QQC2.Control {
             }
         }
         QQC1.TableView {
+            id: tallyMapTable
+            Layout.row: 1
+            Layout.column: 0
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            implicitWidth: 200
+            model: mapListModel
+
+            QQC1.TableViewColumn {
+                role: 'device_index'
+                title: 'Device Index'
+                width: 100
+            }
+            QQC1.TableViewColumn {
+                role: 'program.tally_index'
+                title: 'PGM Index'
+                width: 100
+            }
+            QQC1.TableViewColumn {
+                role: 'program.tally_type'
+                title: 'PGM Type'
+                width: 100
+            }
+            QQC1.TableViewColumn {
+                role: 'preview.tally_index'
+                title: 'PVW Index'
+                width: 100
+            }
+            QQC1.TableViewColumn {
+                role: 'preview.tally_type'
+                title: 'PVW Type'
+                width: 100
+            }
+        }
+        QQC1.TableView {
             id: tallyTable
+            Layout.row: 1
+            Layout.column: 1
             Layout.fillWidth: true
             Layout.fillHeight: true
             model: listModel

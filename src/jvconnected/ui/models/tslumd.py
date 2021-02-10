@@ -250,6 +250,108 @@ class TallyListModel(QtCore.QAbstractTableModel):
         return val
 
 
+class TallyMapListModel(QtCore.QAbstractTableModel):
+    _prop_attrs = (
+        'device_index',
+        'program.tally_index',
+        'program.tally_type',
+        'preview.tally_index',
+        'preview.tally_type',
+    )
+
+    _n_engine = Signal()
+    def __init__(self, *args, **kwargs):
+        self._engine = None
+        self.umd_io = None
+        self._row_count = 0
+        self._map_indices = []
+        self._role_names = {Qt.UserRole+i+5:attr.encode() for i, attr in enumerate(self._prop_attrs)}
+        super().__init__(*args)
+
+    def _g_engine(self) -> Optional[EngineModel]:
+        return self._engine
+    def _s_engine(self, value: EngineModel):
+        if value is None or value == self._engine:
+            return
+        assert self._engine is None
+        self._engine = value
+        self.umd_io = value.engine.interfaces['tslumd']
+        self._init_interface()
+    engine = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
+    """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
+
+    @property
+    def maps(self):
+        if self.umd_io is None:
+            return None
+        return self.umd_io.device_maps
+
+    def iter_maps(self):
+        maps = self.maps
+        if maps is None:
+            yield from []
+        else:
+            for key in sorted(maps.keys()):
+                yield key, maps[key]
+
+    def _init_interface(self):
+        for ix, dev_map in self.iter_maps():
+            self.add_map(dev_map)
+        self.umd_io.bind(device_maps=self.on_umd_io_device_maps)
+
+    def add_map(self, dev_map: DeviceMapping):
+        insert_ix = bisect_left(self._map_indices, dev_map.device_index)
+        self.beginInsertRows(QtCore.QModelIndex(), insert_ix, insert_ix)
+        self._map_indices.insert(insert_ix, dev_map.device_index)
+        self.endInsertRows()
+
+    def remove_map(self, device_index: int):
+        ix = self._map_indices.index(device_index)
+        self.beginRemoveRows(QtCore.QModelIndex(), ix, ix)
+        del self._map_indices[ix]
+        self.endRemoveRows()
+
+    def on_umd_io_device_maps(self, instance, device_maps, **kwargs):
+        new_keys = set(device_maps.keys())
+        old_keys = set(self._map_indices)
+        added = new_keys - old_keys
+        removed = old_keys - new_keys
+        for device_index in removed:
+            self.remove_map(device_index)
+        for device_index in added:
+            self.add_map(device_maps[device_index])
+
+    def roleNames(self):
+        return self._role_names
+
+    def columnCount(self, parent):
+        return len(self._prop_attrs)
+
+    def columnCount(self, parent):
+        return len(self._prop_attrs)
+
+    def rowCount(self, parent):
+        return len(self._map_indices)
+
+    def flags(self, index):
+        return Qt.ItemFlags.ItemIsEnabled
+
+    def data(self, index, role):
+        if not index.isValid():
+            return None
+        ix = self._map_indices[index.row()]
+        dev_map = self.maps[ix]
+        attr = self._role_names[role].decode('UTF-8')
+        if '.' in attr:
+            tmap = getattr(dev_map, attr.split('.')[0])
+            value = getattr(tmap, attr.split('.')[1])
+            if isinstance(value, TallyType):
+                value = value.name
+            return str(value)
+        else:
+            return str(getattr(dev_map, attr))
+
+
 class TallyMapBase(GenericQObject):
     _n_tallyIndex = Signal()
     _n_tallyType = Signal()
@@ -368,7 +470,7 @@ class TallyUnmapModel(TallyMapBase):
             await umd_io.add_device_mapping(new_device_map)
 
 
-MODEL_CLASSES = (UmdModel, TallyListModel, TallyMapModel, TallyUnmapModel)
+MODEL_CLASSES = (UmdModel, TallyListModel, TallyMapListModel, TallyMapModel, TallyUnmapModel)
 
 def register_qml_types():
     for cls in MODEL_CLASSES:
