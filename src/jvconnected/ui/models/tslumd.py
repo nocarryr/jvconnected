@@ -245,6 +245,8 @@ class TallyListModel(QtCore.QAbstractTableModel):
         val = getattr(tally, role.get_tally_prop())
         if isinstance(val, TallyColor):
             val = val.name
+            if val.lower() == 'amber':
+                val = 'yellow'
         return val
 
 
