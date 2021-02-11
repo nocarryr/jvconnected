@@ -26,11 +26,15 @@ QQC2.Control {
         engine: root.engine
         onLayoutChanged: { tallyTable.resizeColumnsToContents() }
         onDataChanged: { tallyTable.resizeColumnsToContents() }
+        Component.onCompleted: { tallyTable.resizeColumnsToContents() }
     }
 
     TallyMapListModel {
         id: mapListModel
         engine: root.engine
+        onLayoutChanged: { tallyMapTable.resizeColumnsToContents() }
+        onDataChanged: { tallyMapTable.resizeColumnsToContents() }
+        Component.onCompleted: { tallyMapTable.resizeColumnsToContents() }
     }
 
     signal submit()
