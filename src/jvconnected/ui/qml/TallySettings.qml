@@ -7,6 +7,7 @@ import Qt.labs.settings 1.0
 import DeviceModels 1.0
 import UmdModels 1.0
 import Controls 1.0
+import Fonts 1.0
 
 QQC2.Control {
     id: root
@@ -109,6 +110,38 @@ QQC2.Control {
             Layout.fillHeight: true
             implicitWidth: 200
             model: mapListModel
+
+            contentFooter: QQC2.ToolBar {
+                position: QQC2.ToolBar.Footer
+                RowLayout {
+                    anchors.fill: parent
+                    QQC2.ToolButton {
+                        property IconFont iconFont: IconFont {
+                            iconName: 'faMinus'
+                        }
+                        text: iconFont.text
+                        font: iconFont.iconFont
+                        enabled: tallyMapTable.currentRow != -1
+                        onClicked: {
+                            var rowIx = tallyMapTable.currentRow;
+                            if (rowIx != -1){
+                                mapListModel.unMapByRow(rowIx);
+                            }
+                        }
+                    }
+                    QQC2.ToolButton {
+                        property IconFont iconFont: IconFont {
+                            iconName: 'faPlus'
+                        }
+                        text: iconFont.text
+                        font: iconFont.iconFont
+                        onClicked: {
+                            tallyCreateMapDialog.resetValues();
+                            tallyCreateMapDialog.open();
+                        }
+                    }
+                }
+            }
 
             QQC1.TableViewColumn {
                 role: 'device_index'
@@ -218,6 +251,10 @@ QQC2.Control {
     }
     TallyUnmapDialog {
         id: tallyUnmapDialog
+        umdModel: umdModel
+    }
+    TallyCreateMapDialog {
+        id: tallyCreateMapDialog
         umdModel: umdModel
     }
 }

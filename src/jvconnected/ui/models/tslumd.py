@@ -351,6 +351,10 @@ class TallyMapListModel(QtCore.QAbstractTableModel):
         else:
             return str(getattr(dev_map, attr))
 
+    @asyncSlot(int)
+    async def unMapByRow(self, row: int):
+        ix = self._map_indices[row]
+        await self.umd_io.remove_device_mapping(ix)
 
 class TallyMapBase(GenericQObject):
     _n_tallyIndex = Signal()
@@ -425,6 +429,59 @@ class TallyMapModel(TallyMapBase):
         kw = {attr:getattr(my_map, attr)}
         return dataclasses.replace(existing_map, **kw)
 
+class TallyCreateMapModel(GenericQObject):
+    _n_deviceIndex = Signal()
+    _n_program = Signal()
+    _n_preview = Signal()
+    def __init__(self, *args):
+        self._deviceIndex = -1
+        self._program = None
+        self._preview = None
+        super().__init__(*args)
+        self.program = TallyMapModel(self)
+        self.program.destTallyType = 'Program'
+        self.preview = TallyMapModel(self)
+        self.preview.destTallyType = 'Preview'
+
+    def _g_deviceIndex(self) -> int: return self._deviceIndex
+    def _s_deviceIndex(self, value: int):
+        self._generic_setter('_deviceIndex', value)
+        self.program.deviceIndex = value
+        self.preview.deviceIndex = value
+    deviceIndex = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
+
+    def _g_program(self) -> TallyMapModel: return self._program
+    def _s_program(self, value: TallyMapModel): self._generic_setter('_program', value)
+    program = Property(TallyMapModel, _g_program, _s_program, notify=_n_program)
+
+    def _g_preview(self) -> TallyMapModel: return self._preview
+    def _s_preview(self, value: TallyMapModel): self._generic_setter('_preview', value)
+    preview = Property(TallyMapModel, _g_preview, _s_preview, notify=_n_preview)
+
+    @QtCore.Slot(result=bool)
+    def checkValid(self) -> bool:
+        assert self.program.destTallyType == 'Program'
+        assert self.preview.destTallyType == 'Preview'
+        if self.deviceIndex == -1:
+            return False
+        if not self.program.checkValid():
+            return False
+        if not self.preview.checkValid():
+            return False
+        return True
+
+    @asyncSlot(UmdModel)
+    async def applyMap(self, umd_model: UmdModel):
+        await self._apply_map(umd_model)
+
+    @logger.catch
+    async def _apply_map(self, umd_model: UmdModel):
+        assert self.checkValid()
+        umd_io = umd_model.umd_io
+        dev_map = self.program.create_device_map()
+        dev_map = self.preview.merge_with_device_map(dev_map)
+        await umd_io.add_device_mapping(dev_map)
+
 
 class TallyUnmapModel(TallyMapBase):
     @QtCore.Slot(UmdModel, result='QVariantList')
@@ -470,7 +527,10 @@ class TallyUnmapModel(TallyMapBase):
             await umd_io.add_device_mapping(new_device_map)
 
 
-MODEL_CLASSES = (UmdModel, TallyListModel, TallyMapListModel, TallyMapModel, TallyUnmapModel)
+MODEL_CLASSES = (
+    UmdModel, TallyListModel, TallyMapListModel, TallyMapModel,
+    TallyCreateMapModel, TallyUnmapModel,
+)
 
 def register_qml_types():
     for cls in MODEL_CLASSES:
