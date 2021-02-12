@@ -7,24 +7,16 @@ import enum
 
 import jsonfactory
 
-from jvconnected.interfaces.tslumd.messages import TallyColor
+from jvconnected.interfaces.tslumd import TallyColor, TallyType, TallyState
 
-
-class TallyType(enum.Enum):
-    """Enum for the three tally display types in the UMD protocol
-    """
-    no_tally = 0  #: No-op
-    rh_tally = 1  #: "Right-hand" tally
-    txt_tally = 2 #: "Text" tally
-    lh_tally = 3  #: "Left-hand" tally
 
 @dataclass
 class TallyMap:
-    """Map to a single :class:`tally type <TallyType>` within a specific
-    :class:`~.umd_io.Tally` by its index
+    """Map to a single :class:`tally type <.TallyType>` within a specific
+    :class:`~.Tally` by its index
     """
-    tally_index: int = 0 #: The :attr:`~.umd_io.Tally.index`
-    tally_type: TallyType = TallyType.no_tally #: The :class:`TallyType`
+    tally_index: int = 0 #: The :attr:`~.Tally.index`
+    tally_type: TallyType = TallyType.no_tally #: The :class:`.TallyType`
     def to_dict(self) -> Dict:
         attrs = ['tally_index', 'tally_type']
         return {attr:getattr(self, attr) for attr in attrs}
@@ -55,16 +47,14 @@ class DeviceMapping:
         attrs = ['device_index', 'program', 'preview']
         return {attr:getattr(self, attr) for attr in attrs}
 
-class TallyState(enum.IntFlag):
-    OFF = 0     #: Off
-    PREVIEW = 1 #: Preview
-    PROGRAM = 2 #: Program
 
 class MappedDevice:
-    """Link between :class:`~.umd_io.Tally` objects and a
+    """Link between :class:`~.Tally` objects and a
     :class:`jvconnected.device.Device`
     """
     umd_io: 'jvconnected.interfaces.tslumd.umd_io.UmdIo'
+    """:class:`.UmdIo` instance"""
+
     map: DeviceMapping
     """Mapping definitions for the device"""
 
@@ -72,11 +62,11 @@ class MappedDevice:
     """The device instance"""
 
     program_tally: Optional[TallyMap]
-    """The :class:`~.umd_io.Tally` mapped to :attr:`jvconnected.device.TallyParams.program`
+    """The :class:`~.Tally` mapped to :attr:`jvconnected.device.TallyParams.program`
     """
 
     preview_tally: Optional[TallyMap]
-    """The :class:`~.umd_io.Tally` mapped to :attr:`jvconnected.device.TallyParams.preview`
+    """The :class:`~.Tally` mapped to :attr:`jvconnected.device.TallyParams.preview`
     """
 
     tally_state: TallyState #: The current state
@@ -107,7 +97,7 @@ class MappedDevice:
             await self.update_device_tally()
 
     def get_tallies(self) -> bool:
-        """Attempt to find the :class:`~.umd_io.Tally` objects in the :attr:`umd_io`
+        """Attempt to find the :class:`~.Tally` objects in the :attr:`umd_io`
 
         Returns:
             bool: ``True`` if an update is needed

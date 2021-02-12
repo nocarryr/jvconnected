@@ -6,8 +6,8 @@ from typing import Dict, Tuple, Set
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
 from jvconnected.interfaces import Interface
-from jvconnected.interfaces.tslumd.messages import Message, Display, TallyColor
-from jvconnected.interfaces.tslumd.umd_io import Tally
+from jvconnected.interfaces.tslumd.messages import Message, Display
+from jvconnected.interfaces.tslumd import TallyColor, Tally
 
 class UmdProtocol(asyncio.DatagramProtocol):
     def __init__(self, sender: 'UmdSender'):

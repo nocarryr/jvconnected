@@ -4,6 +4,12 @@
 .. automodule:: jvconnected.interfaces.tslumd
     :members:
 
+:mod:`jvconnected.interfaces.tslumd.common`
+-------------------------------------------
+
+.. automodule:: jvconnected.interfaces.tslumd.common
+    :members:
+
 :mod:`jvconnected.interfaces.tslumd.umd_io`
 -------------------------------------------
 

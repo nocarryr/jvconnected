@@ -5,8 +5,9 @@ from typing import Dict, Tuple, Set, Optional
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
 from jvconnected.interfaces import Interface
-from jvconnected.interfaces.tslumd.messages import Message, Display, TallyColor
+from jvconnected.interfaces.tslumd.messages import Message, Display
 from jvconnected.interfaces.tslumd.mapper import DeviceMapping, MappedDevice
+from jvconnected.interfaces.tslumd import TallyColor
 
 class Tally(Dispatcher):
     """A single tally object

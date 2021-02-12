@@ -14,11 +14,8 @@ from qasync import QEventLoop, asyncSlot, asyncClose
 from jvconnected.ui.utils import GenericQObject
 from jvconnected.ui.models.engine import EngineModel
 
-from jvconnected.interfaces.tslumd.messages import TallyColor
-from jvconnected.interfaces.tslumd.umd_io import Tally, UmdIo
-from jvconnected.interfaces.tslumd.mapper import (
-    DeviceMapping, TallyMap, TallyType,
-)
+from jvconnected.interfaces.tslumd import UmdIo, Tally, TallyType, TallyColor
+from jvconnected.interfaces.tslumd.mapper import DeviceMapping, TallyMap
 
 class UmdModel(GenericQObject):
     _n_engine = Signal()

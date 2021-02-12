@@ -6,6 +6,8 @@ import enum
 import struct
 from typing import List, Tuple, Dict
 
+from jvconnected.interfaces.tslumd import TallyColor
+
 class Flags(enum.IntFlag):
     """Message flags
     """
@@ -16,13 +18,6 @@ class Flags(enum.IntFlag):
     SCONTROL = 2
     """Indicates the message contains ``SCONTROL`` data if set, otherwise ``DMESG``
     """
-
-class TallyColor(enum.IntEnum):
-    """Color enum for tally indicators"""
-    OFF = 0   #: Off
-    RED = 1   #: Red
-    GREEN = 2 #: Green
-    AMBER = 3 #: Amber
 
 @dataclass
 class Display:
