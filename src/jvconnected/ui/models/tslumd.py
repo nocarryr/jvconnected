@@ -2,7 +2,7 @@ from loguru import logger
 import asyncio
 import enum
 import dataclasses
-from typing import Optional, List
+from typing import Optional, List, Dict
 from bisect import bisect_left
 
 from PySide2 import QtCore, QtQml, QtGui
@@ -18,13 +18,17 @@ from jvconnected.interfaces.tslumd import UmdIo, Tally, TallyType, TallyColor
 from jvconnected.interfaces.tslumd.mapper import DeviceMapping, TallyMap
 
 class UmdModel(GenericQObject):
+    """Qt bridge to :class:`jvconnected.interfaces.tslumd.umd_io.UmdIo`
+    """
     _n_engine = Signal()
     _n_running = Signal()
     _n_hostaddr = Signal()
     _n_hostport = Signal()
     _n_editedProperties = Signal()
     _editable_properties = ('hostaddr', 'hostport')
-    umd_io: UmdIo #: Instance of :class:`jvconnected.interfaces.umd_io.UmdIo`
+    umd_io: UmdIo
+    """:class:`~jvconnected.interfaces.tslumd.umd_io.UmdIo` instance"""
+
     def __init__(self, *args):
         self._engine = None
         self._running = False
@@ -139,18 +143,26 @@ class UmdModel(GenericQObject):
 
 
 class TallyRoles(enum.IntEnum):
-    IndexRole = Qt.UserRole + 1
-    RhTallyRole = Qt.UserRole + 2
-    TxtTallyRole = Qt.UserRole + 3
-    LhTallyRole = Qt.UserRole + 4
-    TextRole = int(Qt.DisplayRole)
+    """Role definitions to specify column mapping in :class:`TallyListModel` to
+    a ``QtQuick.TableView``
+    """
+    IndexRole = Qt.UserRole + 1     #: index
+    RhTallyRole = Qt.UserRole + 2   #: rhTally
+    TxtTallyRole = Qt.UserRole + 3  #: txtTally
+    LhTallyRole = Qt.UserRole + 4   #: lhTally
+    TextRole = int(Qt.DisplayRole)  #: text
     def get_tally_prop(self):
+        """Get the attribute name of this role mapped to
+        :class:`jvconnected.interfaces.tslumd.umd_io.Tally`
+        """
         prop = self.name.split('Role')[0]
         if 'Tally' in prop:
             s = prop.split('Tally')[0].lower()
             return f'{s}_tally'
         return prop.lower()
     def get_qt_prop(self):
+        """Get the camel-case name of this role used in Qml
+        """
         if self.name == 'IndexRole':
             return 'tallyIndex'
         prop = self.name.split('Role')[0]
@@ -160,13 +172,23 @@ class TallyRoles(enum.IntEnum):
         return prop.lower()
 
 class TallyListModel(QtCore.QAbstractTableModel):
+    """Table Model for :class:`jvconnected.interfaces.tslumd.umd_io.Tally` objects
+    """
     _n_engine = Signal()
     _prop_attrs = ('index', 'rh_tally', 'txt_tally', 'lh_tally', 'text')
+
+    tally_indices: List[int]
+    """Used to keep the table row in sync with the item key within :attr:`tallies`
+    """
+
+    umd_io: UmdIo
+    """:class:`~jvconnected.interfaces.tslumd.umd_io.UmdIo` instance"""
+
     def __init__(self, *args, **kwargs):
         self._engine = None
         self.umd_io = None
         self._row_count = 0
-        self._tally_indices = []
+        self.tally_indices = []
         super().__init__(*args)
 
     def _g_engine(self) -> Optional[EngineModel]:
@@ -182,7 +204,10 @@ class TallyListModel(QtCore.QAbstractTableModel):
     """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
 
     @property
-    def tallies(self):
+    def tallies(self) -> Optional[Dict[int, Tally]]:
+        """Shortcut for :attr:`~jvconnected.interfaces.tslumd.umd_io.UmdIo.tallies`
+        on :attr:`umd_io`
+        """
         if self.umd_io is None:
             return None
         return self.umd_io.tallies
@@ -193,14 +218,14 @@ class TallyListModel(QtCore.QAbstractTableModel):
         self.umd_io.bind(on_tally_added=self.add_tally)
 
     def add_tally(self, tally: Tally):
-        insert_ix = bisect_left(self._tally_indices, tally.index)
+        insert_ix = bisect_left(self.tally_indices, tally.index)
         self.beginInsertRows(QtCore.QModelIndex(), insert_ix, insert_ix)
-        self._tally_indices.insert(insert_ix, tally.index)
+        self.tally_indices.insert(insert_ix, tally.index)
         self.endInsertRows()
         tally.bind(on_update=self.update_tally)
 
     def update_tally(self, tally: Tally, props_changed):
-        row_ix = self._tally_indices.index(tally.index)
+        row_ix = self.tally_indices.index(tally.index)
         props = {i:prop for i,prop in enumerate(self._prop_attrs) if prop in props_changed}
         tl = self.index(row_ix, min(props.keys()))
         br = self.index(row_ix, max(props.keys()))
@@ -213,14 +238,16 @@ class TallyListModel(QtCore.QAbstractTableModel):
         return len(self._prop_attrs)
 
     def rowCount(self, parent):
-        return len(self._tally_indices)
+        return len(self.tally_indices)
 
     def flags(self, index):
         return Qt.ItemFlags.ItemIsEnabled
 
     @QtCore.Slot(int, result=int)
     def getIndexForRow(self, row: int) -> int:
-        return self._tally_indices[row]
+        """Get the key within :attr:`tallies` for the given row
+        """
+        return self.tally_indices[row]
 
     @QtCore.Slot(int, result=str)
     def getTallyTypeForColumn(self, column: int) -> str:
@@ -229,7 +256,7 @@ class TallyListModel(QtCore.QAbstractTableModel):
     def data(self, index, role):
         if not index.isValid():
             return None
-        ix = self._tally_indices[index.row()]
+        ix = self.tally_indices[index.row()]
         tallies = self.tallies
         if tallies is None:
             tally = None
@@ -248,6 +275,9 @@ class TallyListModel(QtCore.QAbstractTableModel):
 
 
 class TallyMapListModel(QtCore.QAbstractTableModel):
+    """Table Model for :class:`jvconnected.interfaces.tslumd.mapper.DeviceMapping`
+    objects
+    """
     _prop_attrs = (
         'device_index',
         'program.tally_index',
@@ -257,11 +287,18 @@ class TallyMapListModel(QtCore.QAbstractTableModel):
     )
 
     _n_engine = Signal()
+    umd_io: UmdIo
+    """:class:`~jvconnected.interfaces.tslumd.umd_io.UmdIo` instance"""
+
+    map_indices: List[int]
+    """Used to keep the table row in sync with the item key within :attr:`maps`
+    """
+
     def __init__(self, *args, **kwargs):
         self._engine = None
         self.umd_io = None
         self._row_count = 0
-        self._map_indices = []
+        self.map_indices = []
         self._role_names = {Qt.UserRole+i+5:attr.encode() for i, attr in enumerate(self._prop_attrs)}
         super().__init__(*args)
 
@@ -278,10 +315,19 @@ class TallyMapListModel(QtCore.QAbstractTableModel):
     """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
 
     @property
-    def maps(self):
+    def maps(self) -> Optional[Dict[int, DeviceMapping]]:
+        """Shortcut for :attr:`~jvconnected.interfaces.tslumd.umd_io.UmdIo.device_maps`
+        of the :attr:`umd_io`
+        """
         if self.umd_io is None:
             return None
         return self.umd_io.device_maps
+
+    @QtCore.Slot(int, result=int)
+    def getIndexForRow(self, row: int) -> int:
+        """Get the key within :attr:`maps` for the given row
+        """
+        return self.map_indices[row]
 
     def iter_maps(self):
         maps = self.maps
@@ -297,20 +343,20 @@ class TallyMapListModel(QtCore.QAbstractTableModel):
         self.umd_io.bind(device_maps=self.on_umd_io_device_maps)
 
     def add_map(self, dev_map: DeviceMapping):
-        insert_ix = bisect_left(self._map_indices, dev_map.device_index)
+        insert_ix = bisect_left(self.map_indices, dev_map.device_index)
         self.beginInsertRows(QtCore.QModelIndex(), insert_ix, insert_ix)
-        self._map_indices.insert(insert_ix, dev_map.device_index)
+        self.map_indices.insert(insert_ix, dev_map.device_index)
         self.endInsertRows()
 
     def remove_map(self, device_index: int):
-        ix = self._map_indices.index(device_index)
+        ix = self.map_indices.index(device_index)
         self.beginRemoveRows(QtCore.QModelIndex(), ix, ix)
-        del self._map_indices[ix]
+        del self.map_indices[ix]
         self.endRemoveRows()
 
     def on_umd_io_device_maps(self, instance, device_maps, **kwargs):
         new_keys = set(device_maps.keys())
-        old_keys = set(self._map_indices)
+        old_keys = set(self.map_indices)
         added = new_keys - old_keys
         removed = old_keys - new_keys
         for device_index in removed:
@@ -328,7 +374,7 @@ class TallyMapListModel(QtCore.QAbstractTableModel):
         return len(self._prop_attrs)
 
     def rowCount(self, parent):
-        return len(self._map_indices)
+        return len(self.map_indices)
 
     def flags(self, index):
         return Qt.ItemFlags.ItemIsEnabled
@@ -336,7 +382,7 @@ class TallyMapListModel(QtCore.QAbstractTableModel):
     def data(self, index, role):
         if not index.isValid():
             return None
-        ix = self._map_indices[index.row()]
+        ix = self.map_indices[index.row()]
         dev_map = self.maps[ix]
         attr = self._role_names[role].decode('UTF-8')
         if '.' in attr:
@@ -350,7 +396,14 @@ class TallyMapListModel(QtCore.QAbstractTableModel):
 
     @asyncSlot(int)
     async def unMapByRow(self, row: int):
-        ix = self._map_indices[row]
+        """Remove a :class:`~jvconnected.interfaces.tslumd.mapper.DeviceMapping`
+        from the :attr:`umd_io`.
+        See :meth:`jvconnected.interfaces.tslumd.umd_io.UmdIo.remove_device_mapping`
+
+        Arguments:
+            row (int): The table row index
+        """
+        ix = self.map_indices[row]
         await self.umd_io.remove_device_mapping(ix)
 
 class TallyMapBase(GenericQObject):
@@ -364,10 +417,13 @@ class TallyMapBase(GenericQObject):
     def _g_tallyIndex(self) -> int: return self._tallyIndex
     def _s_tallyIndex(self, value: int): self._generic_setter('_tallyIndex', value)
     tallyIndex = Property(int, _g_tallyIndex, _s_tallyIndex, notify=_n_tallyIndex)
+    """Alias for :attr:`jvconnected.interfaces.tslumd.mapper.TallyMap.tally_index`"""
 
     def _g_tallyType(self) -> str: return self._tallyType
     def _s_tallyType(self, value: str): self._generic_setter('_tallyType', value)
     tallyType = Property(str, _g_tallyType, _s_tallyType, notify=_n_tallyType)
+    """Alias for :attr:`jvconnected.interfaces.tslumd.mapper.TallyMap.tally_type`
+    """
 
 
 class TallyMapModel(TallyMapBase):
@@ -381,13 +437,17 @@ class TallyMapModel(TallyMapBase):
     def _g_deviceIndex(self) -> int: return self._deviceIndex
     def _s_deviceIndex(self, value: int): self._generic_setter('_deviceIndex', value)
     deviceIndex = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
+    """Alias for :attr:`jvconnected.interfaces.tslumd.mapper.DeviceMapping.device_index`"""
 
     def _g_destTallyType(self) -> str: return self._destTallyType
     def _s_destTallyType(self, value: str): self._generic_setter('_destTallyType', value)
     destTallyType = Property(str, _g_destTallyType, _s_destTallyType, notify=_n_destTallyType)
+    """The destination tally type to map to the device (``'Preview'`` or ``'Program'``)"""
 
     @QtCore.Slot(result=bool)
     def checkValid(self) -> bool:
+        """Check validity of current parameters
+        """
         if -1 in [self.tallyIndex, self.deviceIndex]:
             return False
         if self.tallyType not in TallyType.__members__:
@@ -398,6 +458,10 @@ class TallyMapModel(TallyMapBase):
 
     @asyncSlot(UmdModel)
     async def applyMap(self, umd_model: UmdModel):
+        """Add a :class:`~jvconnected.interfaces.tslumd.mapper.DeviceMapping`
+        to the :attr:`UmdModel.umd_io` using
+        :meth:`jvconnected.interfaces.tslumd.umd_io.UmdIo.add_device_mapping`
+        """
         await self._apply_map(umd_model)
 
     @logger.catch
@@ -411,7 +475,10 @@ class TallyMapModel(TallyMapBase):
             dev_map = self.merge_with_device_map(dev_map)
         await umd_io.add_device_mapping(dev_map)
 
-    def create_device_map(self):
+    def create_device_map(self) -> DeviceMapping:
+        """Create a :class:`~jvconnected.interfaces.tslumd.mapper.DeviceMapping`
+        with the current values of this instance
+        """
         kw = dict(device_index=self.deviceIndex)
         tmap = TallyMap(
             tally_index=self.tallyIndex,
@@ -421,6 +488,9 @@ class TallyMapModel(TallyMapBase):
         return DeviceMapping(**kw)
 
     def merge_with_device_map(self, existing_map: DeviceMapping) -> DeviceMapping:
+        """Merge an existing :class:`~jvconnected.interfaces.tslumd.mapper.DeviceMapping`
+        with one created by :meth:`create_device_map`
+        """
         my_map = self.create_device_map()
         attr = self.destTallyType.lower()
         kw = {attr:getattr(my_map, attr)}
@@ -446,17 +516,25 @@ class TallyCreateMapModel(GenericQObject):
         self.program.deviceIndex = value
         self.preview.deviceIndex = value
     deviceIndex = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
+    """The device index"""
 
     def _g_program(self) -> TallyMapModel: return self._program
     def _s_program(self, value: TallyMapModel): self._generic_setter('_program', value)
     program = Property(TallyMapModel, _g_program, _s_program, notify=_n_program)
+    """Instance of :class:`TallyMapModel` to be used for program tally"""
 
     def _g_preview(self) -> TallyMapModel: return self._preview
     def _s_preview(self, value: TallyMapModel): self._generic_setter('_preview', value)
     preview = Property(TallyMapModel, _g_preview, _s_preview, notify=_n_preview)
+    """Instance of :class:`TallyMapModel` to be used for preview tally"""
 
     @QtCore.Slot(result=bool)
     def checkValid(self) -> bool:
+        """Check validity of current parameters
+
+        Calls :meth:`~TallyMapModel.checkValid` on both :attr:`program` and
+        :attr:`preview` objects
+        """
         assert self.program.destTallyType == 'Program'
         assert self.preview.destTallyType == 'Preview'
         if self.deviceIndex == -1:
@@ -469,6 +547,13 @@ class TallyCreateMapModel(GenericQObject):
 
     @asyncSlot(UmdModel)
     async def applyMap(self, umd_model: UmdModel):
+        """Add a :class:`~jvconnected.interfaces.tslumd.mapper.DeviceMapping`
+        to the :attr:`UmdModel.umd_io` using
+        :meth:`jvconnected.interfaces.tslumd.umd_io.UmdIo.add_device_mapping`.
+
+        The values from the :attr:`program` and :attr:`preview` objects are
+        merged
+        """
         await self._apply_map(umd_model)
 
     @logger.catch
