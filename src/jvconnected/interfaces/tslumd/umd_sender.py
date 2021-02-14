@@ -1,6 +1,7 @@
 from loguru import logger
 import asyncio
 import string
+import argparse
 from typing import Dict, Tuple, Set
 
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
@@ -187,9 +188,29 @@ class UmdSender(Dispatcher):
             return
         self.update_queue.put_nowait(tally)
 
-if __name__ == '__main__':
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument(
+        '-c', '--client', dest='clients', action='append', type=str,
+        help=' '.join([
+            'Client(s) to send UMD messages to formatted as "<hostaddr>:<port>".',
+            'Multiple arguments may be given.',
+            'If nothing is provided, defaults to "127.0.0.1:65000"',
+        ]),
+    )
+    args = p.parse_args()
+
+    if args.clients is None or not len(args.clients):
+        args.clients = ['127.0.0.1:65000']
+    clients = []
+    for client in args.clients:
+        addr, port = client.split(':')
+        clients.append((addr, int(port)))
+
+    logger.info(f'Sending to clients: {clients}')
+
     loop = asyncio.get_event_loop()
-    sender = UmdSender(clients=[('127.0.0.1', 60000)])
+    sender = UmdSender(clients=clients)
     loop.run_until_complete(sender.open())
     try:
         loop.run_forever()
@@ -197,3 +218,6 @@ if __name__ == '__main__':
         loop.run_until_complete(sender.close())
     finally:
         loop.close()
+
+if __name__ == '__main__':
+    main()
