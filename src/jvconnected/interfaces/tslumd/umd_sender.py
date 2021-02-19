@@ -253,29 +253,50 @@ class UmdSender(Dispatcher):
             changed_tallies = [self.tallies[i] for i in changed_ix]
             await self.update_queue.put(changed_tallies)
 
+class ClientArgAction(argparse._AppendAction):
+    _default_help = ' '.join([
+        'Client(s) to send UMD messages to formatted as "<hostaddr>:<port>".',
+        'Multiple arguments may be given.',
+        'If nothing is provided, defaults to "127.0.0.1:65000"',
+    ])
+    def __init__(self,
+                 option_strings,
+                 dest,
+                 nargs=None,
+                 const=None,
+                 default=[('127.0.0.1', 65000)],
+                 type_=str,
+                 choices=None,
+                 required=False,
+                 help=_default_help,
+                 metavar=None):
+        super().__init__(
+            option_strings, dest, nargs, const, default,
+            type_, choices, required, help, metavar,
+        )
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        addr, port = values.split(':')
+        values = (addr, int(port))
+        items = getattr(namespace, self.dest, None)
+        if items == [('127.0.0.1', 65000)]:
+            items = []
+        else:
+            items = argparse._copy_items(items)
+        items.append(values)
+        setattr(namespace, self.dest, items)
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument(
-        '-c', '--client', dest='clients', action='append', type=str,
-        help=' '.join([
-            'Client(s) to send UMD messages to formatted as "<hostaddr>:<port>".',
-            'Multiple arguments may be given.',
-            'If nothing is provided, defaults to "127.0.0.1:65000"',
-        ]),
+        '-c', '--client', dest='clients', action=ClientArgAction#, type=str,
     )
     args = p.parse_args()
 
-    if args.clients is None or not len(args.clients):
-        args.clients = ['127.0.0.1:65000']
-    clients = []
-    for client in args.clients:
-        addr, port = client.split(':')
-        clients.append((addr, int(port)))
-
-    logger.info(f'Sending to clients: {clients}')
+    logger.info(f'Sending to clients: {args.clients!r}')
 
     loop = asyncio.get_event_loop()
-    sender = UmdSender(clients=clients)
+    sender = UmdSender(clients=args.clients)
     loop.run_until_complete(sender.open())
     try:
         loop.run_forever()

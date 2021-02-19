@@ -6,6 +6,7 @@ from contextvars import ContextVar
 import socket
 import datetime
 import ipaddress
+import argparse
 
 import pkg_resources
 ZC_VERSION = pkg_resources.get_distribution('zeroconf').parsed_version
@@ -22,6 +23,7 @@ import ifaddr
 
 from jvconnected import device
 from jvconnected.discovery import PROCAM_FQDN
+from jvconnected.interfaces.tslumd.umd_sender import UmdSender, ClientArgAction
 
 
 PREVIEW_IMAGE_DIR = Path(__file__).resolve().parent / 'test_images'
@@ -809,16 +811,26 @@ async def build_device(app, **kwargs):
         service.published = True
     return device, runner, site
 
-if __name__ == '__main__':
-    import argparse
+def main():
     p = argparse.ArgumentParser()
     p.add_argument('-n', '--num-devices', dest='num_devices', type=int, default=1)
     p.add_argument('--leave-published', dest='leave_published', action='store_true')
     p.add_argument('--no-publish', dest='no_publish', action='store_true')
     p.add_argument('--port-offset', dest='port_offset', type=int, default=0)
+    p.add_argument('-c', '--client', dest='clients', action=ClientArgAction)
     args = p.parse_args()
 
+    loop = asyncio.get_event_loop()
+
+    umd_sender = UmdSender(clients=args.clients)
+    loop.run_until_complete(umd_sender.open())
+
+    async def close_umd(app):
+        await umd_sender.close()
+
     app = init_func(**vars(args))
+    app.on_cleanup.append(close_umd)
     web.run_app(app)
-    # loop = asyncio.get_event_loop()
-    # loop.run_forever()
+
+if __name__ == '__main__':
+    main()
