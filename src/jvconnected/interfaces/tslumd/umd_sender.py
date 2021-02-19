@@ -2,13 +2,45 @@ from loguru import logger
 import asyncio
 import string
 import argparse
-from typing import Dict, Tuple, Set
+import enum
+from typing import List, Dict, Tuple, Set
 
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
 from jvconnected.interfaces import Interface
 from jvconnected.interfaces.tslumd.messages import Message, Display
-from jvconnected.interfaces.tslumd import TallyColor, Tally
+from jvconnected.interfaces.tslumd import TallyColor, TallyType, Tally
+
+
+class AnimateMode(enum.Enum):
+    vertical = 1
+    horizontal = 2
+
+class TallyTypeGroup:
+    tally_type: TallyType
+    num_tallies: int
+    tally_colors: List[TallyColor]
+    def __init__(self, tally_type: TallyType, num_tallies: int):
+        if tally_type == TallyType.no_tally:
+            raise ValueError(f'TallyType cannot be {TallyType.no_tally}')
+        self.tally_type = tally_type
+        self.num_tallies = num_tallies
+        self.tally_colors = [TallyColor.OFF for _ in range(num_tallies)]
+
+    def reset_all(self, color: TallyColor = TallyColor.OFF):
+        self.tally_colors[:] = [color for _ in range(self.num_tallies)]
+
+    def update_tallies(self, tallies: List[Tally]) -> List[int]:
+        attr = self.tally_type.name
+        changed = []
+        for i, tally in enumerate(tallies):
+            color = self.tally_colors[i]
+            cur_value = getattr(tally, attr)
+            if cur_value == color:
+                continue
+            setattr(tally, attr, color)
+            changed.append(i)
+        return changed
 
 class UmdProtocol(asyncio.DatagramProtocol):
     def __init__(self, sender: 'UmdSender'):
@@ -24,6 +56,7 @@ class UmdProtocol(asyncio.DatagramProtocol):
 
 class UmdSender(Dispatcher):
     tallies = ListProperty()
+    tally_groups: Dict[TallyType, TallyTypeGroup]
     running = Property(False)
     # connected = Property(False)
     num_tallies = 8
@@ -36,8 +69,13 @@ class UmdSender(Dispatcher):
                 self.clients.add(client)
         for i in range(self.num_tallies):
             tally = Tally(i, text=string.ascii_uppercase[i])
-            tally.bind(on_update=self.on_tally_updated)
             self.tallies.append(tally)
+        self.tally_groups = {}
+        for tally_type in TallyType:
+            if tally_type == TallyType.no_tally:
+                continue
+            tg = TallyTypeGroup(tally_type, self.num_tallies)
+            self.tally_groups[tally_type] = tg
         self.loop = asyncio.get_event_loop()
         # self.update_lock = asyncio.Lock()
         self.update_queue = asyncio.Queue()
@@ -99,25 +137,15 @@ class UmdSender(Dispatcher):
             else:
                 indices = set()
                 msg = self._build_message()
-                tallies = {}
-                # msg.displays.append(item)
-                tallies[item.index] = item
-                # indices.add(item.index)
-                self.update_queue.task_done()
-                while not self.update_queue.empty():
-                    item = self.update_queue.get_nowait()
-                    if item in [False, None]:
-                        break
-                    # elif item.index in indices:
-                    #     break
-                    # msg.displays.append(item)
-                    # indices.add(item.index)
-                    tallies[item.index] = item
-                    self.update_queue.task_done()
+                if isinstance(item, (list, tuple, set)):
+                    tallies = {t.index:t for t in item}
+                else:
+                    tallies = {item.index:item}
                 for key in sorted(tallies.keys()):
                     tally = tallies[key]
                     msg.displays.append(tally.to_display())
                 await self.send_message(msg)
+                self.update_queue.task_done()
 
     async def send_message(self, msg: Message):
         data = msg.build_message()
@@ -138,37 +166,81 @@ class UmdSender(Dispatcher):
     def _build_message(self) -> Message:
         return Message()
 
+    def set_animate_mode(self, mode: AnimateMode):
+        self.animate_mode = mode
+        if mode == AnimateMode.vertical:
+            self.cur_group = TallyType.rh_tally
+            self.cur_index = -2
+        elif mode == AnimateMode.horizontal:
+            self.cur_index = 0
+            self.cur_group = TallyType.no_tally
+        for tg in self.tally_groups.values():
+            tg.reset_all()
+
+    def animate_tallies(self):
+        if self.animate_mode == AnimateMode.vertical:
+            self.animate_vertical()
+        elif self.animate_mode == AnimateMode.horizontal:
+            self.animate_horizontal()
+
+    def animate_vertical(self):
+        colors = [c for c in TallyColor if c != TallyColor.OFF]
+
+        tg = self.tally_groups[self.cur_group]
+        start_ix = self.cur_index
+        tg.reset_all()
+
+        for color in colors:
+            ix = start_ix + color.value-1
+            if 0 <= ix < self.num_tallies:
+                tg.tally_colors[ix] = color
+        start_ix += 1
+
+        if start_ix > self.num_tallies:
+            self.cur_index = -2
+            if self.cur_group == TallyType.rh_tally:
+                self.cur_group = TallyType.txt_tally
+            elif self.cur_group == TallyType.txt_tally:
+                self.cur_group = TallyType.lh_tally
+            else:
+                self.set_animate_mode(AnimateMode.horizontal)
+        else:
+            self.cur_index = start_ix
+
+    def animate_horizontal(self):
+        tally_types = [t for t in TallyType]
+        while tally_types[0] != self.cur_group:
+            t = tally_types.pop(0)
+            tally_types.append(t)
+        for i, t in enumerate(tally_types):
+            if t == TallyType.no_tally:
+                continue
+            tg = self.tally_groups[t]
+            tg.reset_all()
+            try:
+                color = TallyColor(i+1)
+            except ValueError:
+                color = TallyColor.OFF
+            tg.tally_colors[self.cur_index] = color
+        try:
+            t = TallyType(self.cur_group.value+1)
+            self.cur_group = t
+        except ValueError:
+            self.cur_index += 1
+            self.cur_group = TallyType.no_tally
+            if self.cur_index >= self.num_tallies:
+                self.set_animate_mode(AnimateMode.vertical)
+
     @logger.catch
     async def update_loop(self):
-        def roll(l: list):
-            item = l.pop(0)
-            l.append(item)
+        self.set_animate_mode(AnimateMode.vertical)
 
-        def iter_colors():
-            while True:
-                yield from TallyColor.__members__.keys()
-        colors = {
-            'rh':[], 'lh':[], 'txt':[]
-        }
-        # color_names = list(TallyColor.__members__.keys())
-        color_iter = iter_colors()
-        last_key = None
-        for key in colors:
-            for i in range(self.num_tallies):
-                cur_color = next(color_iter)
-
-                if last_key is not None:
-                    if colors[last_key][i] == cur_color:
-                        cur_color = next(color_iter)
-                colors[key].append(cur_color)
-            last_key = key
-
-        def set_tally_colors():
-            for i, tally in enumerate(self.tallies):
-                for key, color_names in colors.items():
-                    attr = f'{key}_tally'
-                    color = getattr(TallyColor, color_names[i])
-                    setattr(tally, attr, color)
+        def update_tallies():
+            changed = set()
+            for tg in self.tally_groups.values():
+                _changed = tg.update_tallies(self.tallies)
+                changed |= set(_changed)
+            return changed
 
         await self.connected_evt.wait()
 
@@ -176,17 +248,10 @@ class UmdSender(Dispatcher):
             await asyncio.sleep(self.update_interval)
             if not self.running:
                 break
-            for l in colors.values():
-                roll(l)
-            set_tally_colors()
-
-    def on_tally_updated(self, tally: Tally, props_changed):
-        for prop in props_changed:
-            val = getattr(tally, prop)
-            logger.debug(f'{tally!r}.{prop} = {val}')
-        if not self.running:
-            return
-        self.update_queue.put_nowait(tally)
+            self.animate_tallies()
+            changed_ix = update_tallies()
+            changed_tallies = [self.tallies[i] for i in changed_ix]
+            await self.update_queue.put(changed_tallies)
 
 def main():
     p = argparse.ArgumentParser()
