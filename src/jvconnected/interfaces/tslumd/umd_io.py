@@ -165,7 +165,7 @@ class UmdIo(Interface):
     device_maps = DictProperty()
     mapped_devices = DictProperty()
     _events_ = ['on_tally_added', 'on_tally_updated']
-
+    interface_name = 'tslumd'
     def __init__(self):
         self._reading_config = False
         self._config_read = asyncio.Event()

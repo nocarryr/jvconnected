@@ -10,7 +10,7 @@ except ImportError:
 
 if MIDI_AVAILABLE:
     from .midi_io import MidiIO
-    registry.register('midi', MidiIO)
+    registry.register(MidiIO)
 else:
     MidiIO = None
     logger.warning('''Midi interface unavailable.

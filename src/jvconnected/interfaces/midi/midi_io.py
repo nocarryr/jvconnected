@@ -36,6 +36,7 @@ class MidiIO(Interface):
     mapped_devices = DictProperty()
     mapper = Property()
     config = Property()
+    interface_name = 'midi'
     def __init__(self):
         super().__init__()
         self._consume_tasks = {}

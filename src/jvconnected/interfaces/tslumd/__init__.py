@@ -7,4 +7,4 @@ and other production display/control purposes.
 from jvconnected.interfaces import registry
 from .common import TallyColor, TallyType, TallyState
 from .umd_io import UmdIo, Tally
-registry.register('tslumd', UmdIo)
+registry.register(UmdIo)

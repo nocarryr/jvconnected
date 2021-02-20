@@ -12,14 +12,17 @@ class Registry(Dispatcher):
 
         >>> from jvconnected.interfaces import registry, Interface
         >>> class MyInterfaceClass(Interface):
-        >>>     pass
-        >>> registry.register('my_interface', MyInterfaceClass)
+        >>>     interface_name = 'my_interface'
+        >>> registry.register(MyInterfaceClass)
         >>> for name, cls in registry:
         >>>     print(name, cls.__name__)
         my_interface MyInterfaceClass
 
-    Subclasses of :class:`~jvconnected.interfaces.base.Interface` added by the
-    :meth:`register` method. The :class:`~jvconnected.engine.Engine` then
+    Subclasses of :class:`~.base.Interface` must have a unique name assigned
+    as their :attr:`~.base.Interface.interface_name`.
+    They can then be added using the :meth:`register` method.
+
+    The :class:`~jvconnected.engine.Engine` then
     instanciates them and adds them to its :attr:`~jvconnected.engine.Engine.interfaces`.
 
     :Events:
@@ -40,15 +43,17 @@ class Registry(Dispatcher):
         Registry._Registry__instance = self
         self.__items = {}
 
-    def register(self, name: str, cls):
+    def register(self, cls):
         """Register an interface
 
         Arguments:
-            name (str): The interface name
-            cls: Subclass of :class:`Interface` to register
+            cls: Subclass of :class:`~.base.Interface` to register
         """
         if not issubclass(cls, Interface):
             raise ValueError(f'class "{cls!r}" must be a subclass of {Interface!r}')
+        name = cls.interface_name
+        if not isinstance(name, str) or not len(name):
+            raise ValueError(f'class "{cls!r}" has no "interface_name"')
         if name in self:
             raise ValueError(f'Interface with name "{name}" already registered')
         self.__items[name] = cls

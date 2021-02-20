@@ -1,4 +1,5 @@
 import asyncio
+from typing import ClassVar
 
 from pydispatch import Dispatcher, Property
 
@@ -12,11 +13,15 @@ class Interface(Dispatcher):
     Properties:
         running (bool): Run state
 
-    Attributes:
-        loop: The :class:`asyncio.BaseEventLoop` associated with the instance
-
     """
     running = Property(False)
+
+    loop: asyncio.BaseEventLoop
+    """The :class:`asyncio.BaseEventLoop` associated with the instance"""
+
+    interface_name: ClassVar[str] = ''
+    """Unique name for the interface. Must be defined by subclasses"""
+
     def __init__(self, *args, **kwargs):
         self._engine = None
         self.loop = asyncio.get_event_loop()
