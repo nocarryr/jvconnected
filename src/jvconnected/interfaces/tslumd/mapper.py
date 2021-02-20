@@ -177,7 +177,8 @@ class MappedDevice:
             return
         changed = self.update_tally_state()
         # logger.debug(f'{self.map}: {self.tally_state!r}')
-        # if changed:
+        if not changed:
+            return
         if TallyState.PROGRAM in self.tally_state:
             value = 'Program'
         elif TallyState.PREVIEW in self.tally_state:
