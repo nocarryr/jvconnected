@@ -1,5 +1,5 @@
 import asyncio
-from typing import ClassVar
+from typing import ClassVar, Optional, Dict
 
 from pydispatch import Dispatcher, Property
 
@@ -12,9 +12,12 @@ class Interface(Dispatcher):
 
     Properties:
         running (bool): Run state
+        config: Instance of :class:`jvconnected.config.Config`. This is gathered
+            from the :attr:`engine` after :meth:`set_engine` has been called.
 
     """
     running = Property(False)
+    config = Property()
 
     loop: asyncio.BaseEventLoop
     """The :class:`asyncio.BaseEventLoop` associated with the instance"""
@@ -45,6 +48,7 @@ class Interface(Dispatcher):
             return
         assert self.engine is None
         self._engine = engine
+        self.config = engine.config
         if engine.running:
             await self.open()
         engine.bind_async(
@@ -70,3 +74,23 @@ class Interface(Dispatcher):
                 await self.open()
         else:
             await self.close()
+
+    def get_config_section(self) -> Optional[Dict]:
+        """Get or create a section within the :attr:`config` specific to this
+        interface.
+
+        The returned :class:`dict` can be used to retreive or store
+        interface-specific configuration data.
+
+        Returns ``None`` if :attr:`config` has not been set.
+        """
+        conf = self.config
+        if conf is None:
+            return None
+        main_section = conf.get('interfaces')
+        if main_section is None:
+            main_section = conf['interfaces'] = {}
+        d = main_section.get(self.interface_name)
+        if d is None:
+            d = main_section[self.interface_name] = {}
+        return d

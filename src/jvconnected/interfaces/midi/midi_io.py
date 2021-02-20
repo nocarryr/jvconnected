@@ -24,9 +24,6 @@ class MidiIO(Interface):
         mapped_devices (Dict[str, MappedDevice]): Mapping of
             :class:`~.mapped_device.MappedDevice` instances stored with
             the device id as keys
-        config: Instance of :class:`jvconnected.config.Config`. This is gathered
-            from the :attr:`engine` after :meth:`set_engine` has been called.
-        running (bool): Run state
 
     """
     inport_names = ListProperty(copy_on_change=True)
@@ -35,7 +32,6 @@ class MidiIO(Interface):
     outports = DictProperty()
     mapped_devices = DictProperty()
     mapper = Property()
-    config = Property()
     interface_name = 'midi'
     def __init__(self):
         super().__init__()
@@ -67,7 +63,6 @@ class MidiIO(Interface):
     async def set_engine(self, engine: 'jvconnected.engine.Engine'):
         if engine is self.engine:
             return
-        self.config = engine.config
         await super().set_engine(engine)
         self.automap_engine_devices()
         engine.bind(devices=self.automap_engine_devices)
@@ -322,22 +317,16 @@ class MidiIO(Interface):
         """
         if self._reading_config:
             return
-        config = self.config
-        if config is None:
+        d = self.get_config_section()
+        if d is None:
             return
-        if 'interfaces' not in config:
-            config['interfaces'] = {}
-        if 'midi' not in config['interfaces']:
-            config['interfaces']['midi'] = {'inport_names':[], 'outport_names':[]}
-        d = config['interfaces']['midi']
         d['inport_names'] = self.inport_names.copy()
         d['outport_names'] = self.outport_names.copy()
 
     def read_config(self, *args, **kwargs):
-        config = self.config
-        if config is None:
+        d = self.get_config_section()
+        if d is None:
             return
-        d = config.get('interfaces', {}).get('midi', {})
         self._reading_config = True
         for attr in ['inport_names', 'outport_names']:
             conf_val = d.get(attr, [])

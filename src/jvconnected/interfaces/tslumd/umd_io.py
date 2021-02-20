@@ -146,8 +146,6 @@ class UmdIo(Interface):
         mapped_devices (Dict[int, MappedDevice]): A ``dict`` of
             :class:`~.mapper.MappedDevice` stored with the ``device_index``
             of their :attr:`~.mapper.MappedDevice.map` as keys
-        config: Instance of :class:`jvconnected.config.Config`. This is gathered
-            from the :attr:`engine` after :meth:`set_engine` has been called.
 
     :Events:
         .. on_tally_added(tally: Tally)
@@ -160,7 +158,6 @@ class UmdIo(Interface):
     """
     hostaddr = Property('0.0.0.0')
     hostport = Property(65000)
-    config = Property()
     tallies = DictProperty()
     device_maps = DictProperty()
     mapped_devices = DictProperty()
@@ -182,8 +179,6 @@ class UmdIo(Interface):
             return
         if engine.config is not self.config:
             self._config_read.clear()
-        self.config = engine.config
-        await self._config_read.wait()
         await super().set_engine(engine)
         engine.bind_async(
             self.loop,
@@ -196,6 +191,7 @@ class UmdIo(Interface):
             if self.running:
                 return
             logger.debug('UmdIo.open()')
+            await self._config_read.wait()
             self.running = True
             self.transport, self.protocol = await self.loop.create_datagram_endpoint(
                 lambda: UmdProtocol(self),
@@ -326,14 +322,9 @@ class UmdIo(Interface):
         """
         if self._reading_config:
             return
-        config = self.config
-        if config is None:
+        d = self.get_config_section()
+        if d is None:
             return
-        if 'interfaces' not in config:
-            config['interfaces'] = {}
-        if 'tslumd' not in config['interfaces']:
-            config['interfaces']['tslumd'] = {}
-        d = config['interfaces']['tslumd']
         d['hostaddr'] = self.hostaddr
         d['hostport'] = self.hostport
         m = self.device_maps
@@ -341,10 +332,9 @@ class UmdIo(Interface):
 
     @logger.catch
     async def read_config(self, *args, **kwargs):
-        config = self.config
-        if config is None:
+        d = self.get_config_section()
+        if d is None:
             return
-        d = config.get('interfaces', {}).get('tslumd', {})
         self._reading_config = True
         hostaddr = d.get('hostaddr', self.hostaddr)
         hostport = d.get('hostport', self.hostport)
