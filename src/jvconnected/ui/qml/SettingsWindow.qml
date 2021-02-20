@@ -18,6 +18,7 @@ Dialog {
 
         MyTabButton { text: 'Devices'; width: bar.maxItemWidth }
         MyTabButton { text: 'Midi'; width: bar.maxItemWidth }
+        MyTabButton { text: 'Tally'; width: bar.maxItemWidth }
     }
 
     StackLayout {
@@ -45,6 +46,17 @@ Dialog {
         MidiSettings {
             id: midiSettings
             engine: root.engine
+        }
+        TallySettings {
+            id: tallySettings
+            engine: root.engine
+            Connections {
+                target: root
+                function onAccepted() { tallySettings.submit() }
+                function onApplied() { tallySettings.submit() }
+                function onRejected() { tallySettings.cancel() }
+                function onReset() { tallySettings.cancel() }
+            }
         }
     }
 

@@ -8,6 +8,7 @@ Submodules
 
     base
     midi
+    tslumd
     paramspec
 
 .. automodule:: jvconnected.interfaces
