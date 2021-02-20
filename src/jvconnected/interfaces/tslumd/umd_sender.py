@@ -1,5 +1,6 @@
 from loguru import logger
 import asyncio
+import socket
 import string
 import argparse
 import enum
@@ -91,8 +92,7 @@ class UmdSender(Dispatcher):
         self.running = True
         self.transport, self.protocol = await self.loop.create_datagram_endpoint(
             lambda: UmdProtocol(self),
-            local_addr=('127.0.0.1', 60001),
-            # reuse_port=True,
+            family=socket.AF_INET,
         )
         self.tx_task = asyncio.create_task(self.tx_loop())
         self.update_task = asyncio.create_task(self.update_loop())
