@@ -27,7 +27,6 @@ Dialog {
         if (isValid){
             applyMap();
         }
-        // resetValues();
     }
     onRejected: {
         resetValues();
@@ -50,20 +49,11 @@ Dialog {
     function resetValues(){
         tallyIndex = -1;
         tallyType = '';
-        // deviceIndex = 0;
         destTallyType = '';
     }
 
     function checkValid(){
         isValid = model.checkValid();
-        // if (tallyIndex < 0 || deviceIndex < 0){
-        //     isValid = false;
-        // }
-        // else if (!tallyType.length || !destTallyType.length){
-        //     isValid = false;
-        // } else {
-        //     isValid = true;
-        // }
     }
 
     ColumnLayout {

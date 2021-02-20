@@ -129,7 +129,6 @@ class UmdProtocol(asyncio.DatagramProtocol):
         logger.debug(f'transport={transport}')
         self.transport = transport
     def datagram_received(self, data, addr):
-        # logger.debug(f'rx: {data}')
         self.umd_io.parse_incoming(data, addr)
 
 class UmdIo(Interface):

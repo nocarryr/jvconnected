@@ -50,8 +50,6 @@ class UmdProtocol(asyncio.DatagramProtocol):
         logger.debug(f'transport={transport}')
         self.transport = transport
         self.sender.connected_evt.set()
-    # def connection_lost(self, exc):
-    #     logger.exception(exc)
     def datagram_received(self, data, addr):
         pass
 
@@ -59,7 +57,6 @@ class UmdSender(Dispatcher):
     tallies = ListProperty()
     tally_groups: Dict[TallyType, TallyTypeGroup]
     running = Property(False)
-    # connected = Property(False)
     num_tallies = 8
     tx_interval = .3
     update_interval = 1
@@ -78,7 +75,6 @@ class UmdSender(Dispatcher):
             tg = TallyTypeGroup(tally_type, self.num_tallies)
             self.tally_groups[tally_type] = tg
         self.loop = asyncio.get_event_loop()
-        # self.update_lock = asyncio.Lock()
         self.update_queue = asyncio.Queue()
         self.update_task = None
         self.tx_task = None
@@ -149,12 +145,8 @@ class UmdSender(Dispatcher):
 
     async def send_message(self, msg: Message):
         data = msg.build_message()
-        # coros = []
-        # logger.debug(f'tx: {msg}')
         for client in self.clients:
-            # coros.append(self.transport.sendto(data, client))
             self.transport.sendto(data, client)
-        # await asyncio.gather(*coros)
 
     async def send_full_update(self):
         msg = self._build_message()

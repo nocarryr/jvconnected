@@ -88,7 +88,6 @@ class MappedDevice:
     async def set_device(self, device: Optional['jvconnected.device.Device']):
         """Set the :attr:`device` and update its tally state
         """
-        # logger.debug(f'{self.map}.device = {device}')
         old = self.device
         if old is not None and old is not device:
             await old.tally.set_tally_light('Off')
@@ -135,7 +134,6 @@ class MappedDevice:
                     pvw.bind_async(loop, on_update=self.update_device_tally)
                 need_update = True
         self.have_tallies = have_tallies
-        # logger.debug(f'{self!r}.have_tallies={self.have_tallies}')
         if have_tallies:
             logger.debug(f'{self.map}: program={pgm}, preview={pvw}')
         return need_update
@@ -176,7 +174,6 @@ class MappedDevice:
         if self.device is None:
             return
         changed = self.update_tally_state()
-        # logger.debug(f'{self.map}: {self.tally_state!r}')
         if not changed:
             return
         if TallyState.PROGRAM in self.tally_state:
