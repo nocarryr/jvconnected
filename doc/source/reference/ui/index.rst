@@ -9,3 +9,4 @@
     models/index.rst
     utils
     tools
+    resource_manager

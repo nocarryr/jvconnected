@@ -52,7 +52,7 @@ def rcc(qrc_file: Path, rc_script: Path):
 
 
 def build_images(qrc_file: Path = IMG_QRC, img_dir: Path = IMG_DIR,
-                 qrc_script: Path = IMG_SCRIPT, build_rcc: bool = False,
+                 qrc_script: Path = IMG_SCRIPT, build_rcc: bool = True,
                  sizes: Sequence[int] = IMG_SIZES):
     """Generate and/or compile the YUV plane images used for the white balance
     paint control
@@ -83,7 +83,7 @@ def build_images(qrc_file: Path = IMG_QRC, img_dir: Path = IMG_DIR,
         rcc(qrc_file, qrc_script)
 
 def pack_qml(qrc_file: Path = QML_QRC, qml_dir: Path = QML_DIR,
-             qrc_script: Path = QML_SCRIPT, build_rcc: bool = False):
+             qrc_script: Path = QML_SCRIPT, build_rcc: bool = True):
     """Find all qml files found in the given directory then add definitions
     for them in the given qrc file.
 
@@ -128,6 +128,9 @@ def build_style(conf_file: Path = STYLE_CONF,
     qrc_doc.write(qrc_file)
     rcc(qrc_file, qrc_script)
 
+def build_fa():
+    fa.main()
+
 class BuildQRC(Command):
     description = "Build qml and image resources"
     user_options = []
@@ -139,8 +142,8 @@ class BuildQRC(Command):
         main()
 
 def main():
-    build_images(build_rcc=True, sizes=IMG_SIZES)
-    pack_qml(build_rcc=True)
+    build_images()
+    pack_qml()
     fa.main()
     build_style()
 

@@ -14,10 +14,12 @@ from PySide2.QtQuick import QQuickView
 from qasync import QEventLoop, asyncSlot, asyncClose
 
 from jvconnected.ui import models
-from jvconnected.ui import rc_images, rc_qml, rc_resources, rc_style
+from jvconnected.ui import resource_manager
 from jvconnected.ui.tools.qrc_utils import QRCDocument
 from . import palette
 from . import get_resource_filename
+
+resource_manager.load()
 
 def register_qml_types():
     palette.register_qml_types()
@@ -25,14 +27,6 @@ def register_qml_types():
 
 QML_PATH = get_resource_filename('qml')
 QML_QRC = get_resource_filename('qml.qrc')
-
-def reload_qresources():
-    global rc_images, rc_qml
-    temp_images, temp_qml = rc_images, rc_qml
-    temp_images.qCleanupResources()
-    temp_qml.qCleanupResources()
-    rc_images = importlib.reload(rc_images)
-    rc_qml = importlib.reload(rc_qml)
 
 
 def check_qrc_hash():
@@ -53,7 +47,7 @@ def check_qrc_hash():
         build_qrc.pack_qml(build_rcc=True)
         logger.success('qml qrc rebuilt')
         logger.info('reloading resource modules')
-        reload_qresources()
+        resource_manager.load_module('rc_qml')
         logger.success('resource modules reloaded')
 
 def run(argv=None):
@@ -66,6 +60,10 @@ def run(argv=None):
     )
     p.add_argument('--palette', dest='palette', choices=['system', 'dark'], default='dark')
     args, remaining = p.parse_known_args(argv)
+
+    if not resource_manager.ready:
+        resource_manager.build_missing()
+        assert resource_manager.ready is True
 
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     app = QApplication(remaining)
