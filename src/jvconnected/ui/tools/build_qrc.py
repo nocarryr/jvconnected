@@ -12,6 +12,9 @@ from pathlib import Path
 from typing import Sequence
 from setuptools import Command
 
+import PySide2
+PYSIDE_DIR = Path(PySide2.__file__).parent
+
 from jvconnected.ui import get_resource_filename
 from jvconnected.ui.tools.qrc_utils import QRCDocument
 from jvconnected.ui.tools.colorgradients import build_wb_img_file
@@ -43,7 +46,8 @@ def rcc(qrc_file: Path, rc_script: Path):
     .. _pyside2-rcc: https://doc.qt.io/qtforpython/tutorials/basictutorial/qrcfiles.html
 
     """
-    cmd_str = f'pyside2-rcc -o "{rc_script}" "{qrc_file}"'
+    rcc_bin = PYSIDE_DIR / 'rcc'
+    cmd_str = f'{rcc_bin} -g python -o "{rc_script}" "{qrc_file}"'
     subprocess.run(shlex.split(cmd_str))
 
 

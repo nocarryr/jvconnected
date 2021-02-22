@@ -12,6 +12,9 @@ import tempfile
 import dataclasses
 from dataclasses import dataclass, field
 
+import PySide2
+PYSIDE_DIR = Path(PySide2.__file__).parent
+
 import httpx
 
 from ruamel.yaml import YAML
@@ -526,9 +529,10 @@ def build_theme(fa_root: Path, theme_name: str, category_names: Optional[Sequenc
     qrc_doc.write(RESOURCE_QRC)
 
 def build_rcc():
-    cmd_str = f'pyside2-rcc -o {RESOURCE_SCRIPT} {RESOURCE_QRC}'
+    rcc_bin = PYSIDE_DIR / 'rcc'
+    cmd_str = f'{rcc_bin} -g python -o "{RESOURCE_SCRIPT}" "{RESOURCE_QRC}"'
     logger.debug(cmd_str)
-    subprocess.call(shlex.split(cmd_str))
+    subprocess.run(shlex.split(cmd_str))
 
 @logger.catch
 def main(**kwargs):
