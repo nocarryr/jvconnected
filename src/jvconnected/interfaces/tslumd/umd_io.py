@@ -191,7 +191,8 @@ class UmdIo(Interface):
             if self.running:
                 return
             logger.debug('UmdIo.open()')
-            await self._config_read.wait()
+            if self.config is not None:
+                await self._config_read.wait()
             self.running = True
             self.transport, self.protocol = await self.loop.create_datagram_endpoint(
                 lambda: UmdProtocol(self),
@@ -321,6 +322,10 @@ class UmdIo(Interface):
         """Update the :attr:`config` with current state
         """
         if self._reading_config:
+            return
+        if self.config is None:
+            return
+        if not self._config_read.is_set():
             return
         d = self.get_config_section()
         if d is None:
