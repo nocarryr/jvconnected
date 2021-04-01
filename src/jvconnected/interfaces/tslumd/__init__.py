@@ -5,6 +5,5 @@ and other production display/control purposes.
 .. _TSL Products: https://tslproducts.com
 """
 from jvconnected.interfaces import registry
-from .common import TallyColor, TallyType, TallyState
-from .umd_io import UmdIo, Tally
+from .umd_io import UmdIo
 registry.register(UmdIo)

@@ -10,11 +10,12 @@ from PySide2.QtCore import Property, Signal
 from PySide2.QtCore import Qt
 
 from qasync import QEventLoop, asyncSlot, asyncClose
+from tslumd import Tally, TallyType, TallyColor
 
 from jvconnected.ui.utils import GenericQObject
 from jvconnected.ui.models.engine import EngineModel
 
-from jvconnected.interfaces.tslumd import UmdIo, Tally, TallyType, TallyColor
+from jvconnected.interfaces.tslumd import UmdIo
 from jvconnected.interfaces.tslumd.mapper import DeviceMapping, TallyMap
 
 class UmdModel(GenericQObject):

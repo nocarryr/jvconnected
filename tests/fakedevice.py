@@ -23,7 +23,6 @@ import ifaddr
 
 from jvconnected import device
 from jvconnected.discovery import PROCAM_FQDN
-from jvconnected.interfaces.tslumd.umd_sender import UmdSender, ClientArgAction
 
 
 PREVIEW_IMAGE_DIR = Path(__file__).resolve().parent / 'test_images'
@@ -817,19 +816,11 @@ def main():
     p.add_argument('--leave-published', dest='leave_published', action='store_true')
     p.add_argument('--no-publish', dest='no_publish', action='store_true')
     p.add_argument('--port-offset', dest='port_offset', type=int, default=0)
-    p.add_argument('-c', '--client', dest='clients', action=ClientArgAction)
     args = p.parse_args()
 
     loop = asyncio.get_event_loop()
 
-    umd_sender = UmdSender(clients=args.clients)
-    loop.run_until_complete(umd_sender.open())
-
-    async def close_umd(app):
-        await umd_sender.close()
-
     app = init_func(**vars(args))
-    app.on_cleanup.append(close_umd)
     web.run_app(app)
 
 if __name__ == '__main__':

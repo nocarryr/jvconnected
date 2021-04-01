@@ -1,5 +1,6 @@
 zeroconf
 httpx
+tslumd
 loguru
 python-dispatch
 json-object-factory
