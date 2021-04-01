@@ -12,8 +12,8 @@ class UmdIo(Interface):
     """Main UMD interface
 
     Properties:
-        hostaddr (str): Alias for :attr:`tslumd.UmdReceiver.hostaddr`
-        hostport (int): Alias for :attr:`tslumd.UmdReceiver.hostport`
+        hostaddr (str): Alias for :attr:`tslumd.receiver.UmdReceiver.hostaddr`
+        hostport (int): Alias for :attr:`tslumd.receiver.UmdReceiver.hostport`
         device_maps (Dict[int, DeviceMapping]): A ``dict`` of
             :class:`~.mapper.DeviceMapping` definitions stored with their
             :attr:`~.mapper.DeviceMapping.device_index` as keys
@@ -22,13 +22,13 @@ class UmdIo(Interface):
             of their :attr:`~.mapper.MappedDevice.map` as keys
 
     :Events:
-        .. on_tally_added(tally: Tally)
+        .. event:: on_tally_added(tally: Tally)
 
-            Fired when a :class:`tslumd.Tally` instance is added to :attr:`tallies`
+            Fired when a :class:`tslumd.tallyobj.Tally` instance is added to :attr:`tallies`
 
-        .. on_tally_updated(tally: Tally)
+        .. event:: on_tally_updated(tally: Tally)
 
-            Fired when any :class:`tslumd.Tally` instance has been updated
+            Fired when any :class:`tslumd.tallyobj.Tally` instance has been updated
     """
     hostaddr = Property('0.0.0.0')
     hostport = Property(65000)
@@ -55,7 +55,7 @@ class UmdIo(Interface):
 
     @property
     def tallies(self) -> Dict[int, Tally]:
-        """Alias for :attr:`tslumd.UmdReceiver.tallies`
+        """Alias for :attr:`tslumd.receiver.UmdReceiver.tallies`
         """
         return self.receiver.tallies
 

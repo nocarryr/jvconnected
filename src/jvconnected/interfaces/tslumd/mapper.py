@@ -12,11 +12,11 @@ from tslumd import TallyColor, TallyType, TallyState
 
 @dataclass
 class TallyMap:
-    """Map to a single :class:`tally type <tslumd.TallyType>` within a specific
-    :class:`tslumd.Tally` by its index
+    """Map to a single :class:`tally type <tslumd.common.TallyType>` within a
+    specific :class:`tslumd.tallyobj.Tally` by its index
     """
-    tally_index: int = 0 #: The :attr:`~.Tally.index`
-    tally_type: TallyType = TallyType.no_tally #: The :class:`.TallyType`
+    tally_index: int = 0 #: The :attr:`~.tslumd.tallyobj.Tally.index`
+    tally_type: TallyType = TallyType.no_tally #: The :class:`~tslumd.common.TallyType`
     def to_dict(self) -> Dict:
         attrs = ['tally_index', 'tally_type']
         return {attr:getattr(self, attr) for attr in attrs}
@@ -62,11 +62,11 @@ class MappedDevice:
     """The device instance"""
 
     program_tally: Optional[TallyMap]
-    """The :class:`~tslumd.Tally` mapped to :attr:`jvconnected.device.TallyParams.program`
+    """The :class:`~tslumd.tallyobj.Tally` mapped to :attr:`jvconnected.device.TallyParams.program`
     """
 
     preview_tally: Optional[TallyMap]
-    """The :class:`~tslumd.Tally` mapped to :attr:`jvconnected.device.TallyParams.preview`
+    """The :class:`~tslumd.tallyobj.Tally` mapped to :attr:`jvconnected.device.TallyParams.preview`
     """
 
     tally_state: TallyState #: The current state
@@ -96,7 +96,7 @@ class MappedDevice:
             await self.update_device_tally()
 
     def get_tallies(self) -> bool:
-        """Attempt to find the :class:`~tslumd.Tally` objects in the :attr:`umd_io`
+        """Attempt to find the :class:`~tslumd.tallyobj.Tally` objects in the :attr:`umd_io`
 
         Returns:
             bool: ``True`` if an update is needed
