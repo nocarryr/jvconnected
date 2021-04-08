@@ -200,6 +200,8 @@ class JsonHandler(object):
         return f'{modname}.{cls.__name__}'
     def str_to_cls(self, s):
         prefix = '.'.join(JsonHandler.__module__.split('.')[:-1])
+        if s.endswith('TallyType'):
+            return TallyType
         if not s.startswith(prefix):
             return None
         for cls in [TallyMap, DeviceMapping, TallyType]:
