@@ -16,6 +16,8 @@ Dialog {
     property bool isValid: true
     property UmdModel umdModel
 
+    anchors.centerIn: Overlay.overlay
+    modal: true
     standardButtons: Dialog.Ok | Dialog.Cancel
 
     title: 'Map Tally'

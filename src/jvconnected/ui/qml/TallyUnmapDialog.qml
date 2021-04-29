@@ -13,6 +13,8 @@ Dialog {
     property alias tallyType: model.tallyType       // 'lh_tally' | 'txt_tally' | 'rh_tally'
     property UmdModel umdModel
 
+    anchors.centerIn: Overlay.overlay
+    modal: true
     standardButtons: Dialog.Ok | Dialog.Cancel
 
     title: 'UnMap Tally'
