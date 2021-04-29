@@ -2,7 +2,7 @@ from loguru import logger
 import asyncio
 import enum
 import dataclasses
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple, Set, Any
 from bisect import bisect_left
 
 from PySide2 import QtCore, QtQml, QtGui
@@ -10,7 +10,7 @@ from PySide2.QtCore import Property, Signal
 from PySide2.QtCore import Qt
 
 from qasync import QEventLoop, asyncSlot, asyncClose
-from tslumd import Tally, TallyType, TallyColor
+from tslumd import Tally, TallyType, TallyColor, TallyKey
 
 from jvconnected.ui.utils import GenericQObject
 from jvconnected.ui.models.engine import EngineModel
@@ -147,26 +147,44 @@ class TallyRoles(enum.IntEnum):
     """Role definitions to specify column mapping in :class:`TallyListModel` to
     a ``QtQuick.TableView``
     """
-    IndexRole = Qt.UserRole + 1     #: index
-    RhTallyRole = Qt.UserRole + 2   #: rhTally
-    TxtTallyRole = Qt.UserRole + 3  #: txtTally
-    LhTallyRole = Qt.UserRole + 4   #: lhTally
-    TextRole = int(Qt.DisplayRole)  #: text
-    def get_tally_prop(self):
+    screenIndexRole = Qt.UserRole + 1   #: Screen index
+    tallyIndexRole = Qt.UserRole + 2    #: Tally index
+    RhTallyRole = Qt.UserRole + 3       #: rhTally
+    TxtTallyRole = Qt.UserRole + 4      #: txtTally
+    LhTallyRole = Qt.UserRole + 5       #: lhTally
+    TextRole = int(Qt.DisplayRole)      #: text
+    def get_tally_prop(self) -> str:
         """Get the attribute name of this role mapped to
         :class:`jvconnected.interfaces.tslumd.umd_io.Tally`
         """
         prop = self.name.split('Role')[0]
-        if 'Tally' in prop:
+        if prop == 'screenIndex':
+            return 'screen.index'
+        elif prop == 'tallyIndex':
+            return 'index'
+        elif 'Tally' in prop:
             s = prop.split('Tally')[0].lower()
             return f'{s}_tally'
         return prop.lower()
-    def get_qt_prop(self):
+
+    def get_tally_prop_value(self, tally: Tally) -> Any:
+        """Get the value associated with this role from the given
+        :class:`tslumd.tallyobj.Tally`
+        """
+        prop = self.get_tally_prop()
+        if '.' in prop:
+            obj = tally
+            for attr in prop.split('.'):
+                obj = getattr(obj, attr)
+            return obj
+        return getattr(tally, prop)
+
+    def get_qt_prop(self) -> str:
         """Get the camel-case name of this role used in Qml
         """
-        if self.name == 'IndexRole':
-            return 'tallyIndex'
         prop = self.name.split('Role')[0]
+        if 'Index' in prop:
+            return prop
         if 'Tally' in prop:
             s = prop.split('Tally')[0].lower()
             return f'{s}Tally'
@@ -176,9 +194,9 @@ class TallyListModel(QtCore.QAbstractTableModel):
     """Table Model for :class:`jvconnected.interfaces.tslumd.umd_io.Tally` objects
     """
     _n_engine = Signal()
-    _prop_attrs = ('index', 'rh_tally', 'txt_tally', 'lh_tally', 'text')
+    _roles = tuple((role for role in TallyRoles))
 
-    tally_indices: List[int]
+    tally_key_indices: List[TallyKey]
     """Used to keep the table row in sync with the item key within :attr:`tallies`
     """
 
@@ -189,7 +207,7 @@ class TallyListModel(QtCore.QAbstractTableModel):
         self._engine = None
         self.umd_io = None
         self._row_count = 0
-        self.tally_indices = []
+        self.tally_key_indices = []
         super().__init__(*args)
 
     def _g_engine(self) -> Optional[EngineModel]:
@@ -205,7 +223,7 @@ class TallyListModel(QtCore.QAbstractTableModel):
     """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
 
     @property
-    def tallies(self) -> Optional[Dict[int, Tally]]:
+    def tallies(self) -> Optional[Dict[TallyKey, Tally]]:
         """Shortcut for :attr:`~jvconnected.interfaces.tslumd.umd_io.UmdIo.tallies`
         on :attr:`umd_io`
         """
@@ -219,15 +237,25 @@ class TallyListModel(QtCore.QAbstractTableModel):
         self.umd_io.bind(on_tally_added=self.add_tally)
 
     def add_tally(self, tally: Tally):
-        insert_ix = bisect_left(self.tally_indices, tally.index)
+        insert_ix = bisect_left(self.tally_key_indices, tally.id)
         self.beginInsertRows(QtCore.QModelIndex(), insert_ix, insert_ix)
-        self.tally_indices.insert(insert_ix, tally.index)
+        self.tally_key_indices.insert(insert_ix, tally.id)
         self.endInsertRows()
         tally.bind(on_update=self.update_tally)
 
-    def update_tally(self, tally: Tally, props_changed):
-        row_ix = self.tally_indices.index(tally.index)
-        props = {i:prop for i,prop in enumerate(self._prop_attrs) if prop in props_changed}
+    def get_props_from_tally(self, tally: Tally, props_changed: Optional[Set[str]] = None) -> Dict[str, Any]:
+        props = {}
+        for i, role in enumerate(TallyRoles):
+            prop = role.get_tally_prop()
+            if props_changed is not None and prop in props_changed:
+                continue
+            val = role.get_tally_prop_value(tally)
+            props[i] = val
+        return props
+
+    def update_tally(self, tally: Tally, props_changed: Set[str]):
+        row_ix = self.tally_key_indices.index(tally.id)
+        props = self.get_props_from_tally(tally, props_changed)
         tl = self.index(row_ix, min(props.keys()))
         br = self.index(row_ix, max(props.keys()))
         self.dataChanged.emit(tl, br)
@@ -236,38 +264,39 @@ class TallyListModel(QtCore.QAbstractTableModel):
         return {m:m.get_qt_prop().encode() for m in TallyRoles.__members__.values()}
 
     def columnCount(self, parent):
-        return len(self._prop_attrs)
+        return len(self._roles)
 
     def rowCount(self, parent):
-        return len(self.tally_indices)
+        return len(self.tally_key_indices)
 
     def flags(self, index):
         return Qt.ItemFlags.ItemIsEnabled
 
-    @QtCore.Slot(int, result=int)
-    def getIndexForRow(self, row: int) -> int:
+    @QtCore.Slot(int, result='QVariantList')
+    def getTallyKeyForRow(self, row: int) -> TallyKey:
         """Get the key within :attr:`tallies` for the given row
         """
-        return self.tally_indices[row]
+        return self.tally_key_indices[row]
 
     @QtCore.Slot(int, result=str)
     def getTallyTypeForColumn(self, column: int) -> str:
-        return self._prop_attrs[column]
+        role = self._roles[column]
+        return role.get_tally_prop()
 
     def data(self, index, role):
         if not index.isValid():
             return None
-        ix = self.tally_indices[index.row()]
+        key = self.tally_key_indices[index.row()]
         tallies = self.tallies
         if tallies is None:
             tally = None
         else:
-            tally = tallies[ix]
+            tally = tallies[key]
 
         if tally is None:
             return None
         role = TallyRoles(role)
-        val = getattr(tally, role.get_tally_prop())
+        val = role.get_tally_prop_value(tally)
         if isinstance(val, TallyColor):
             val = val.name
             if val.lower() == 'amber':
@@ -281,8 +310,10 @@ class TallyMapListModel(QtCore.QAbstractTableModel):
     """
     _prop_attrs = (
         'device_index',
+        'program.screen_index',
         'program.tally_index',
         'program.tally_type',
+        'preview.screen_index',
         'preview.tally_index',
         'preview.tally_type',
     )
@@ -300,7 +331,7 @@ class TallyMapListModel(QtCore.QAbstractTableModel):
         self.umd_io = None
         self._row_count = 0
         self.map_indices = []
-        self._role_names = {Qt.UserRole+i+5:attr.encode() for i, attr in enumerate(self._prop_attrs)}
+        self._role_names = {Qt.UserRole+i+6:attr.encode() for i, attr in enumerate(self._prop_attrs)}
         super().__init__(*args)
 
     def _g_engine(self) -> Optional[EngineModel]:
@@ -408,15 +439,44 @@ class TallyMapListModel(QtCore.QAbstractTableModel):
         await self.umd_io.remove_device_mapping(ix)
 
 class TallyMapBase(GenericQObject):
+    _n_tallyKey = Signal()
+    _n_screenIndex = Signal()
     _n_tallyIndex = Signal()
     _n_tallyType = Signal()
     def __init__(self, *args):
+        self._screenIndex = -1
         self._tallyIndex = -1
         self._tallyType = ''
         super().__init__(*args)
 
+    def _g_tallyKey(self) -> TallyKey:
+        return [self.screenIndex, self.tallyIndex]
+    def _s_tallyKey(self, value: TallyKey):
+        scr, tly = value
+        if scr != self.screenIndex:
+            self.screenIndex = scr
+        if tly != self.tallyIndex:
+            self.tallyIndex = tly
+    tallyKey = Property('QVariantList', _g_tallyKey, _s_tallyKey, notify=_n_tallyKey)
+    """Tuple of :attr:`screenIndex`, :attr:`tallyIndex` matching
+    :attr:`jvconnected.interfaces.tslumd.mapper.TallyMap.tally_key`
+    """
+
+    def _g_screenIndex(self) -> int: return self._screenIndex
+    def _s_screenIndex(self, value: int):
+        changed = value == self._screenIndex
+        self._generic_setter('_screenIndex', value)
+        if changed:
+            self._n_tallyKey.emit()
+    screenIndex = Property(int, _g_screenIndex, _s_screenIndex, notify=_n_screenIndex)
+    """Alias for :attr:`jvconnected.interfaces.tslumd.mapper.TallyMap.screen_index`"""
+
     def _g_tallyIndex(self) -> int: return self._tallyIndex
-    def _s_tallyIndex(self, value: int): self._generic_setter('_tallyIndex', value)
+    def _s_tallyIndex(self, value: int):
+        changed = value == self._tallyIndex
+        self._generic_setter('_tallyIndex', value)
+        if changed:
+            self._n_tallyKey.emit()
     tallyIndex = Property(int, _g_tallyIndex, _s_tallyIndex, notify=_n_tallyIndex)
     """Alias for :attr:`jvconnected.interfaces.tslumd.mapper.TallyMap.tally_index`"""
 
@@ -449,9 +509,13 @@ class TallyMapModel(TallyMapBase):
     def checkValid(self) -> bool:
         """Check validity of current parameters
         """
-        if -1 in [self.tallyIndex, self.deviceIndex]:
+        if -1 in self.tallyKey:
+            return False
+        if max(self.tallyKey) >= 0xfffe:
             return False
         if self.tallyType not in TallyType.__members__:
+            return False
+        if getattr(TallyType, self.tallyType) == TallyType.no_tally:
             return False
         if self.destTallyType.lower() not in ['preview', 'program']:
             return False
@@ -482,6 +546,7 @@ class TallyMapModel(TallyMapBase):
         """
         kw = dict(device_index=self.deviceIndex)
         tmap = TallyMap(
+            screen_index=self.screenIndex,
             tally_index=self.tallyIndex,
             tally_type=getattr(TallyType, self.tallyType),
         )
@@ -577,7 +642,7 @@ class TallyUnmapModel(TallyMapBase):
         for device_index, device_map in umd_model.umd_io.device_maps.items():
             for attr in ['program', 'preview']:
                 tmap = getattr(device_map, attr)
-                if tmap.tally_index != self.tallyIndex:
+                if tmap.tally_key != self.tallyKey:
                     continue
                 if tmap.tally_type == TallyType.no_tally:
                     continue

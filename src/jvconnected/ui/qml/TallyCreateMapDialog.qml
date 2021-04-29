@@ -69,9 +69,9 @@ Dialog {
     }
 
     function resetValues(){
-        programModel.tallyIndex = -1;
+        programModel.tallyKey = [-1, -1];
         programModel.tallyType = '';
-        previewModel.tallyIndex = -1;
+        previewModel.tallyKey = [-1, -1];
         previewModel.tallyType = '';
         checkValid();
     }
@@ -86,7 +86,12 @@ Dialog {
             title: 'Program Tally'
             content: RowLayout {
                 TextInput {
-                    labelText: 'Source Index'
+                    labelText: 'Screen Index'
+                    valueText: root.programModel ? root.programModel.screenIndex.toString() : -1
+                    onSubmit: { root.programModel.screenIndex = parseInt(value) }
+                }
+                TextInput {
+                    labelText: 'Tally Index'
                     valueText: root.programModel ? root.programModel.tallyIndex.toString() : -1
                     onSubmit: { root.programModel.tallyIndex = parseInt(value) }
                 }
@@ -125,7 +130,12 @@ Dialog {
             title: 'Preview Tally'
             content: RowLayout {
                 TextInput {
-                    labelText: 'Source Index'
+                    labelText: 'Screen Index'
+                    valueText: root.previewModel ? root.previewModel.screenIndex.toString() : -1
+                    onSubmit: { root.previewModel.screenIndex = parseInt(value) }
+                }
+                TextInput {
+                    labelText: 'Tally Index'
                     valueText: root.previewModel ? root.previewModel.tallyIndex.toString() : -1
                     onSubmit: { root.previewModel.tallyIndex = parseInt(value) }
                 }

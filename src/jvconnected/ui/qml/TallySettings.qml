@@ -149,6 +149,11 @@ QQC2.Control {
                 width: 100
             }
             QQC1.TableViewColumn {
+                role: 'program.screen_index'
+                title: 'PGM Screen'
+                width: 100
+            }
+            QQC1.TableViewColumn {
                 role: 'program.tally_index'
                 title: 'PGM Index'
                 width: 100
@@ -156,6 +161,11 @@ QQC2.Control {
             QQC1.TableViewColumn {
                 role: 'program.tally_type'
                 title: 'PGM Type'
+                width: 100
+            }
+            QQC1.TableViewColumn {
+                role: 'preview.screen_index'
+                title: 'PVW Screen'
                 width: 100
             }
             QQC1.TableViewColumn {
@@ -187,10 +197,10 @@ QQC2.Control {
                         acceptedButtons: Qt.RightButton
                         onClicked: {
                             // console.log(styleData.row, styleData.column);
-                            var tallyIndex = listModel.getIndexForRow(styleData.row),
+                            var tallyKey = listModel.getTallyKeyForRow(styleData.row),
                                 tallyType = listModel.getTallyTypeForColumn(styleData.column);
                             // console.log(tallyIndex, tallyType);
-                            tallyTableCtxMenu.tallyIndex = tallyIndex;
+                            tallyTableCtxMenu.tallyKey = tallyKey;
                             tallyTableCtxMenu.tallyType = tallyType;
                             tallyTableCtxMenu.popup();
                         }
@@ -199,8 +209,12 @@ QQC2.Control {
             }
 
             QQC1.TableViewColumn {
+                role: 'screenIndex'
+                title: 'Screen Index'
+            }
+            QQC1.TableViewColumn {
                 role: 'tallyIndex'
-                title: 'Index'
+                title: 'Tally Index'
             }
             QQC1.TableViewColumn {
                 role: 'rhTally'
@@ -223,13 +237,13 @@ QQC2.Control {
             }
             QQC2.Menu {
                 id: tallyTableCtxMenu
-                property int tallyIndex: -1
+                property var tallyKey: [-1, -1]
                 property string tallyType: ''
                 QQC2.MenuItem {
                     text: 'Map..'
                     onTriggered: {
                         tallyMapDlg.tallyType = tallyTableCtxMenu.tallyType;
-                        tallyMapDlg.tallyIndex = tallyTableCtxMenu.tallyIndex;
+                        tallyMapDlg.tallyKey = tallyTableCtxMenu.tallyKey;
                         tallyMapDlg.open();
                     }
                 }
@@ -237,7 +251,7 @@ QQC2.Control {
                     text: 'UnMap'
                     onTriggered: {
                         tallyUnmapDialog.tallyType = tallyTableCtxMenu.tallyType;
-                        tallyUnmapDialog.tallyIndex = tallyTableCtxMenu.tallyIndex;
+                        tallyUnmapDialog.tallyKey = tallyTableCtxMenu.tallyKey;
                         tallyUnmapDialog.updateModel();
                         tallyUnmapDialog.open();
                     }

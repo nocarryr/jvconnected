@@ -7,6 +7,8 @@ import UmdModels 1.0
 
 Dialog {
     id: root
+    property alias tallyKey: model.tallyKey
+    property alias screenIndex: model.screenIndex
     property alias tallyIndex: model.tallyIndex
     property alias tallyType: model.tallyType       // 'lh_tally' | 'txt_tally' | 'rh_tally'
     property alias deviceIndex: model.deviceIndex
@@ -36,18 +38,18 @@ Dialog {
         var applyBtn = standardButton(Dialog.Ok);
         applyBtn.enabled = isValid;
     }
-    onTallyIndexChanged: { checkValid() }
+    onTallyKeyChanged: { checkValid() }
     onTallyTypeChanged: { checkValid() }
     onDeviceIndexChanged: { checkValid() }
     onDestTallyTypeChanged: { checkValid() }
 
     function applyMap(){
-        console.log(JSON.stringify({'tallyIndex':tallyIndex, 'tallyType':tallyType, 'deviceIndex':deviceIndex, 'destTallyType':destTallyType}));
+        console.log(JSON.stringify({'tallyKey':tallyKey, 'tallyType':tallyType, 'deviceIndex':deviceIndex, 'destTallyType':destTallyType}));
         model.applyMap(umdModel);
     }
 
     function resetValues(){
-        tallyIndex = -1;
+        tallyKey = [-1, -1];
         tallyType = '';
         destTallyType = '';
     }
@@ -71,7 +73,13 @@ Dialog {
             ValueLabel {
                 Layout.fillWidth: true
                 orientation: Qt.Vertical
-                labelText: 'Source Index'
+                labelText: 'Screen Index'
+                valueText: root.screenIndex.toString()
+            }
+            ValueLabel {
+                Layout.fillWidth: true
+                orientation: Qt.Vertical
+                labelText: 'Tally Index'
                 valueText: root.tallyIndex.toString()
             }
             ValueLabel {

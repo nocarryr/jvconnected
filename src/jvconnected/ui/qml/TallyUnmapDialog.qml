@@ -7,6 +7,8 @@ import UmdModels 1.0
 
 Dialog {
     id: root
+    property alias tallyKey: model.tallyKey
+    property alias screenIndex: model.screenIndex
     property alias tallyIndex: model.tallyIndex
     property alias tallyType: model.tallyType       // 'lh_tally' | 'txt_tally' | 'rh_tally'
     property UmdModel umdModel
@@ -61,7 +63,14 @@ Dialog {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 orientation: Qt.Vertical
-                labelText: 'Source Index'
+                labelText: 'Screen Index'
+                valueText: root.screenIndex.toString()
+            }
+            ValueLabel {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                orientation: Qt.Vertical
+                labelText: 'Tally Index'
                 valueText: root.tallyIndex.toString()
             }
             ValueLabel {

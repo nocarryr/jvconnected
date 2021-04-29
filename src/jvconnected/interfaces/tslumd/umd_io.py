@@ -1,4 +1,5 @@
 from loguru import logger
+logger.disable('tslumd.tallyobj')
 import asyncio
 from typing import Dict, Tuple, Set, Optional
 
@@ -118,8 +119,8 @@ class UmdIo(Interface):
                 await mapped_device.update_device_tally()
         self.emit('on_tally_added', tally, **kwargs)
 
-    async def _on_receiver_tally_updated(self, tally, **kwargs):
-        self.emit('on_tally_updated', tally, **kwargs)
+    async def _on_receiver_tally_updated(self, tally: Tally, props_changed: Set[str], **kwargs):
+        self.emit('on_tally_updated', tally, props_changed, **kwargs)
 
     def get_device_by_index(self, ix: int) -> Optional['jvconnected.device.Device']:
         device = None

@@ -7,7 +7,7 @@ import enum
 
 import jsonfactory
 
-from tslumd import TallyColor, TallyType, TallyState
+from tslumd import TallyColor, TallyType, TallyState, TallyKey
 
 
 @dataclass
@@ -15,10 +15,14 @@ class TallyMap:
     """Map to a single :class:`tally type <tslumd.common.TallyType>` within a
     specific :class:`tslumd.tallyobj.Tally` by its index
     """
+    screen_index: int = 0 #: The :attr:`tslumd.tallyobj.Screen.index`
     tally_index: int = 0 #: The :attr:`~.tslumd.tallyobj.Tally.index`
     tally_type: TallyType = TallyType.no_tally #: The :class:`~tslumd.common.TallyType`
+    @property
+    def tally_key(self) -> TallyKey:
+        return (self.screen_index, self.tally_index)
     def to_dict(self) -> Dict:
-        attrs = ['tally_index', 'tally_type']
+        attrs = ['screen_index', 'tally_index', 'tally_type']
         return {attr:getattr(self, attr) for attr in attrs}
 
 @dataclass
@@ -110,7 +114,7 @@ class MappedDevice:
         if self.map.program.tally_type == TallyType.no_tally:
             pgm = None
         else:
-            pgm = self.umd_io.tallies.get(self.map.program.tally_index)
+            pgm = self.umd_io.tallies.get(self.map.program.tally_key)
             if pgm is None:
                 have_tallies = False
             if pgm is not self.program_tally:
@@ -123,7 +127,7 @@ class MappedDevice:
         if self.map.preview.tally_type == TallyType.no_tally:
             pvw = None
         else:
-            pvw = self.umd_io.tallies.get(self.map.preview.tally_index)
+            pvw = self.umd_io.tallies.get(self.map.preview.tally_key)
             if pvw is None:
                 have_tallies = False
             if pvw is not self.preview_tally:
