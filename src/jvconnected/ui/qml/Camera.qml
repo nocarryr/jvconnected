@@ -67,28 +67,88 @@ Control {
                 title: 'Video Preview'
                 Layout.fillWidth: true
                 onIsCollapsedChanged: {
-                    previewWindow.setVideoEnabled(!isCollapsed);
+                    if (isCollapsed){
+                        previewWindow.setVideoMode('OFF');
+                    } else {
+                        previewWindow.setVideoMode(previewWindow.lastVideoMode);
+                    }
                 }
                 content: ColumnLayout {
                     CameraPreview {
                         id: previewWindow
+                        property string lastVideoMode: 'VIDEO'
                         Layout.fillWidth: true
                         Layout.preferredHeight: width * .5625
-                        fillColor: '#000000ff'
                         device: root.device
                         onHeightChanged: { triggerUpdate() }
                         onWidthChanged: { triggerUpdate() }
                         onXChanged: { triggerUpdate() }
                         onYChanged: { triggerUpdate() }
-                        onVideoEnabledChanged: {
-                            previewEnableBtn.checked = videoEnabled;
+                        onVideoModeChanged: {
+                            var curMode = videoMode;
+                            if (typeof(curMode) != 'undefined') {
+                                if (curMode != 'OFF') {
+                                    lastVideoMode = curMode;
+                                }
+                                previewModeCombo.updateCurrentMode();
+                            }
+                        }
+                        onLastVideoModeChanged: {
+                            var deviceId = root.model.deviceId,
+                                mode = lastVideoMode;
+                            UiState.panelGroups.setPreviewWindowMode(deviceId, mode);
+                        }
+                        onDeviceChanged: {
+                            var savedMode = getSavedPreviewMode();
+                            if (savedMode !== undefined){
+                                lastVideoMode = savedMode;
+                            }
+                        }
+                        function getSavedPreviewMode() {
+                            if (!root.device) {
+                                return undefined;
+                            }
+                            var deviceId = root.model.deviceId;
+                            if (!deviceId.length){
+                                return undefined;
+                            }
+                            return UiState.panelGroups.getPreviewWindowMode(deviceId);
+                        }
+                        Component.onCompleted: {
+                            var savedMode = getSavedPreviewMode();
+                            if (savedMode !== undefined){
+                                lastVideoMode = savedMode;
+                            }
                         }
                     }
-                    Switch {
-                        id: previewEnableBtn
-                        checked: false
-                        onToggled: {
-                            previewWindow.setVideoEnabled(checked);
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Item {
+                            Layout.fillWidth: true
+                        }
+                        Label {
+                            text: 'Mode'
+                            horizontalAlignment: Text.AlignRight
+                            verticalAlignment: Text.AlignVCenter
+                            Layout.alignment: Layout.AlignVCenter | Layout.AlignRight
+                        }
+                        ComboBox {
+                            id: previewModeCombo
+                            model: ['Off', 'Video', 'Waveform']
+
+                            function updateCurrentMode(){
+                                var curMode = previewWindow.videoMode;
+                                if (typeof(curMode) != 'undefined'){
+                                    currentIndex = find(curMode, Qt.MatchFixedString);
+                                }
+                            }
+
+                            Component.onCompleted: { updateCurrentMode() }
+
+                            onActivated: {
+                                previewWindow.setVideoMode(currentValue);
+                                updateCurrentMode();
+                            }
                         }
                     }
                     MenuButtons {
@@ -101,7 +161,7 @@ Control {
                 }
                 Component.onCompleted: {
                     if (!isCollapsed){
-                        previewWindow.setVideoEnabled(true);
+                        previewWindow.setVideoMode(previewWindow.lastVideoMode);
                     }
                 }
             }

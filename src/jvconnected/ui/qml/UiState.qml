@@ -10,12 +10,14 @@ QtObject {
     property QtObject panelGroups: QtObject {
         id: panelGroupsObj
         property var groupStates: ({})
+        property var previewWindowModes: ({})
 
         signal stateUpdated(string name, string newState)
 
         property Settings settings: Settings {
             category: "PanelGroups"
             property alias groupStates: panelGroupsObj.groupStates
+            property alias previewWindowModes: panelGroupsObj.previewWindowModes
         }
 
         function getGroupState(name){
@@ -35,6 +37,36 @@ QtObject {
             tmp[name] = groupState;
             groupStates = tmp;
             stateUpdated(name, groupState);
+        }
+
+        function getPreviewWindowMode(deviceId){
+            if (typeof(deviceId) != 'string'){
+                return undefined;
+            } else if (deviceId.length == 0){
+                return undefined;
+            }
+            var mode = previewWindowModes[deviceId];
+            if (mode === undefined){
+                return 'VIDEO';
+            }
+            return mode;
+        }
+
+        function setPreviewWindowMode(deviceId, mode){
+            if (typeof(deviceId) != 'string'){
+                return;
+            } else if (deviceId.length == 0){
+                return;
+            }
+            if (mode == 'OFF'){
+                return;
+            }
+            if (mode == previewWindowModes[deviceId]){
+                return;
+            }
+            var tmp = new Object(previewWindowModes);
+            tmp[deviceId] = mode;
+            previewWindowModes = tmp;
         }
     }
 }
