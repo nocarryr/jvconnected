@@ -233,7 +233,10 @@ class JsonHandler(object):
                             d[key] = self.decode(d[key])
                 elif cls is TallyMap:
                     if not isinstance(d['tally_type'], TallyType):
-                        d['tally_type'] = self.decode(d['tally_type'])
+                        if isinstance(d['tally_type'], int):
+                            d['tally_type'] = TallyType(d['tally_type'])
+                        else:
+                            d['tally_type'] = self.decode(d['tally_type'])
                 elif cls is TallyType:
                     return getattr(TallyType, d['name'])
                 del d['__class__']
