@@ -1,9 +1,63 @@
+from loguru import logger
+import functools
 import asyncio
 import collections
 from dataclasses import dataclass
 from typing import Any, Iterator, Union, Tuple
 
 from pydispatch import Dispatcher
+
+def async_callback(fn):
+    """Wrap a coroutine function or method (:keyword:`async def`) where a sync
+    function is expected.
+
+    The decorated function or method will be wrapped in an :class:`asyncio.Task`
+    and scheduled on the current :ref:`event loop <asyncio-event-loop>`
+    (within the context of the callback).
+
+    Any exceptions will be caught and forwarded to the event loop through
+    :meth:`asyncio.loop.call_exception_handler`.
+
+
+
+    .. testsetup:: async_callback
+
+        import asyncio
+        from jvconnected.utils import async_callback
+
+    .. testcode:: async_callback
+
+        callback_event = asyncio.Event()
+
+        @async_callback
+        async def my_async_callback(*args, **kwargs):
+            print(f'callback got: {args}, {kwargs}')
+            callback_event.set()
+
+        # Calling `my_async_callback` as a normal function
+        my_async_callback('foo', bar='baz')
+
+        # Run the loop until callback_event is set from inside the callback
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(callback_event.wait())
+
+    .. testoutput:: async_callback
+
+        callback got: ('foo',), {'bar': 'baz'}
+
+    """
+    def _error_handler(task):
+        try:
+            task.result()
+        except Exception as exc:
+            logger.exception(exc)
+            loop = asyncio.get_running_loop()
+            loop.call_exception_handler({'message':repr(exc), 'exception':exc})
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        task = asyncio.ensure_future(fn(*args, **kwargs))
+        task.add_done_callback(_error_handler)
+    return wrapper
 
 class IndexedDict(Dispatcher):
     """A ``dict`` like container that tracks indices for its items

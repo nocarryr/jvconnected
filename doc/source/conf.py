@@ -59,6 +59,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
+    'sphinx.ext.doctest',
     'propertyobj',
     'builtinproperty',
     'eventobj',
