@@ -5,21 +5,59 @@ from pathlib import Path
 from contextvars import ContextVar
 import socket
 import datetime
+import inspect
 import ipaddress
 import argparse
-
-import pkg_resources
-ZC_VERSION = pkg_resources.get_distribution('zeroconf').parsed_version
-if ZC_VERSION < pkg_resources.parse_version('0.28.6'):
-    SERV_NAME_KWARGS = {'allow_underscores':True}
-else:
-    SERV_NAME_KWARGS = {'strict':False}
 
 from aiohttp import web
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 import zeroconf
+
+
+# BEGIN <Zeroconf monkeypatch>
+
+# Override zeroconf._utils.name.service_type_name to default to `strict=False`
+# so that '_jvc_procam_web._tcp._local.' is allowed as a service
+
+def monkeypatch_service_type_name():
+
+    def walk_modules(m, visited=None):
+        if visited is None:
+            visited = set()
+        yield m
+        for key, val in m.__dict__.items():
+            if inspect.ismodule(val):
+                if val in visited:
+                    continue
+                visited.add(val)
+                yield from walk_modules(val, visited)
+
+    # Store the original function locally and in the module as '_service_type_name_orig'
+    import zeroconf._utils.name
+    _service_type_name_orig = zeroconf._utils.name.service_type_name
+    zeroconf._utils._service_type_name_orig = _service_type_name_orig
+
+    # Wrapper-ish function which just sets `strict` to default to True
+    # then calls the original
+    def _service_type_name_patched(type_: str, *, strict: bool = False) -> str:
+        return _service_type_name_orig(type_, strict=strict)
+
+
+    # Walk through every module in zeroconf and replace all imports with our
+    # patched function (including the original definition)
+    for m in walk_modules(zeroconf):
+        if not hasattr(m, 'service_type_name'):
+            continue
+        logger.debug(f'monkeypatching {m!r}')
+        m.service_type_name = _service_type_name_patched
+
+monkeypatch_service_type_name()
+
+# END </Zeroconf monkeypatch>
+
+
+from zeroconf.asyncio import AsyncZeroconf, AsyncServiceInfo
 import ifaddr
-# from zeroconf import ServiceInfo
 
 from jvconnected import device
 from jvconnected.discovery import PROCAM_FQDN
@@ -554,10 +592,7 @@ PARAMETER_GROUP_CLS = (CameraParams, BatteryParams, ExposureParams, PaintParams,
 
 
 
-
-# BEGIN <Zeroconf monkeypatch>
-
-class ServiceInfo(zeroconf.ServiceInfo):
+class ServiceInfo(AsyncServiceInfo):
     def __eq__(self, other):
         if not isinstance(other, zeroconf.ServiceInfo):
             return False
@@ -569,55 +604,6 @@ class ServiceInfo(zeroconf.ServiceInfo):
     def __ne__(self, other):
         return not self == other
 
-# Override Zeroconf.check_service() to use `allow_underscores=True` in
-# zeroconf.service_type_name()
-class Zeroconf(zeroconf.Zeroconf):
-    def check_service(
-        self, info: zeroconf.ServiceInfo, allow_name_change: bool, cooperating_responders: bool = False
-    ) -> None:
-        """Checks the network for a unique service name, modifying the
-        ServiceInfo passed in if it is not unique."""
-
-        # This is kind of funky because of the subtype based tests
-        # need to make subtypes a first class citizen
-        service_name = zeroconf.service_type_name(info.name, **SERV_NAME_KWARGS)
-        if not info.type.endswith(service_name):
-            raise zeroconf.BadTypeInNameException
-
-        instance_name = info.name[: -len(service_name) - 1]
-        next_instance_number = 2
-
-        now = zeroconf.current_time_millis()
-        next_time = now
-        i = 0
-        while i < 3:
-            if not cooperating_responders:
-                # check for a name conflict
-                while self.cache.current_entry_with_name_and_alias(info.type, info.name):
-                    if not allow_name_change:
-                        raise zeroconf.NonUniqueNameException
-
-                    # change the name and look for a conflict
-                    info.name = '%s-%s.%s' % (instance_name, next_instance_number, info.type)
-                    next_instance_number += 1
-                    zeroconf.service_type_name(info.name, **SERV_NAME_KWARGS)
-                    next_time = now
-                    i = 0
-
-            if now < next_time:
-                self.wait(next_time - now)
-                now = zeroconf.current_time_millis()
-                continue
-
-            out = zeroconf.DNSOutgoing(zeroconf._FLAGS_QR_QUERY | zeroconf._FLAGS_AA)
-            self.debug = out
-            out.add_question(zeroconf.DNSQuestion(info.type, zeroconf._TYPE_PTR, zeroconf._CLASS_IN))
-            out.add_authorative_answer(zeroconf.DNSPointer(info.type, zeroconf._TYPE_PTR, zeroconf._CLASS_IN, info.other_ttl, info.name))
-            self.send(out)
-            i += 1
-            next_time += zeroconf._CHECK_TIME
-
-# END </Zeroconf monkeypatch>
 
 class DeviceService(Dispatcher):
     published = Property(False)
@@ -648,11 +634,14 @@ class ZeroconfPublisher(Dispatcher):
     async def open(self):
         if self.running:
             return
-        zc = self.zeroconf = Zeroconf()
+        zc = self.zeroconf = AsyncZeroconf()
+        coros = set()
         for service in self.services.values():
             if service.published:
                 logger.info(f'Register zc service: {service.info!r}')
-                zc.register_service(service.info)
+                coros.add(zc.async_register_service(service.info))
+        if len(coros):
+            await asyncio.gather(*coros)
         self.running = True
 
     async def close(self):
@@ -661,7 +650,7 @@ class ZeroconfPublisher(Dispatcher):
         zc = self.zeroconf
         for service in self.services.values():
             service.published = False
-        zc.close()
+        await zc.async_close()
         self.running = False
 
     def _check_service_info(self, info: ServiceInfo):
@@ -680,19 +669,19 @@ class ZeroconfPublisher(Dispatcher):
         service = DeviceService(device, info)
         self.services[service.id] = service
         device.bind(zc_service_info=self.on_device_service_info_changed)
-        service.bind(published=self.on_service_published_changed)
+        service.bind_async(self.loop, published=self.on_service_published_changed)
         service.published = published
         return service
 
-    def on_service_published_changed(self, instance, value, **kwargs):
+    async def on_service_published_changed(self, instance, value, **kwargs):
         if not self.running:
             return
         if value:
             logger.info(f'Register zc service: {instance.info!r}')
-            self.zeroconf.register_service(instance.info)
+            await self.zeroconf.async_register_service(instance.info)
         else:
             logger.info(f'Unregister zc service: {instance.info!r}')
-            self.zeroconf.unregister_service(instance.info)
+            await self.zeroconf.async_unregister_service(instance.info)
 
     def on_device_service_info_changed(self, instance, value, **kwargs):
         logger.warning(f'device info changed: {instance}, {value}, {kwargs}')
