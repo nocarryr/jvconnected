@@ -1,11 +1,19 @@
 from loguru import logger
 import functools
+import enum
 import asyncio
 import collections
 from dataclasses import dataclass
 from typing import Any, Iterator, Union, Tuple
 
 from pydispatch import Dispatcher
+
+class IOType(enum.Enum):
+    """Enum to distinguish between input and output types
+    """
+    NONE = enum.auto()      #: Not set
+    INPUT = enum.auto()     #: Input
+    OUTPUT = enum.auto()    #: Output
 
 def async_callback(fn):
     """Wrap a coroutine function or method (:keyword:`async def`) where a sync

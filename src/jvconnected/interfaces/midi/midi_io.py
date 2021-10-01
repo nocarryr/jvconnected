@@ -6,6 +6,7 @@ import mido
 import rtmidi
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
+from jvconnected.utils import IOType
 from jvconnected.interfaces import Interface
 from jvconnected.interfaces.midi.aioport import InputPort, OutputPort
 from jvconnected.interfaces.midi.mapped_device import MappedDevice
@@ -25,6 +26,19 @@ class MidiIO(Interface):
             :class:`~.mapped_device.MappedDevice` instances stored with
             the device id as keys
 
+    :Events:
+
+        .. event:: port_state(io_type: jvconnected.utils.IOType, name: str, state: bool)
+
+            Fired when a port is added or removed using one of :meth:`add_input`,
+            :meth:`add_output`, :meth:`remove_input`, :meth:`remove_output`.
+
+            :param io_type: The type of port (input or output)
+            :type io_type: :class:`jvconnected.utils.IOType`
+            :param str name: The port name
+            :param bool state: ``True`` if the port was added, ``False`` if it
+                was removed
+
     """
     inport_names = ListProperty(copy_on_change=True)
     outport_names = ListProperty(copy_on_change=True)
@@ -33,6 +47,7 @@ class MidiIO(Interface):
     mapped_devices = DictProperty()
     mapper = Property()
     interface_name = 'midi'
+    _events_ = ['port_state']
     def __init__(self):
         super().__init__()
         self._consume_tasks = {}
@@ -164,6 +179,7 @@ class MidiIO(Interface):
                         del self.inports[name]
                         logger.exception(exc)
                         return
+        self.emit('port_state', IOType.INPUT, name, True)
 
     async def add_output(self, name: str):
         """Add an output port
@@ -194,6 +210,7 @@ class MidiIO(Interface):
                     del self.outports[name]
                     logger.exception(exc)
                     return
+        self.emit('port_state', IOType.OUTPUT, name, True)
 
     async def close_inport(self, name: str):
         port = self.inports[name]
@@ -219,6 +236,7 @@ class MidiIO(Interface):
                 del self.inports[name]
             if name in self.inport_names:
                 self.inport_names.remove(name)
+        self.emit('port_state', IOType.INPUT, name, False)
 
     async def remove_output(self, name: str):
         """Remove an output port from :attr:`outports` and :attr:`outport_names`
@@ -236,6 +254,7 @@ class MidiIO(Interface):
                 del self.outports[name]
             if name in self.outport_names:
                 self.outport_names.remove(name)
+        self.emit('port_state', IOType.OUTPUT, name, False)
 
     @logger.catch
     async def periodic_refresh(self):

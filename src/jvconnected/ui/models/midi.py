@@ -1,12 +1,13 @@
 from loguru import logger
 import asyncio
-from typing import Optional
+from typing import Optional, ClassVar
 
 from PySide2 import QtCore, QtQml
 from PySide2.QtCore import Property, Signal
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 
+from jvconnected.utils import IOType
 from jvconnected.interfaces.midi import MIDI_AVAILABLE
 from jvconnected.ui.utils import GenericQObject
 from jvconnected.ui.models.engine import EngineModel
@@ -27,9 +28,6 @@ class MidiPortModel(GenericQObject):
         self._isActive = kwargs.get('isActive', False)
         self.parent_model = kwargs['parent_model']
         self.midi_io = self.parent_model.midi_io
-        self._isActive = self._name in self.parent_model._get_enabled_port_names()
-        prop_name = self.parent_model.port_names_prop
-        self.midi_io.bind(**{prop_name:self.on_enabled_port_names})
         super().__init__(*args)
 
     def _g_name(self) -> str: return self._name
@@ -51,13 +49,11 @@ class MidiPortModel(GenericQObject):
     async def setIsActive(self, value: bool):
         """Set the port state
         """
+        assert value is not self.isActive
         await self.parent_model.setPortActive(self.name, value)
 
-    def on_enabled_port_names(self, instance, value, **kwargs):
-        self.isActive = self.name in value
-
     def __repr__(self):
-        return f'<{self.__class__.__name__}: "{self}">'
+        return f'<{self.__class__.__name__}: "{self}" (isActive={self.isActive})>'
 
     def __str__(self):
         return self.name
@@ -78,12 +74,12 @@ class MidiPortsModel(GenericQObject):
 
             Fired when any change is made in the container
     """
-    port_names_prop = None
     _n_engine = Signal()
     _n_count = Signal()
     portAdded = Signal(MidiPortModel)
     portRemoved = Signal(MidiPortModel)
     portsUpdated = Signal()
+    io_type: ClassVar[IOType] = IOType.NONE
     def __init__(self, *args):
         self.loop = asyncio.get_event_loop()
         self.ports = {}
@@ -110,8 +106,7 @@ class MidiPortsModel(GenericQObject):
     def set_midi_io(self, midi_io: 'jvconnected.interfaces.midi_io.MidiIO'):
         self.midi_io = midi_io
         self.update_ports()
-        prop_name = self.port_names_prop
-        midi_io.bind(**{prop_name:self.on_midi_io_port_names})
+        midi_io.bind(port_state=self.on_midi_io_port_state)
 
     def _get_all_port_names(self):
         raise NotImplementedError
@@ -145,13 +140,10 @@ class MidiPortsModel(GenericQObject):
             port = self.ports.get(name)
             active = name in port_names_list
             if port is not None:
-                # if port.index != i:
-                #     changed = True
-                # if port.isActive != active:
-                #     changed = True
-                # port.index = i
-                # port.isActive = active
-                pass
+                assert port.index == i
+                if port.isActive != active:
+                    changed = True
+                    port.isActive = active
             else:
                 changed = True
                 port = MidiPortModel(name=name, index=i, isActive=active, parent_model=self)
@@ -162,8 +154,16 @@ class MidiPortsModel(GenericQObject):
         if changed:
             self.portsUpdated.emit()
 
-    def on_midi_io_port_names(self, instance, value, **kwargs):
-        self.update_ports()
+    @logger.catch
+    def on_midi_io_port_state(self, io_type: IOType, name: str, state: bool, **kwargs):
+        if io_type != self.io_type:
+            return
+        assert name in self.ports
+        port = self.ports[name]
+        if state is not port.isActive:
+            port.isActive = state
+            self.portsUpdated.emit()
+        logger.debug(f'{self}.port_state: {io_type=}, {name=}, {state=}, port = {port!r}')
 
     @asyncSlot(str, bool)
     async def setPortActive(self, name: str, value: bool):
@@ -187,7 +187,8 @@ class MidiPortsModel(GenericQObject):
 class InportsModel(MidiPortsModel):
     """Container for input ports as :class:`MidiPortModel` instances
     """
-    port_names_prop = 'inport_names'
+    io_type: ClassVar[IOType] = IOType.INPUT
+
     def _get_all_port_names(self):
         return self.midi_io.get_available_inputs()
 
@@ -206,7 +207,8 @@ class InportsModel(MidiPortsModel):
 class OutportsModel(MidiPortsModel):
     """Container for input ports as :class:`MidiPortModel` instances
     """
-    port_names_prop = 'outport_names'
+    io_type: ClassVar[IOType] = IOType.OUTPUT
+
     def _get_all_port_names(self):
         return self.midi_io.get_available_outputs()
 
