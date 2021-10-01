@@ -162,23 +162,22 @@ class MidiIO(Interface):
         """
         async with self._port_lock:
             logger.info(f'add_input: {name}')
+            if name not in self.inport_names:
+                self.inport_names.append(name)
+            if name in self.inports:
+                raise ValueError(f'Input "{name}" already open')
+            port = InputPort(name)
+            logger.debug(f'port: {port}')
+            self.inports[name] = port
+            port.bind_async(self.loop, running=self.on_inport_running)
             if self.running:
-                if name not in self.inport_names:
-                    self.inport_names.append(name)
-                if name in self.inports:
-                    raise ValueError(f'Input "{name}" already open')
-                port = InputPort(name)
-                logger.debug(f'port: {port}')
-                self.inports[name] = port
-                port.bind_async(self.loop, running=self.on_inport_running)
-                if self.running:
-                    try:
-                        await port.open()
-                    except rtmidi.SystemError as exc:
-                        await port.close()
-                        del self.inports[name]
-                        logger.exception(exc)
-                        return
+                try:
+                    await port.open()
+                except rtmidi.SystemError as exc:
+                    await port.close()
+                    del self.inports[name]
+                    logger.exception(exc)
+                    return
         self.emit('port_state', IOType.INPUT, name, True)
 
     async def add_output(self, name: str):
