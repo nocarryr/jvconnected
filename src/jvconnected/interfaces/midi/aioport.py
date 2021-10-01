@@ -1,7 +1,9 @@
 from loguru import logger
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import queue
-from typing import Optional, Any
+from functools import partial
+from typing import Optional, Any, ClassVar, Callable
 from numbers import Number
 
 import mido
@@ -24,6 +26,10 @@ class BasePort(Dispatcher):
     MAX_QUEUE = 100
     name = Property()
     running = Property(False)
+    EXECUTOR: ClassVar['concurrent.futures.ThreadPoolExecutor'] = None
+    """A :class:`concurrent.futures.ThreadPoolExecutor` to use in the
+    :meth:`run_in_executor` method for all instances of all :class:`BasePort` subclasses
+    """
     def __init__(self, name: str):
         self.name = name
         self.loop = asyncio.get_event_loop()
@@ -31,6 +37,26 @@ class BasePort(Dispatcher):
         # self.running = asyncio.Event()
         self.stopped = asyncio.Event()
         self.port = None
+
+    @staticmethod
+    def get_executor() -> 'concurrent.futures.ThreadPoolExecutor':
+        """Get or create the :attr:`EXECUTOR` instance to use in the
+        :meth:`run_in_executor` method
+        """
+        exec = BasePort.EXECUTOR
+        if exec is None:
+            exec = BasePort.EXECUTOR = ThreadPoolExecutor(1)
+        return exec
+
+    async def run_in_executor(self, fn: Callable) -> Any:
+        """Call the given function in the :attr:`EXECUTOR` instance using
+        :meth:`asyncio.loop.run_in_executor` and return the result
+
+        This method is used to create and manipulate all :mod:`mido` ports to
+        avoid blocking, threaded operations
+        """
+        exec = self.get_executor()
+        return await self.loop.run_in_executor(exec, fn)
 
     async def open(self) -> bool:
         """Open the midi port
@@ -127,9 +153,10 @@ class InputPort(BasePort):
         """
         self.queue.task_done()
 
-    async def _build_port(self) -> mido.ports.BaseOutput:
+    async def _build_port(self) -> mido.ports.BaseInput:
         port = None
-        port = mido.open_input(self.name, callback=self._inport_callback)
+        p = partial(mido.open_input, self.name, callback=self._inport_callback)
+        port = await self.run_in_executor(p)
         # try:
         #     port = mido.open_input(self.name, callback=self._inport_callback)
         # except Exception as exc:
@@ -143,7 +170,7 @@ class InputPort(BasePort):
     async def _close_port(self):
         port = self.port
         if port is not None:
-            port.close()
+            await self.run_in_executor(port.close)
         self.port = None
 
     def _inport_callback(self, msg: mido.messages.BaseMessage):
@@ -189,7 +216,8 @@ class OutputPort(BasePort):
 
     async def _build_port(self) -> mido.ports.BaseOutput:
         port = None
-        port = mido.open_output(self.name)
+        p = partial(mido.open_output, self.name)
+        port = await self.run_in_executor(p)
         return port
 
     async def _close_port(self):
@@ -204,7 +232,7 @@ class OutputPort(BasePort):
         self._send_loop_task = None
         port = self.port
         if port is not None:
-            port.close()
+            await self.run_in_executor(port.close)
         self.port = None
 
     def _blocking_send_loop(self):
