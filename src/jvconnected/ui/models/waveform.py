@@ -102,8 +102,76 @@ WFMArray = NewType('WFMArray', npt.NDArray[WFM_dtype])
 """2d array using the :class:`WFM_dtype` with shape ``(height, width)``
 """
 
-# YCbCrTransform = np.array([[.2126, .7152, .0722], [-.1146, -.3854, .5], [.5, -.4542, -.0458]])
-# sRGBTransform = np.array([[1, 0, 1.5748], [1, -.1873, -.4681], [1, 1.8556, 0]])
+FloatArray = NewType('FloatArray', npt.NDArray[np.float])
+"""Array of float
+"""
+
+Coeff = NewType('Coeff', Tuple[float, float, float])
+"""YCbCr transform coefficients
+
+:param Kr:
+:type Kr: float
+:param Kg:
+:type Kg: float
+:param Kb:
+:type Kb: float
+"""
+
+COLOR_COEFFICIENTS: Dict[str, Coeff] = {
+    'NTSC':(.3, .59, .11),
+    'Rec601':(.299, .587, .114),
+    'Rec709':(.2126, .7152, .0722),
+
+}
+# NTSC_coeff = (.3, .59, .11)
+# Rec601_coeff = (.299, .587, .114)
+# Rec709_coeff = (.2126, .7152, .0722)
+
+def calc_color_matrices(coeff: Union[str, Coeff]) -> Tuple[FloatArray, FloatArray]:
+    if isinstance(coeff, str):
+        coeff = COLOR_COEFFICIENTS[coeff]
+    Kr, Kg, Kb = coeff
+    Ymin, Ymax = 16, 235
+    Cmin, Cmax = 16, 240
+
+    Y = np.array([Kr, (1-Kr-Kb), Kb])
+    Cb = .5 * (np.array([0, 0, 1]) - Y) / (1-Kb)
+    Cr = .5 * (np.array([1, 0, 0]) - Y) / (1-Kr)
+    Y *= Ymax - Ymin
+    Cb *= Cmax - Cmin
+    Cr *= Cmax - Cmin
+
+    yuv_mtrx = np.vstack([Y, Cb, Cr])
+    rgb_mtrx = np.linalg.inv(yuv_mtrx)
+    return yuv_mtrx, rgb_mtrx
+
+    # yuv_mtrx = np.array([
+    #     [Kr, Kg, Kb],
+    #     [-.5*(Kr/(1-Kb)), -.5*(Kg/(1-Kb)), .5],
+    #     [.5, -.5*(Kg/(1-Kr)), -.5*(Kb/(1-Kr))]
+    # ])
+    # rgb_mtrx = np.array([
+    #     [1, 0, 2-2*Kr],
+    #     [1, -(Kb/Kg)*(2-2*Kb), -(Kr/Kg)*(2-2*Kr)],
+    #     [1, 2-2*Kb, 0]
+    # ])
+    # assert np.allclose(np.linalg.inv(yuv_mtrx), rgb_mtrx)
+    # return yuv_mtrx, rgb_mtrx
+
+# def get_rec709_matrices():
+#     return calc_color_matrices('Rec709')
+#
+# YCbCrTransform, sRGBTransform = get_rec709_matrices()
+# YCbCrTransform = np.array([
+#     [.2126, .7152, .0722],
+#     [-.1146, -.3854, .5],
+#     [.5, -.4542, -.0458]
+# ])
+# sRGBTransform = np.array([
+#     [1, 0, 1.5748],
+#     [1, -.1873, -.4681],
+#     [1, 1.8556, 0]
+# ])
 
 def get_yprime(rgb: Sequence[float]) -> float:
     r,g,b = rgb
