@@ -35,7 +35,15 @@ class BCLBlock(bcf_sysex.BCLBlock):
             resp.raise_on_error()
             assert resp.message_index == item.message_index
 
+    def print_output(self):
+        items = self.build_sysex_items()
+        for item in items:
+            print(item.bcl_text)
+
     async def send_to_port_name(self, name: str):
+        if name == '__stdout__':
+            self.print_output()
+            return
         ioport = aioport.IOPort(name)
         await ioport.open()
         try:
@@ -157,10 +165,13 @@ def store_preset(port_name, preset_num):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('-p', '--port-name', dest='port_name')
+    p.add_argument('--stdout', dest='stdout', action='store_true')
     p.add_argument('--store', dest='store', action='store_true')
     p.add_argument('-n', '--num', dest='num', type=int, default=1, help='Preset number (if --store is used)')
     args = p.parse_args()
-    if not args.port_name:
+    if args.stdout:
+        args.port_name = '__stdout__'
+    elif not args.port_name:
         all_io_ports = set(mido.get_ioport_names())
         bcf_ports = [name for name in all_io_ports if 'BCF2000' in name]
         non_loop = [name for name in all_io_ports if 'through' not in name.lower()]
