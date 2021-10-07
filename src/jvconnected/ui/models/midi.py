@@ -120,6 +120,7 @@ class MidiPortsModel(GenericQObject):
     async def _set_port_active(self, name: str, state: bool):
         raise NotImplementedError
 
+    @logger.catch
     def update_ports(self):
         midi_io = self.midi_io
         port_names_list = self._get_enabled_port_names()
@@ -140,7 +141,10 @@ class MidiPortsModel(GenericQObject):
             port = self.ports.get(name)
             active = name in port_names_list
             if port is not None:
-                assert port.index == i
+                if port.index < i and port.name == all_ports[port.index]:
+                    continue
+                port_index = port.index
+                assert port_index == i == port.index
                 if port.isActive != active:
                     changed = True
                     port.isActive = active

@@ -161,7 +161,7 @@ def main():
     p.add_argument('-n', '--num', dest='num', type=int, default=1, help='Preset number (if --store is used)')
     args = p.parse_args()
     if not args.port_name:
-        all_io_ports = mido.get_ioport_names()
+        all_io_ports = set(mido.get_ioport_names())
         bcf_ports = [name for name in all_io_ports if 'BCF2000' in name]
         non_loop = [name for name in all_io_ports if 'through' not in name.lower()]
         if len(bcf_ports) == 1:
