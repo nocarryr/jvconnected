@@ -3,7 +3,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import queue
 from functools import partial
-from typing import Optional, Any, ClassVar, Callable
+from typing import Optional, Any, ClassVar, Callable, Tuple, Union, AsyncGenerator
 from numbers import Number
 
 import mido
@@ -115,6 +115,7 @@ class InputPort(BasePort):
     """
     def __init__(self, name: str):
         super().__init__(name)
+        self._item_ready = asyncio.Condition()
         self.queue = asyncio.Queue(self.MAX_QUEUE)
 
     async def receive(self, timeout: Optional[Number] = None) -> Optional[mido.Message]:
@@ -130,6 +131,62 @@ class InputPort(BasePort):
 
         """
         return await self.queue_get(timeout)
+
+    async def receive_many(
+        self, block: bool = True, timeout: Optional[Number] = None
+    ) -> Optional[Union[bool, Tuple[mido.Message]]]:
+        """Gather any/all available messages
+
+        Arguments:
+            block (bool, optional): If ``True``, :meth:`wait_for_msg` is used
+                initially to wait for the first available message. If ``False``,
+                only check for queued messages and return immediately if none exist.
+                Default is ``True``
+            timeout (float, optional): If *block* is ``True`` the timeout argument
+                to pass to the :meth:`wait_for_msg` method
+
+        Returns:
+            If no messages were available (either *block* was ``False`` or
+            the *timeout* was reached), ``None`` is returned.
+
+            In all other cases, a :class:`tuple` of :class:`Messages <mido.Message>`
+        """
+        if block:
+            msg_avail = await self.wait_for_msg(timeout)
+        else:
+            msg_avail = not self.queue.empty()
+        if not msg_avail:
+            return None
+
+        result = []
+        async for msg in self.queue_iter_get():
+            result.append(msg)
+        return tuple(result)
+
+    async def wait_for_msg(self, timeout: Optional[Number] = None) -> bool:
+        """Wait until a message is available
+
+        Arguments:
+            timeout (float, optional): Maximum time to wait.
+                If ``None``, wait indefinitely
+
+        Returns:
+            ``False`` if timeout was given and nothing was available before
+            the timeout. Otherwise ``True`` is returned to indicate a message
+            is available
+        """
+        if not self.queue.empty():
+            return True
+        result = True
+        async with self._item_ready:
+            if timeout is None:
+                await self._item_ready.wait()
+            else:
+                try:
+                    await asyncio.wait_for(self._item_ready.wait(), timeout)
+                except asyncio.TimeoutError:
+                    result = False
+        return result
 
     async def queue_get(self, timeout: Optional[Number] = None) -> Any:
         """Convenience method for :meth:`~asyncio.Queue.get` on the :attr:`queue`
@@ -147,6 +204,16 @@ class InputPort(BasePort):
             except asyncio.TimeoutError:
                 item = None
         return item
+
+    async def queue_iter_get(self) -> AsyncGenerator[mido.Message, None]:
+        """Iterate over any/all messages available on the queue
+        """
+        while True:
+            msg = await self.receive(timeout=.001)
+            if msg is None:
+                break
+            self.task_done()
+            yield msg
 
     def task_done(self):
         """Convenience method for :attr:`queue` :meth:`~asyncio.Queue.task_done`
@@ -175,7 +242,9 @@ class InputPort(BasePort):
 
     def _inport_callback(self, msg: mido.messages.BaseMessage):
         async def enqueue(_msg):
-            await self.queue.put(_msg)
+            async with self._item_ready:
+                await self.queue.put(_msg)
+                self._item_ready.notify_all()
         asyncio.run_coroutine_threadsafe(enqueue(msg), loop=self.loop)
 
 
@@ -211,8 +280,24 @@ class OutputPort(BasePort):
             msg: The :class:`mido.Message` to send
 
         """
-        # await self.queue.put(msg)
-        self.queue.put_nowait(msg)
+        def _enqueue():
+            self.queue.put(msg)
+        await self.loop.run_in_executor(None, _enqueue)
+
+    async def send_many(self, *msgs):
+        """Send multiple messages
+
+        The messages will be placed on the :attr:`queue` and sent from a separate
+        thread
+
+        Arguments:
+            *msgs: The :class:`Messages <mido.Message>` to send
+
+        """
+        def _enqueue():
+            for msg in msgs:
+                self.queue.put(msg)
+        await self.loop.run_in_executor(None, _enqueue)
 
     async def _build_port(self) -> mido.ports.BaseOutput:
         port = None
