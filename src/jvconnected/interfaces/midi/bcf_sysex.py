@@ -277,6 +277,19 @@ class ControlBase:
         'program_change':'PC', 'pitch_bend':'PB'
     }
 
+    def __post_init__(self):
+        if self.is_14_bit and self.value_max == 127:
+            self.value_max = 16383
+
+    @property
+    def is_14_bit(self) -> bool:
+        """True if the control uses 14-bit values
+        """
+        return self._get_is_14_bit()
+
+    def _get_is_14_bit(self) -> bool:
+        return self.mode.endswith('/14')
+
     def get_easyparams(self) -> str:
         ch = self.channel + 1
         # if self.message_type != 'note':
@@ -339,6 +352,9 @@ class EncoderConf(ControlBase):
 
     bcl_command: ClassVar[str] = '$encoder'
 
+    def _get_is_14_bit(self) -> bool:
+        return self.encoder_mode.endswith('/14')
+
     def get_easyparams(self) -> str:
         s = super().get_easyparams()
         return f'{s} {self.encoder_mode}'
@@ -393,7 +409,7 @@ class FaderConf(ControlBase):
 
     def get_easyparams(self) -> str:
         s = super().get_easyparams()
-        return f'{s} absolute'
+        return f'{s} {self.mode}'
 
     def build_bcl_lines(self) -> Sequence[str]:
         lines = super().build_bcl_lines()

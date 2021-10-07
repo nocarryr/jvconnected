@@ -69,10 +69,11 @@ def build_preset(mapper: Optional[MidiMapper] = None):
         btn_ix = cam_ix * 16 + control_ix
         encoder_disp_mode = kwargs.get('encoder_disp_mode', '1dot')
 
-        if map_obj.map_type == 'controller':
-            pst.add_encoder(
+        if map_obj.map_type.startswith('controller'):
+            enc_mode = ''.join(['absolute', map_obj.map_type.lstrip('controller')])
+            enc = pst.add_encoder(
                 index=enc_ix, channel=cam_ix, mode=encoder_disp_mode,
-                number=map_obj.controller,
+                number=map_obj.controller, encoder_mode=enc_mode,
             )
         elif map_obj.map_type == 'adjust_controller':
             # tx = mido.Message('control_change', control=spec['controller'], value=0)
@@ -106,7 +107,10 @@ def build_preset(mapper: Optional[MidiMapper] = None):
     for cam_ix in range(4):
 
         # Iris mapped to faders 1-8
-        pst.add_fader(index=cam_ix+1, channel=cam_ix, number=iris_map.controller)
+        pst.add_fader(
+            index=cam_ix+1, channel=cam_ix,
+            number=iris_map.controller, mode='absolute/14',
+        )
 
         # Program tally on top button row, Preview on bottom
         pst.add_button(
