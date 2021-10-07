@@ -1,6 +1,6 @@
 from loguru import logger
 import asyncio
-from typing import List
+from typing import List, Sequence
 
 import mido
 import rtmidi
@@ -274,18 +274,17 @@ class MidiIO(Interface):
     @logger.catch
     async def consume_incoming_messages(self, port: InputPort):
         while self.running and port.running:
-            msg = await port.receive(timeout=.5)
-            if msg is None:
+            msgs = await port.receive_many(timeout=.5)
+            if msgs is None:
                 continue
-            if msg is False:
-                port.task_done()
-                break
-            logger.debug(f'MIDI rx: {msg}')
-            coros = []
+            logger.opt(lazy=True).debug(
+                '{x}', x=lambda: '\n'.join([f'MIDI rx: {msg}' for msg in msgs])
+            )
+            coros = set()
             for device in self.mapped_devices.values():
-                coros.append(device.handle_incoming_message(msg))
-            await asyncio.gather(*coros)
-            port.task_done()
+                coros.add(device.handle_incoming_messages(msgs))
+            if len(coros):
+                await asyncio.gather(*coros)
 
     async def send_message(self, msg: mido.messages.messages.BaseMessage):
         """Send a message to all output ports in :attr:`outports`
@@ -299,8 +298,25 @@ class MidiIO(Interface):
             if port.running:
                 coros.add(port.send(msg))
         if len(coros):
-            logger.debug(f'MIDI tx: {msg}')
             await asyncio.gather(*coros)
+            logger.opt(lazy=True).debug(f'MIDI tx: {msg}')
+
+    async def send_messages(self, msgs: Sequence[mido.Message]):
+        """Send a message to all output ports in :attr:`outports`
+
+        Arguments:
+            msgs: A sequence of :class:`Messages <mido.Message>` to send
+
+        """
+        coros = set()
+        for port in self.outports.values():
+            if port.running:
+                coros.add(port.send_many(*msgs))
+        if len(coros):
+            await asyncio.gather(*coros)
+            logger.opt(lazy=True).debug(
+                '{x}', x=lambda: '\n'.join([f'MIDI tx: {msg}' for msg in msgs])
+            )
 
     def map_device(self, midi_channel: int, device: 'jvconnected.device.Device'):
         """Connect a :class:`jvconnected.device.Device` to a :class:`.mapped_device.MappedDevice`

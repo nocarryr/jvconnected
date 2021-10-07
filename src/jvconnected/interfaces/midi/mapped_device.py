@@ -1,12 +1,13 @@
 from loguru import logger
 import asyncio
 from numbers import Number
-from typing import Union, Dict, Any
+from typing import Union, Dict, Any, List, Iterable, Sequence
 
 import mido
 from pydispatch import Dispatcher, Property, DictProperty
 
 from jvconnected.interfaces.paramspec import ParameterGroupSpec, ParameterSpec, BaseParameterSpec
+from .mapper import Map
 
 NumOrBool = Union[Number, bool]
 
@@ -50,36 +51,46 @@ class MappedDevice(Dispatcher):
                         kw['note'] = m.note
                     else:
                         kw['controller'] = m.controller
-                    mapped_param = mp_cls(self, param_spec, m.name, **kw)
+                    mapped_param = mp_cls(self, param_spec, m, **kw)
                     self.mapped_params[mapped_param.name] = mapped_param
 
-    async def handle_incoming_message(self, msg: mido.messages.BaseMessage):
-        """Dispatch an incoming message to all :class:`MappedParameter` instances
 
-        The :meth:`MappedParameter.handle_incoming_message` method is called for
+    async def handle_incoming_messages(self, msgs: Iterable[mido.Message]):
+        """Dispatch incoming messages to all :class:`MappedParameter` instances
+
+        The :meth:`MappedParameter.handle_incoming_messages` method is called for
         each parameter instance in :attr:`mapped_params`
         """
         coros = set()
         for mapped_param in self.mapped_params.values():
-            coros.add(mapped_param.handle_incoming_message(msg))
+            coros.add(mapped_param.handle_incoming_messages(msgs))
         await asyncio.gather(*coros)
 
+    @logger.catch
     async def send_all_parameters(self):
         """Send values for all mapped parameters (full refresh)
         """
-        coros = set()
+        msgs = []
         for mapped_param in self.mapped_params.values():
             value = mapped_param.get_current_value()
             if value is None:
                 continue
             msg = mapped_param.build_message(value)
-            coros.add(self.send_message(msg))
-        await asyncio.gather(*coros)
+            if isinstance(msg, (list, tuple)):
+                msgs.extend(list(msg))
+            else:
+                msgs.append(msg)
+        await self.send_messages(msgs)
 
     async def send_message(self, msg: mido.Message):
         """Send the given message with :attr:`midi_io`
         """
         await self.midi_io.send_message(msg)
+
+    async def send_messages(self, msgs: Sequence[mido.Message]):
+        """Send a sequence of messages with :attr:`midi_io`
+        """
+        await self.midi_io.send_messages(msgs)
 
 
 class MappedParameter(Dispatcher):
@@ -90,29 +101,33 @@ class MappedParameter(Dispatcher):
         mapped_device (MappedDevice): The parent :class:`MappedDevice` instance
         param_group (ParameterGroupSpec): The :class:`~jvconnected.interfaces.paramspec.ParameterGroupSpec`
             definition that describes the parameter
-        param_name (str): The parameter name within the param_group
+        map_obj (:class:`.mapper.Map`): The midi mapping definition
         name (str): Unique name of the parameter as defined by
             :attr:`jvconnected.interfaces.paramspec.ParameterSpec.full_name`
         param_spec: The :class:`~jvconnected.interfaces.paramspec.ParameterSpec`
             instance within the :attr:`param_group`
         channel (int): The midi channel to use, typically gathered from :attr:`mapped_device`
-        value_min (int): Minimum value for the parameter as it exists in the
-            :class:`jvconnected.device.ParameterGroup`
-        value_max (int): Maximum value for the parameter as it exists in the
-            :class:`jvconnected.device.ParameterGroup`
 
     """
     name = None
     channel = 0
-    value_min = 0
-    value_max = 1
+    value_min: int = 0
+    """Minimum value for the parameter as it exists in the
+    :class:`jvconnected.device.ParameterGroup`
+    """
 
-    def __init__(self, mapped_device: MappedDevice, param_spec: BaseParameterSpec, param_name: str, **kwargs):
+    value_max: int = 1
+    """Maximum value for the parameter as it exists in the
+    :class:`jvconnected.device.ParameterGroup`
+    """
+
+    def __init__(self, mapped_device: MappedDevice, param_spec: BaseParameterSpec, map_obj: Map, **kwargs):
         self.mapped_device = mapped_device
         loop = mapped_device.loop
         self.param_group = param_spec.param_group_spec
         self.param_spec = param_spec
         self.name = self.param_spec.full_name
+        self.map_obj = map_obj
         self.channel = kwargs.get('channel', mapped_device.midi_channel)
         if hasattr(self.param_spec.value_type, 'value_min'):
             self.value_min = self.param_spec.value_type.value_min
@@ -120,21 +135,54 @@ class MappedParameter(Dispatcher):
         self.param_spec.bind_async(loop, value=self.on_param_spec_value_changed)
 
     @property
+    def is_14_bit(self) -> bool:
+        """True if the :attr:`map_obj` uses 14 bit values
+        """
+        return self.map_obj.is_14_bit
+
+    @property
+    def midi_max(self) -> int:
+        """Maximum value for MIDI data
+
+        Will be 127 (``0x7f``) in most cases.  If :attr:`is_14_bit`, the value
+        will be 16383 (``0x3fff``).
+        """
+        if self.is_14_bit:
+            return 16383
+        return 0x7f
+
+    @property
+    def midi_range(self) -> int:
+        """Total range of MIDI values calculated as :attr:`midi_max` + 1
+        """
+        return self.midi_max + 1
+
+    @property
     def value_range(self) -> Number:
-        """Total range of values calculated as ``value_max - value_min``
+        r"""Total range of values calculated as
+
+        .. math::
+
+            V_{offset} &=
+                \begin{cases}
+                    1, & \quad \text{if }V_{min} = 0\\
+                    0, & \quad \text{if }V_{min}\ne 0
+                \end{cases}\\
+            V_{range} &= V_{max} - V_{min} + V_{offset}
+
+        where :math:`V_{min}` = :attr:`value_min` and
+        :math:`V_{max}` is :attr:`value_max`
         """
-        return self.value_max - self.value_min
+        r = self.value_max - self.value_min
+        if self.value_min == 0:
+            r += 1
+        return r
 
-    async def handle_incoming_message(self, msg: mido.messages.BaseMessage):
-        """Process an incoming message
-
-        If the message is valid for this object, the appropriate setter methods
-        will by called on the :attr:`param_spec`
-
-        """
-        if not self.message_valid(msg):
-            return
-        await self._handle_incoming_message(msg)
+    async def handle_incoming_messages(self, msgs: Iterable[mido.Message]):
+        for msg in msgs:
+            if not self.message_valid(msg):
+                continue
+            await self._handle_incoming_message(msg)
 
     async def _handle_incoming_message(self, msg: mido.messages.BaseMessage):
         pass
@@ -148,25 +196,45 @@ class MappedParameter(Dispatcher):
         return True
 
     def scale_to_midi(self, value: NumOrBool) -> int:
-        """Scale the given value to a range of 0 to 127
+        r"""Scale the given value to the range allowed in midi messages
 
-        If the given value is :any:`bool`, this will return ``127`` for ``True``
-        and ``0`` for ``False``.
+        For boolean input, the result will be
 
-        Otherwise the result will be :math:`((value - vmin) / vrange * 127`
+        .. math::
 
+            result =
+                \begin{cases}
+                    M_{max}, & \quad \text{if value is true}\\
+                    0,       & \quad \text{otherwise}
+                \end{cases}
+
+        For numeric input
+
+        .. math::
+
+            result = \frac{value - V_{min}}{V_{range}} \cdot M_{max}
+
+        where :math:`M_{max}` = :attr:`midi_max`, :math:`M_{range}` = :attr:`midi_range`,
+        :math:`V_{min}` = :attr:`value_min` and :math:`V_{range}` = :attr:`value_range`
         """
+        m_max, m_range = self.midi_max, self.midi_range
         if isinstance(value, bool):
-            return 127 if value else 0
+            return m_max if value else 0
         r = (value - self.value_min) / self.value_range
-        return int(r * 127)
+        return int(r * m_max)
 
     def scale_from_midi(self, value: int) -> int:
-        """Scale a value from :math:`[0,1,..,127]` to the range expected by the
-        parameter. This results in :math:`(value / 127) * vrange + vmin`
+        r"""Scale a value from the midi range to the :attr:`param_spec` range
 
+        .. math::
+
+            result = \frac{value}{M_{range}} \cdot V_{range} + V_{min}
+
+        where :math:`M_{range}` = :attr:`midi_range`, :math:`V_{min}` = :attr:`value_min`
+        and :math:`V_{range}` = :attr:`value_range`
         """
-        r = value / 127
+        m_max, m_range = self.midi_max, self.midi_range
+        r = value / m_range
         return int(r * self.value_range + self.value_min)
 
     def get_message_type(self, value: NumOrBool) -> str:
@@ -200,10 +268,15 @@ class MappedParameter(Dispatcher):
         """
         return self.param_spec.get_param_value()
 
+    @logger.catch
     async def on_param_spec_value_changed(self, instance, value, **kwargs):
         msg = self.build_message(value)
-        await self.mapped_device.send_message(msg)
-
+        if self.is_14_bit:
+            assert isinstance(msg, list)
+            assert len(msg) == 2
+            await self.mapped_device.send_messages(msg)
+        else:
+            await self.mapped_device.send_message(msg)
 
 
 class MappedController(MappedParameter):
@@ -216,8 +289,8 @@ class MappedController(MappedParameter):
     controller = None
     value_min = 0
     value_max = 1
-    def __init__(self, mapped_device: MappedDevice, param_spec: BaseParameterSpec, param_name: str, **kwargs):
-        super().__init__(mapped_device, param_spec, param_name, **kwargs)
+    def __init__(self, mapped_device: MappedDevice, param_spec: BaseParameterSpec, map_obj: Map, **kwargs):
+        super().__init__(mapped_device, param_spec, map_obj, **kwargs)
         self.controller = kwargs['controller']
 
     async def _handle_incoming_message(self, msg: mido.Message):
@@ -241,6 +314,74 @@ class MappedController(MappedParameter):
         kw['value'] = self.scale_to_midi(value)
         return kw
 
+class MappedController14Bit(MappedController):
+    """A :class:`MappedController` using 14-bit Midi values
+    """
+
+    @property
+    def controller_msb(self) -> int:
+        """The controller index containing the most-significant 7 bits
+
+        This will always be equal to the :attr:`controller` value
+        """
+        return self.map_obj.controller_msb
+
+    @property
+    def controller_lsb(self) -> int:
+        """The controller index containing the least-significant 7 bits
+
+        Per the MIDI 1.0 specification, this will be :attr:`controller_msb` + 32
+        """
+        return self.map_obj.controller_lsb
+
+    async def handle_incoming_messages(self, msgs: Iterable[mido.Message]):
+        ctrl_lsb, ctrl_msb = self.controller_lsb, self.controller_msb
+        msg_lsb, msg_msb = None, None
+        for msg in msgs:
+            if msg.type != 'control_change':
+                continue
+            if msg.channel != self.channel:
+                continue
+            if msg.control == ctrl_lsb:
+                msg_lsb = msg
+            elif msg.control == ctrl_msb:
+                msg_msb = msg
+        if msg_msb is None:
+            if msg_lsb is not None:
+                logger.warning(f'No MSB message found: {msg_lsb=}')
+            return
+        value = msg_msb.value << 7
+        if msg_lsb is not None:
+            value |= msg_lsb.value
+        value = self.scale_from_midi(value)
+        # logger.info(f'{self.param_spec.name}: {msg_msb=}, {msg_lsb=}, {value=}, {value_scaled=}')
+        logger.debug(f'setting {self.param_spec.name} to {value}')
+        await self.param_group.set_param_value(self.param_spec.name, value)
+
+    def message_valid(self, msg: mido.messages.BaseMessage) -> bool:
+        if msg.type != 'control_change':
+            return False
+        if msg.control != self.controller_lsb or msg.control != self.controller_msb:
+            return False
+        return msg.channel == self.channel
+
+    def build_message(self, value: NumOrBool) -> List[mido.Message]:
+        value = self.scale_to_midi(value)
+        msg_list = [
+            mido.Message(
+                'control_change',
+                channel=self.channel,
+                control=self.controller_msb,
+                value=value >> 7,
+            ),
+            mido.Message(
+                'control_change',
+                channel=self.channel,
+                control=self.controller_lsb,
+                value=value & 0x7f,
+            ),
+        ]
+        return msg_list
 
 class MappedNoteParam(MappedParameter):
     """:class:`MappedParameter` subclass that uses midi note messages
@@ -257,8 +398,8 @@ class MappedNoteParam(MappedParameter):
     """
     note = None
 
-    def __init__(self, mapped_device: MappedDevice, param_spec: BaseParameterSpec, param_name: str, **kwargs):
-        super().__init__(mapped_device, param_spec, param_name, **kwargs)
+    def __init__(self, mapped_device: MappedDevice, param_spec: BaseParameterSpec, map_obj: Map, **kwargs):
+        super().__init__(mapped_device, param_spec, map_obj, **kwargs)
         self.note = kwargs['note']
 
     async def _handle_incoming_message(self, msg: mido.Message):
@@ -301,8 +442,8 @@ class AdjustController(MappedController):
     and :meth:`~jvconnected.device.ExposureParams.decrease_gain` methods.
 
     """
-    def __init__(self, mapped_device: MappedDevice, param_spec: BaseParameterSpec, param_name: str, **kwargs):
-        super().__init__(mapped_device, param_spec, param_name, **kwargs)
+    def __init__(self, mapped_device: MappedDevice, param_spec: BaseParameterSpec, map_obj: Map, **kwargs):
+        super().__init__(mapped_device, param_spec, map_obj, **kwargs)
 
     async def _handle_incoming_message(self, msg: mido.Message):
         if msg.value >= 64:
@@ -330,6 +471,7 @@ class AdjustController(MappedController):
 
 CONTROLLER_CLS = {
     'controller':MappedController,
+    'controller/14':MappedController14Bit,
     'note':MappedNoteParam,
     'adjust_controller':AdjustController,
 }

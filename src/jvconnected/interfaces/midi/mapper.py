@@ -6,12 +6,33 @@ from dataclasses import dataclass
 
 @dataclass
 class Map:
+    """Stores information for mapping MIDI messages to
+    :class:`~jvconnected.interfaces.paramspec.ParameterGroupSpec` definitions
+    """
+
     name: str = ''
+    """The :attr:`~.paramspec.ParameterSpec.name` of the parameter within its
+    :class:`~.paramspec.ParameterGroupSpec`
+    """
+
     group_name: str = ''
+    """The :attr:`~.paramspec.ParameterGroupSpec.name` of the
+    :class:`paramspec.ParameterGroupSpec`
+    """
+
     full_name: str = ''
+    """Combination of :attr:`group_name` and :attr:`name`
+    """
 
     map_type: ClassVar[str] = ''
+
     index: int = -1
+    """The map index
+    """
+
+    is_14_bit: ClassVar[bool] = False
+    """True if the map uses 14 bit values
+    """
 
     def __post_init__(self):
         if not self.full_name:
@@ -27,25 +48,53 @@ class Map:
 
 @dataclass
 class ControllerMap(Map):
-    controller: int = 0
+    controller: int = 0 #: The Midi controller number for the mapping
     map_type: ClassVar[str] = 'controller'
 
 @dataclass
+class Controller14BitMap(ControllerMap):
+    map_type: ClassVar[str] = 'controller/14'
+    is_14_bit: ClassVar[bool] = True
+
+    def __post_init__(self):
+        super().__post_init__()
+        assert self.controller < 0x20
+
+    @property
+    def controller_msb(self) -> int:
+        """The controller index containing the most-significant 7 bits
+
+        This will always be equal to the :attr:`controller` value
+        """
+        return self.controller
+
+    @property
+    def controller_lsb(self) -> int:
+        """The controller index containing the least-significant 7 bits
+
+        Per the MIDI 1.0 specification, this will be :attr:`controller_msb` + 32
+        """
+        return self.controller + 32
+
+
+@dataclass
 class NoteMap(Map):
-    note: int = 0
+    note: int = 0 #: The Midi note number for the mapping
     map_type: ClassVar[str] = 'note'
 
 @dataclass
 class AdjustControllerMap(Map):
-    controller: int = 0
+    controller: int = 0 #: The Midi controller number for the mapping
     map_type: ClassVar[str] = 'adjust_controller'
 
-MAP_TYPES = {cls.map_type:cls for cls in [ControllerMap, NoteMap, AdjustControllerMap]}
+MAP_TYPES = {cls.map_type:cls for cls in [
+        ControllerMap, Controller14BitMap, NoteMap, AdjustControllerMap,
+]}
 
 MapOrDict = Union[Map, Dict]
 
 DEFAULT_MAPPING = (
-    ControllerMap(group_name='exposure', name='iris_pos', controller=0),
+    Controller14BitMap(group_name='exposure', name='iris_pos', controller=0),
     AdjustControllerMap(group_name='exposure', name='master_black_pos', controller=1),
     AdjustControllerMap(group_name='exposure', name='gain_pos', controller=2),
     ControllerMap(group_name='paint', name='red_normalized', controller=3),
