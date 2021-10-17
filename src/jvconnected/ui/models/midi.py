@@ -167,7 +167,7 @@ class MidiPortsModel(GenericQObject):
         if state is not port.isActive:
             port.isActive = state
             self.portsUpdated.emit()
-        logger.debug(f'{self}.port_state: {io_type=}, {name=}, {state=}, port = {port!r}')
+        logger.debug(f'{self}.port_state: io_type={io_type}, name={name}, state={state}, port = {port!r}')
 
     @asyncSlot(str, bool)
     async def setPortActive(self, name: str, value: bool):
