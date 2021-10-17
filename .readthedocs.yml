@@ -6,3 +6,6 @@ python:
     - requirements: requirements-dev.txt
     - method: setuptools
       path: .
+      extra_requirements:
+        - midi
+        - ui
