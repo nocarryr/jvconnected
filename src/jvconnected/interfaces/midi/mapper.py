@@ -1,6 +1,8 @@
 from loguru import logger
 
-from typing import Any, Union, Dict, Sequence, Optional, ClassVar
+from typing import (
+    Any, Union, Dict, Sequence, Optional, ClassVar, Iterator, Tuple,
+)
 import dataclasses
 from dataclasses import dataclass
 
@@ -17,17 +19,24 @@ class Map:
 
     group_name: str = ''
     """The :attr:`~.paramspec.ParameterGroupSpec.name` of the
-    :class:`paramspec.ParameterGroupSpec`
+    :class:`~.paramspec.ParameterGroupSpec`
     """
 
     full_name: str = ''
-    """Combination of :attr:`group_name` and :attr:`name`
+    """Combination of :attr:`group_name` and :attr:`name`, separated by a "."
+
+    ``"{group_name}.{name}"``
     """
 
     map_type: ClassVar[str] = ''
+    """A unique name to identify subclasses
+    """
 
     index: int = -1
     """The map index
+
+    If not set (or ``-1``), this will be assigned by :class:`MidiMapper` when
+    the instance is added to it
     """
 
     is_14_bit: ClassVar[bool] = False
@@ -45,6 +54,18 @@ class Map:
                 self.name = name
             assert self.group_name == group_name
             assert self.name == name
+
+    @classmethod
+    def get_class_for_map_type(cls, map_type: str) -> 'Map':
+        def iter_subcls(_cls):
+            if _cls is not Map:
+                yield _cls
+            for subcls in _cls.__subclasses__():
+                yield from iter_subcls(subcls)
+        for _cls in iter_subcls(Map):
+            if _cls.map_type == map_type:
+                return _cls
+        raise ValueError(f'No subclass found with map_type "{map_type}"')
 
 @dataclass
 class ControllerMap(Map):
@@ -87,13 +108,10 @@ class AdjustControllerMap(Map):
     controller: int = 0 #: The Midi controller number for the mapping
     map_type: ClassVar[str] = 'adjust_controller'
 
-MAP_TYPES = {cls.map_type:cls for cls in [
-        ControllerMap, Controller14BitMap, NoteMap, AdjustControllerMap,
-]}
 
 MapOrDict = Union[Map, Dict]
 
-DEFAULT_MAPPING = (
+DEFAULT_MAPPING: Sequence[Map] = (
     Controller14BitMap(group_name='exposure', name='iris_pos', controller=0),
     AdjustControllerMap(group_name='exposure', name='master_black_pos', controller=1),
     AdjustControllerMap(group_name='exposure', name='gain_pos', controller=2),
@@ -103,9 +121,124 @@ DEFAULT_MAPPING = (
     NoteMap(group_name='tally', name='preview', note=126),
     NoteMap(group_name='tally', name='program', note=127),
 )
+"""Default Midi mapping
+
+The mapping uses the following layout for each camera index (where the channels
+will become the camera index)
+
+.. csv-table::
+    :header: "Index", "Parameter", "Type", "Controller/Note"
+    :widths: auto
+
+    0, "Iris", :class:`Controller14BitMap`, "0 (MSB), 32 (LSB)"
+    1, "Master Black", :class:`AdjustControllerMap`, 1
+    2, "Gain", :class:`AdjustControllerMap`, 2
+    3, "Red Paint", :class:`ControllerMap`, 3
+    4, "Blue Paint", :class:`ControllerMap`, 4
+    5, "Detail", :class:`AdjustControllerMap`, 5
+    6, "PGM Tally", :class:`NoteMap`, 126
+    7, "PVW Tally", :class:`NoteMap`, 127
+
+"""
 
 class MidiMapper:
     """Container for MIDI mapping definitions
+
+    Arguments:
+        maps: If given, a sequence of either :class:`Map` instances or
+            :class:`dicts <dict>` to pass to the :meth:`add_map` method. If not
+            provided, the :data:`DEFAULT_MAPPING` will be used.
+
+    The maps can be accessed by their :attr:`~Map.full_name` using :class:`dict`
+    methods.
+
+    >>> from jvconnected.interfaces.midi.mapper import MidiMapper, ControllerMap, NoteMap
+    >>> mapper = MidiMapper()
+    >>> gain = mapper['exposure.gain_pos']
+    >>> print(gain)
+    AdjustControllerMap(name='gain_pos', group_name='exposure', full_name='exposure.gain_pos', index=2, controller=2)
+    >>> mapper.get('exposure.gain_pos')
+    AdjustControllerMap(name='gain_pos', group_name='exposure', full_name='exposure.gain_pos', index=2, controller=2)
+    >>> 'exposure.gain_pos' in mapper
+    True
+
+    When iterating over the mapper, either directly or through the :meth:`keys`,
+    :meth:`values` or :meth:`items` methods, the results will be sorted by their
+    :attr:`~Map.group_name` then their :attr:`~Map.name` attributes
+
+    >>> [key for key in mapper] #doctest: +NORMALIZE_WHITESPACE
+    ['exposure.gain_pos',
+     'exposure.iris_pos',
+     'exposure.master_black_pos',
+     'paint.blue_normalized',
+     'paint.detail_pos',
+     'paint.red_normalized',
+     'tally.preview',
+     'tally.program']
+    >>> [map_obj.full_name for map_obj in mapper.values()] #doctest: +NORMALIZE_WHITESPACE
+    ['exposure.gain_pos',
+     'exposure.iris_pos',
+     'exposure.master_black_pos',
+     'paint.blue_normalized',
+     'paint.detail_pos',
+     'paint.red_normalized',
+     'tally.preview',
+     'tally.program']
+
+    Maps can also be sorted by their :attr:`indices <Map.index>` using the
+    :meth:`iter_indexed` method
+
+    >>> [map_obj.full_name for map_obj in mapper.iter_indexed()] #doctest: +NORMALIZE_WHITESPACE
+    ['exposure.iris_pos',
+     'exposure.master_black_pos',
+     'exposure.gain_pos',
+     'paint.red_normalized',
+     'paint.blue_normalized',
+     'paint.detail_pos',
+     'tally.preview',
+     'tally.program']
+    >>> [map_obj.index for map_obj in mapper.values()]
+    [2, 0, 1, 4, 5, 3, 6, 7]
+
+    By default, MidiMapper will use a set of :data:`predefined maps <DEFAULT_MAPPING>`
+    when initialized. This can be overridden by passing a sequence of map definitions
+    (or an empty one) when creating it
+
+    >>> mapper = MidiMapper([])
+    >>> len(mapper)
+    0
+
+    Then use :meth:`add_map` to create maps using a :class:`dict`
+
+    >>> pgm_tally = mapper.add_map(dict(map_type='note', full_name='tally.program', note=127))
+    >>> mapper['tally.program']
+    NoteMap(name='program', group_name='tally', full_name='tally.program', index=0, note=127)
+
+    Or existing :class:`Map` instances
+
+    >>> pvw_tally = NoteMap(group_name='tally', name='preview', note=126)
+    >>> pvw_tally
+    NoteMap(name='preview', group_name='tally', full_name='tally.preview', index=-1, note=126)
+    >>> mapper.add_map(pvw_tally) #doctest: +IGNORE_RESULT
+    >>> mapper['tally.preview']
+    NoteMap(name='preview', group_name='tally', full_name='tally.preview', index=1, note=126)
+    >>> mapper['tally.preview'] is pvw_tally
+    True
+
+    """
+
+    map: Dict[str, Map]
+    """The :class:`Map` definitions stored using their :attr:`~Map.full_name`
+    as keys
+    """
+
+    map_grouped: Dict[str, Dict[str, Map]]
+    """The :class:`Map` definitions stored as nested dicts by :attr:`~Map.group_name`
+    and :attr:`~Map.name`
+    """
+
+    map_by_index: Dict[int, Map]
+    """The :class:`Map` definitions stored using their :attr:`~Map.index` as keys
     """
     def __init__(self, maps: Optional[Sequence[MapOrDict]] = None):
         self.map = {}
@@ -116,32 +249,39 @@ class MidiMapper:
         for map_obj in maps:
             self.add_map(map_obj)
 
-    def add_map(self, map_obj: Union[Map, Dict]) -> Map:
+    def add_map(self, map_obj: MapOrDict) -> Map:
+        """Add or create a :class:`Map` definition
+
+        * If the given argument is a :class:`dict`, it must contain a value for
+          "map_type" as described in the :meth:`create_map` method,
+          with the remaining items passed as keyword arguments.
+        * If the given argument is a :class:`Map` instance, it is added using
+          :meth:`add_map_obj`.
+
+        """
         if isinstance(map_obj, dict):
             map_type = map_obj.pop('map_type')
-            full_name = map_obj.pop('full_name')
-            map_obj = self.create_map(map_type, full_name, **map_obj)
+            map_obj = self.create_map(map_type, **map_obj)
         self.add_map_obj(map_obj)
         return map_obj
 
-    def create_map(self, map_type: str, full_name: str, **kwargs) -> Map:
+    def create_map(self, map_type: str, **kwargs) -> Map:
         """Create a :class:`Map` with the given arguments and add it
 
         Arguments:
-            map_type (str): The map type to add
-            full_name (str):
+            map_type (str): The :attr:`~Map.map_type` of the :class:`Map`
+                subclass to create
+            **kwargs: Keyword arguments used to create the instance
 
         """
-        cls = MAP_TYPES[map_type]
+        cls = Map.get_class_for_map_type(map_type)
         kw = kwargs.copy()
-        # _ = kwargs.pop('name', None)
-        # _ = kwargs.pop('group_name', None)
-        kw['full_name'] = full_name
         obj = cls(**kw)
-        self.add_map_obj(obj)
         return obj
 
     def add_map_obj(self, map_obj: Map):
+        """Add an existing :class:`Map` instance
+        """
         if map_obj.index == -1 or map_obj.index in self.map_by_index:
             if not len(self):
                 map_obj.index = 0
@@ -154,26 +294,41 @@ class MidiMapper:
         self.map_grouped[map_obj.group_name][map_obj.name] = map_obj
 
     def get(self, full_name: str) -> Optional[Map]:
+        """Get the :class:`Map` instance matching the given :attr:`~Map.full_name`
+
+        If not found, ``None`` is returned
+        """
         return self.map.get(full_name)
 
     def __getitem__(self, full_name: str) -> Map:
         return self.map[full_name]
 
-    def keys(self):
+    def keys(self) -> Iterator[str]:
+        """Iterate over all the :attr:`~Map.full_name` of all stored instances
+
+        This will be sorted first by :attr:`~Map.group_name`, then by
+        :attr:`~Map.name`
+        """
         for grp_key in sorted(self.map_grouped.keys()):
             d = self.map_grouped[grp_key]
             for key in sorted(d.keys()):
                 yield d[key].full_name
 
-    def values(self):
+    def values(self) -> Iterator[Map]:
+        """Iterate over all stored instances, sorted as described in :meth:`keys`
+        """
         for key in self:
             yield self[key]
 
-    def items(self):
+    def items(self) -> Iterator[Tuple[str, Map]]:
+        """Iterate over pairs of :meth:`keys` and :meth:`values`
+        """
         for key in self:
             yield key, self[key]
 
-    def iter_indexed(self):
+    def iter_indexed(self) -> Iterator[Map]:
+        """Iterate over all stored instances, sorted by their :attr:`~Map.index`
+        """
         for ix in sorted(self.map_by_index.keys()):
             yield self.map_by_index[ix]
 

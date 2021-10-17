@@ -98,14 +98,14 @@ class MappedParameter(Dispatcher):
     :class:`jvconnected.device.ParameterGroup`
 
     Attributes:
-        mapped_device (MappedDevice): The parent :class:`MappedDevice` instance
-        param_group (ParameterGroupSpec): The :class:`~jvconnected.interfaces.paramspec.ParameterGroupSpec`
+        mapped_device (:class:`MappedDevice`): The parent :class:`MappedDevice` instance
+        param_group (ParameterGroupSpec): The :class:`~.paramspec.ParameterGroupSpec`
             definition that describes the parameter
         map_obj (:class:`.mapper.Map`): The midi mapping definition
-        name (str): Unique name of the parameter as defined by
-            :attr:`jvconnected.interfaces.paramspec.ParameterSpec.full_name`
-        param_spec: The :class:`~jvconnected.interfaces.paramspec.ParameterSpec`
-            instance within the :attr:`param_group`
+        name (str): Unique name of the parameter as defined by the
+            :attr:`~.mapper.Map.full_name` of the :attr:`map_obj`
+        param_spec: The :class:`~.paramspec.ParameterSpec` instance within the
+            :attr:`param_group`
         channel (int): The midi channel to use, typically gathered from :attr:`mapped_device`
 
     """
@@ -436,7 +436,7 @@ class AdjustController(MappedController):
     The use case for this would be for parameters that lack a direct setter method,
     but instead rely on adjustment methods.
 
-    An example would be the :attr:`~jvconnected.device.ExposureParams.gain`
+    An example would be the :attr:`~jvconnected.device.ExposureParams.gain_pos`
     attribute of :class:`jvconnected.device.ExposureParams` where the value can
     only be changed using the :meth:`~jvconnected.device.ExposureParams.increase_gain`
     and :meth:`~jvconnected.device.ExposureParams.decrease_gain` methods.
