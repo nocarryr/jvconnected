@@ -60,6 +60,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
     'sphinx.ext.doctest',
+    'doctest_ignore_output',
     'propertyobj',
     'builtinproperty',
     'eventobj',
