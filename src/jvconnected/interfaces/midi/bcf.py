@@ -4,74 +4,32 @@ from loguru import logger
 
 import argparse
 import asyncio
-from typing import List, Sequence, ByteString, ClassVar, Tuple, Dict, Optional
+from typing import (
+    List, Sequence, ByteString, ClassVar, Tuple, Dict, Optional, Union,
+)
 
 import mido
 
-from jvconnected.interfaces.midi import aioport
 from jvconnected.interfaces.midi import bcf_sysex
+from jvconnected.interfaces.midi.bcf_sysex import Preset, BCLBlock
 from jvconnected.interfaces.midi.mapper import MidiMapper, Map
 
-class BCLBlock(bcf_sysex.BCLBlock):
-    @logger.catch
-    async def send(self, inport: aioport.InputPort, outport: aioport.OutputPort):
-        async def get_response():
-            while True:
-                msg = await inport.receive(1)
-                if msg is None:
-                    raise asyncio.TimeoutError
-                if msg.type != 'sysex':
-                    inport.task_done()
-                    continue
-                resp = bcf_sysex.BCLReply.from_sysex_message(msg)
-                inport.task_done()
-                return resp
-        items = self.build_sysex_items()
-        for item in items:
-            logger.debug(f'tx {item.message_index}: "{item.bcl_text}"')
-            await outport.send(item.build_sysex_message())
-            resp = await get_response()
-            # logger.info(f'rx {resp.message_index}: {resp}')
-            resp.raise_on_error()
-            assert resp.message_index == item.message_index
 
-    def print_output(self):
-        items = self.build_sysex_items()
-        for item in items:
-            print(item.bcl_text)
+def build_preset(mapper: Optional[MidiMapper] = None) -> Preset:
+    """Build a :class:`~.bcf_sysex.Preset` from the definitions in the given
+    :class:`~.mapper.MidiMapper`
 
-    async def send_to_port_name(self, name: str):
-        if name == '__stdout__':
-            self.print_output()
-            return
-        ioport = aioport.IOPort(name)
-        await ioport.open()
-        try:
-            await self.send(ioport.inport, ioport.outport)
-        finally:
-            await ioport.close()
+    Each of the :class:`~.mapper.Map` definitions will be assigned as encoders
+    within an encoder group on the BCF. Since there are four encoder groups,
+    this allows for control of up to four cameras, using the
+    :attr:`midi channel <.bcf_sysex.ControlBase.channel>` to match the
+    :attr:`~jvconnected.device.Device.device_index` of the camera(s).
 
-class Preset(bcf_sysex.Preset):
-    def build_bcl_block(self) -> BCLBlock:
-        lines = self.build_bcl_lines()
-        return BCLBlock(text_lines=lines)
+    In addition, the map definition for "exposure.iris_pos" will be assigned to
+    the first four faders. This allows iris control of four cameras from the
+    faders.
 
-    def build_store_block(self, preset_num: int) -> BCLBlock:
-        lines = [f'$store {preset_num}']
-        return BCLBlock(text_lines=lines)
-
-    # async def send_block(self, blk: BCLBlock, port_name: str):
-
-
-    async def send(self, inport: aioport.InputPort, outport: aioport.OutputPort):
-        blk = self.build_bcl_block()
-        await blk.send(inport, outport)
-
-    async def send_to_port_name(self, name: str):
-        blk = self.build_bcl_block()
-        await blk.send_to_port_name(name)
-
-def build_preset(mapper: Optional[MidiMapper] = None):
+    """
     def build_control(pst, map_obj: Map, control_ix, cam_ix, **kwargs):
         enc_ix = cam_ix * 8 + control_ix
         btn_ix = cam_ix * 16 + control_ix
@@ -114,7 +72,7 @@ def build_preset(mapper: Optional[MidiMapper] = None):
     # tally_pvw = DEFAULT_MAPPING['tally']['preview']
     for cam_ix in range(4):
 
-        # Iris mapped to faders 1-8
+        # Iris mapped to faders 1-4
         pst.add_fader(
             index=cam_ix+1, channel=cam_ix,
             number=iris_map.controller, mode='absolute/14',
@@ -146,21 +104,6 @@ def build_preset(mapper: Optional[MidiMapper] = None):
                 control_ix += 1
     return pst
 
-@logger.catch
-def send_preset(port_name):
-    pst = build_preset()
-    asyncio.run(pst.send_to_port_name(port_name))
-
-@logger.catch
-def store_preset(port_name, preset_num):
-    async def _do_it(pst):
-        await pst.send_to_port_name(port_name)
-
-        blk = pst.build_store_block(preset_num)
-        await blk.send_to_port_name(port_name)
-
-    pst = build_preset()
-    asyncio.run(_do_it(pst))
 
 def main():
     p = argparse.ArgumentParser()
@@ -182,13 +125,23 @@ def main():
         else:
             raise Exception(f'Could not find suitable port from "{all_io_ports}"')
     logger.info(f'Sending to {args.port_name}...')
-    if args.store:
-        store_preset(args.port_name, args.num)
-        logger.info(f'Saved preset {args.num}')
+    pst = build_preset()
+    if args.stdout:
+        def print_output(obj: Union[BCLBlock, Preset]):
+            if isinstance(obj, Preset):
+                obj = obj.build_bcl_block()
+            for item in obj.build_sysex_items():
+                print(item.bcl_text)
+        print_output(pst)
+        if args.store:
+            blk = pst.build_store_block(args.num)
+            print_output(blk)
     else:
-        logger.success
-        send_preset(args.port_name)
-    logger.success(f'Preset sent to {args.port_name}')
+        asyncio.run(pst.send_to_port_name(args.port_name, args.store, args.num))
+        log_msg = f'Preset sent to {args.port_name}'
+        if args.store:
+            log_msg = f'{log_msg} and store as preset {args.num}'
+        logger.success(log_msg)
 
 if __name__ == '__main__':
     main()
