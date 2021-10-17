@@ -72,7 +72,7 @@ class BasePort(Dispatcher):
         # if port is not None:
         #     self.name = self.port.name
         logger.debug(f'{self}.port: {self.port}')
-        logger.success(f'{self} running')
+        logger.success(f'{self!r} running')
         return True
 
     async def close(self):
@@ -83,7 +83,7 @@ class BasePort(Dispatcher):
         self.running = False
         await self._close_port()
         self.stopped.set()
-        logger.success(f'{self} closed')
+        logger.success(f'{self!r} closed')
         return True
 
     async def __aenter__(self):
@@ -100,7 +100,7 @@ class BasePort(Dispatcher):
         raise NotImplementedError
 
     def __repr__(self):
-        return f'<{self.__class__}: "{self}">'
+        return f'<{self.__class__.__name__}: "{self}">'
 
     def __str__(self):
         return self.name
