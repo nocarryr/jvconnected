@@ -348,7 +348,7 @@ class MappedController14Bit(MappedController):
                 msg_msb = msg
         if msg_msb is None:
             if msg_lsb is not None:
-                logger.warning(f'No MSB message found: {msg_lsb=}')
+                logger.warning(f'No MSB message found: msg_lsb={msg_lsb}')
             return
         value = msg_msb.value << 7
         if msg_lsb is not None:
