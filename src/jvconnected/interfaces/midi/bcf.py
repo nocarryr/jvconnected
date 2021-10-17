@@ -40,6 +40,7 @@ def build_preset(mapper: Optional[MidiMapper] = None) -> Preset:
             enc = pst.add_encoder(
                 index=enc_ix, channel=cam_ix, mode=encoder_disp_mode,
                 number=map_obj.controller, encoder_mode=enc_mode,
+                value_default=0,
             )
         elif map_obj.map_type == 'adjust_controller':
             # tx = mido.Message('control_change', control=spec['controller'], value=0)
@@ -76,6 +77,7 @@ def build_preset(mapper: Optional[MidiMapper] = None) -> Preset:
         pst.add_fader(
             index=cam_ix+1, channel=cam_ix,
             number=iris_map.controller, mode='absolute/14',
+            value_default=0
         )
 
         # Program tally on top button row, Preview on bottom
