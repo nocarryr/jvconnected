@@ -64,7 +64,10 @@ class MappedDevice(Dispatcher):
         coros = set()
         for mapped_param in self.mapped_params.values():
             coros.add(mapped_param.handle_incoming_messages(msgs))
-        await asyncio.gather(*coros)
+        try:
+            await asyncio.gather(*coros)
+        except Exception as exc:
+            logger.exception(exc)
 
     @logger.catch
     async def send_all_parameters(self):
