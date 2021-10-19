@@ -42,17 +42,18 @@ class MappedDevice(Dispatcher):
         for cls in ParameterGroupSpec.all_parameter_group_cls():
             pg = cls(device=device)
             self.param_specs[pg.name] = pg
-            for param_spec in pg.parameter_list:
-                if param_spec.full_name in self.mapper:
-                    m = self.mapper[param_spec.full_name]
-                    mp_cls = CONTROLLER_CLS[m.map_type]
-                    kw = {}
-                    if mp_cls is MappedNoteParam:
-                        kw['note'] = m.note
-                    else:
-                        kw['controller'] = m.controller
-                    mapped_param = mp_cls(self, param_spec, m, **kw)
-                    self.mapped_params[mapped_param.name] = mapped_param
+            for m in mapper.values():
+                if m.group_name != pg.name:
+                    continue
+                param_spec = pg.parameters[m.name]
+                mp_cls = CONTROLLER_CLS[m.map_type]
+                kw = {}
+                if mp_cls is MappedNoteParam:
+                    kw['note'] = m.note
+                else:
+                    kw['controller'] = m.controller
+                mapped_param = mp_cls(self, param_spec, m, **kw)
+                self.mapped_params[mapped_param.name] = mapped_param
 
 
     async def handle_incoming_messages(self, msgs: Iterable[mido.Message]):
@@ -317,6 +318,29 @@ class MappedController(MappedParameter):
         kw['value'] = self.scale_to_midi(value)
         return kw
 
+class MappedAliasController(MappedController):
+    def __init__(self, mapped_device: MappedDevice, param_spec: BaseParameterSpec, map_obj: Map, **kwargs):
+        super().__init__(mapped_device, param_spec, map_obj, **kwargs)
+        self.name = self.map_obj.full_name
+        loop = mapped_device.loop
+        self.param_spec.unbind(self)
+        self.param_spec.bind_async(
+            loop,
+            **{self.property_name:self.on_param_spec_value_changed}
+        )
+
+    @property
+    def property_name(self) -> str:
+        return self.map_obj.property_name
+
+    def get_current_value(self):
+        return getattr(self.param_spec, self.property_name)
+
+    async def _handle_incoming_message(self, msg: mido.Message):
+        value = self.scale_from_midi(msg.value)
+        logger.debug(f'setting {self.property_name} to {value} (msg.value={msg.value}), value_range={self.value_range}')
+        setattr(self.param_spec, self.property_name, value)
+
 class MappedController14Bit(MappedController):
     """A :class:`MappedController` using 14-bit Midi values
     """
@@ -477,4 +501,5 @@ CONTROLLER_CLS = {
     'controller/14':MappedController14Bit,
     'note':MappedNoteParam,
     'adjust_controller':AdjustController,
+    'alias_controller':MappedAliasController,
 }

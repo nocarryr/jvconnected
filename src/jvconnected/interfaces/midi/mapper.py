@@ -28,6 +28,8 @@ class Map:
     ``"{group_name}.{name}"``
     """
 
+    encoder_disp_mode: str = 'bar'
+
     map_type: ClassVar[str] = ''
     """A unique name to identify subclasses
     """
@@ -99,6 +101,30 @@ class Controller14BitMap(ControllerMap):
 
 
 @dataclass
+class AliasControllerMap(Map):
+    alias_name: str = ''
+    controller: int = 0
+    property_name: str = ''
+    map_type: ClassVar[str] = 'alias_controller'
+    def __post_init__(self):
+        if not self.full_name:
+            self.full_name = '.'.join([self.group_name, self.name, self.property_name])
+        else:
+            group_name, name, property_name = self.full_name.split('.')
+            if not self.group_name:
+                self.group_name = group_name
+            if not self.name:
+                self.name = name
+            if not self.property_name:
+                self.property_name = property_name
+            assert self.group_name == group_name
+            assert self.name == name
+            assert self.property_name == property_name
+        if not self.alias_name:
+            self.alias_name = '.'.join([self.group_name, self.name])
+
+
+@dataclass
 class NoteMap(Map):
     note: int = 0 #: The Midi note number for the mapping
     map_type: ClassVar[str] = 'note'
@@ -112,12 +138,22 @@ class AdjustControllerMap(Map):
 MapOrDict = Union[Map, Dict]
 
 DEFAULT_MAPPING: Sequence[Map] = (
-    Controller14BitMap(group_name='exposure', name='iris_pos', controller=0),
-    AdjustControllerMap(group_name='exposure', name='master_black_pos', controller=1),
+    Controller14BitMap(group_name='exposure', name='iris_scaled', controller=0),
+    AdjustControllerMap(group_name='exposure', name='master_black_pos', controller=1, encoder_disp_mode='pan'),
     AdjustControllerMap(group_name='exposure', name='gain_pos', controller=2),
-    ControllerMap(group_name='paint', name='red_normalized', controller=3),
-    ControllerMap(group_name='paint', name='blue_normalized', controller=4),
-    AdjustControllerMap(group_name='paint', name='detail_pos', controller=5),
+    ControllerMap(group_name='paint', name='red_normalized', controller=3, encoder_disp_mode='pan'),
+    ControllerMap(group_name='paint', name='blue_normalized', controller=4, encoder_disp_mode='pan'),
+    AdjustControllerMap(group_name='paint', name='detail_pos', controller=5, encoder_disp_mode='pan'),
+    AliasControllerMap(
+        full_name='exposure.iris_scaled.value_min_adj',
+        controller=6,
+        encoder_disp_mode='bar',
+    ),
+    AliasControllerMap(
+        full_name='exposure.iris_scaled.value_max_adj',
+        controller=7,
+        encoder_disp_mode='cut',
+    ),
     NoteMap(group_name='tally', name='preview', note=126),
     NoteMap(group_name='tally', name='program', note=127),
 )
@@ -291,7 +327,11 @@ class MidiMapper:
         self.map_by_index[map_obj.index] = map_obj
         if map_obj.group_name not in self.map_grouped:
             self.map_grouped[map_obj.group_name] = {}
-        self.map_grouped[map_obj.group_name][map_obj.name] = map_obj
+        if isinstance(map_obj, AliasControllerMap):
+            name = '.'.join(map_obj.full_name.split('.')[1:])
+        else:
+            name = map_obj.name
+        self.map_grouped[map_obj.group_name][name] = map_obj
 
     def get(self, full_name: str) -> Optional[Map]:
         """Get the :class:`Map` instance matching the given :attr:`~Map.full_name`

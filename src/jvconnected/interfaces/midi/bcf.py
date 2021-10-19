@@ -33,22 +33,27 @@ def build_preset(mapper: Optional[MidiMapper] = None) -> Preset:
     def build_control(pst, map_obj: Map, control_ix, cam_ix, **kwargs):
         enc_ix = cam_ix * 8 + control_ix
         btn_ix = cam_ix * 16 + control_ix
-        encoder_disp_mode = kwargs.get('encoder_disp_mode', '1dot')
+        # encoder_disp_mode = kwargs.get('encoder_disp_mode', '1dot')
+        if map_obj.encoder_disp_mode == 'cut':
+            value_default=127
+        else:
+            value_default = None
 
         if map_obj.map_type.startswith('controller'):
             enc_mode = ''.join(['absolute', map_obj.map_type.lstrip('controller')])
             enc = pst.add_encoder(
-                index=enc_ix, channel=cam_ix, mode=encoder_disp_mode,
+                index=enc_ix, channel=cam_ix, mode=map_obj.encoder_disp_mode,
                 number=map_obj.controller, encoder_mode=enc_mode,
-                value_default=0,
+                value_default=value_default,
             )
         elif map_obj.map_type == 'adjust_controller':
             # tx = mido.Message('control_change', control=spec['controller'], value=0)
             # tx_str = ''.join([f'${b:X}' for b in tx.bytes()[:2]])
             # tx_str = f'{tx_str} ifp $7f ifn $00'
             pst.add_encoder(
-                index=enc_ix, channel=cam_ix, mode=encoder_disp_mode,
+                index=enc_ix, channel=cam_ix, mode=map_obj.encoder_disp_mode,
                 number=map_obj.controller, encoder_mode='relative-2',
+                value_default=value_default,
             )
             # pst.add_button(
             #     index=btn_ix, channel=cam_ix,
@@ -59,13 +64,19 @@ def build_preset(mapper: Optional[MidiMapper] = None) -> Preset:
             #     index=btn_ix, channel=cam_ix,
             #     number=spec['decrement_note'], message_type='note',
             # )
+        elif map_obj.map_type == 'alias_controller':
+            pst.add_encoder(
+                index=enc_ix, channel=cam_ix, mode=map_obj.encoder_disp_mode,
+                number=map_obj.controller, encoder_mode='absolute',
+                value_default=value_default,
+            )
         else:
             print(f'no control built: control_ix={control_ix}, map_obj={map_obj}')
 
     if mapper is None:
         mapper = MidiMapper()
     pst = Preset(name='foo')
-    iris_map = mapper['exposure.iris_pos']
+    iris_map = mapper['exposure.iris_scaled']
     tally_pgm = mapper['tally.program']
     tally_pvw = mapper['tally.preview']
     # iris_map = DEFAULT_MAPPING['exposure']['iris_pos']
@@ -98,10 +109,10 @@ def build_preset(mapper: Optional[MidiMapper] = None) -> Preset:
             # for spkey, spec in grp.items():
             if True:
                 kw = {}
-                if map_obj.name in ['red_normalized', 'blue_normalized', 'master_black_pos', 'detail_pos']:
-                    kw['encoder_disp_mode'] = 'pan'
-                else:
-                    kw['encoder_disp_mode'] = 'bar'
+                # if map_obj.name in ['red_normalized', 'blue_normalized', 'master_black_pos', 'detail_pos']:
+                #     kw['encoder_disp_mode'] = 'pan'
+                # elif map_obj.map_type != 'multi_controller':
+                #     kw['encoder_disp_mode'] = 'bar'
                 build_control(pst, map_obj, control_ix, cam_ix, **kw)
                 control_ix += 1
     return pst

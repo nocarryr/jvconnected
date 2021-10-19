@@ -34,6 +34,9 @@ ParameterSpec
 .. autoclass:: ParameterSpec
     :members:
 
+.. autoclass:: ParameterRangeMap
+    :members:
+
 .. autoclass:: MultiParameterSpec
     :members:
 

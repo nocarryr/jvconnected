@@ -1,4 +1,6 @@
-from typing import List, Dict, Any, ClassVar, Iterator, Optional
+from loguru import logger
+
+from typing import List, Tuple, Dict, Any, ClassVar, Iterator, Optional
 from dataclasses import dataclass, field
 
 from pydispatch import Dispatcher, Property, ListProperty
@@ -250,6 +252,301 @@ class ParameterSpec(BaseParameterSpec):
         else:
             raise ValueError(f'No setter method for {self}')
 
+
+class PropertyGuard:
+    class GuardContext:
+        def __init__(self, parent: 'PropertyGuard', prop: str):
+            self.parent = parent
+            self.prop = prop
+        def __enter__(self):
+            self.parent._acquire(self.prop)
+            return self
+        def __exit__(self, *args):
+            self.parent._release(self.prop)
+
+    def __init__(self):
+        self.__props = {}
+    def is_acquired(self, prop: str) -> bool:
+        n = self.__props.get(prop, 0)
+        return n > 0
+    def _acquire(self, prop: str):
+        if prop not in self.__props:
+            self.__props[prop] = 1
+        else:
+            self.__props[prop] += 1
+    def _release(self, prop: str):
+        self.__props[prop] -= 1
+    def __call__(self, prop: str):
+        return self.GuardContext(self, prop)
+
+class ParameterRangeMap(BaseParameterSpec):
+    """Remaps the value range of another :class:`ParameterSpec`
+
+    This can be useful to scale the range of a parameter such as iris position
+    to within a usable range. Typically one doesn't need to close the iris
+    down past a certain value. Instead, a wider range of motion on a physical
+    control (say, a fader) is desired for smoother operation.
+
+    The affected parameter is specified by its :attr:`~BaseParameterSpec.name`
+    and therefore the :attr:`~BaseParameterSpec.group_name` must match.
+
+    This is only possible with parameters using :class:`IntValue` as their
+    :attr:`~ParameterSpec.value_type` since it uses the :attr:`~IntValue.value_min`
+    and :attr:`~IntValue.value_max` for scaling.
+
+    The :attr:`value_min_adj` and :attr:`value_max_adj` properties are then used
+    to set the desired range and the :attr:`value` property reflects the scaled
+    parameter value.
+
+
+    :Properties:
+
+        value (int): The current value of the parameter, scaled to be within
+            the effective range
+        value_min_adj (int): The remapped minimum value
+        value_max_adj (int): The remapped maximum value
+
+    """
+
+    parameter_name: str
+    """The :attr:`~BaseParameterSpec.name` of the affected parameter within
+    this instance's group
+    """
+
+    value = Property()
+    value_min_adj = Property(0)
+    value_max_adj = Property(0)
+
+    _doc_field_names: ClassVar[List[str]] = [
+        'full_name', 'parameter_name', 'value_min_adj', 'value_max_adj',
+    ]
+
+    def __init__(self, **kwargs):
+        self._parameter = None
+        self.__reset_guard = PropertyGuard()
+        super().__init__(**kwargs)
+        self.parameter_name = kwargs.get('parameter_name')
+
+    @property
+    def parameter(self) -> Optional[ParameterSpec]:
+        p = self._parameter
+        if p is None:
+            p = self._parameter = self._find_parameter_obj()
+            if p is not None:
+                self._bind_to_parameter(p)
+        return p
+    @parameter.setter
+    def parameter(self, p: ParameterSpec):
+        assert isinstance(p, ParameterSpec)
+        if p is self._parameter:
+            return
+        self._validate_parameter_obj(p)
+        self._parameter = p
+        self._bind_to_parameter(p)
+
+    def get_parameter_obj(self):
+        if self._parameter is not None:
+            return
+        p = self._find_parameter_obj()
+        if p is not None:
+            self.parameter = p
+
+    def _find_parameter_obj(self) -> Optional[ParameterSpec]:
+        pgs = self.param_group_spec
+        if pgs is None:
+            return None
+        p = pgs.parameters.get(self.parameter_name)
+        if p is not None:
+            self._validate_parameter_obj(p)
+        return p
+
+    def _validate_parameter_obj(self, p: ParameterSpec):
+        if p.group_name != self.group_name:
+            raise ValueError(f'Group name mismatch for {self.full_name} and parameter {p.full_name}')
+        if p.name != self.parameter_name:
+            raise ValueError(f'Parameter name mismatch for {self.full_name} and parameter {p.full_name}')
+        if not isinstance(p.value_type, IntValue):
+            raise ValueError(f'{self.__class__.__name__} "{self.full_name}" parameter type mismatch ({p.full_name} = {p.value_type!r})')
+
+    @property
+    def value_type(self):
+        return self.parameter.value_type
+
+    @property
+    def parameter_range(self) -> Optional[Tuple[int, int]]:
+        p = self.parameter
+        if p is None:
+            return None, None
+        return p.value_type.value_min, p.value_type.value_max
+
+    @property
+    def effective_range(self) -> Tuple[int, int]:
+        # pmin, pmax = self.parameter_range
+        # return pmin + self.value_min_adj, pmax - self.value_max_adj
+        return self.value_min_adj, self.value_max_adj
+
+    def _build_copy_kwargs(self) -> Dict:
+        kw = super()._build_copy_kwargs()
+        attrs = ['parameter_name', 'value_min_adj', 'value_max_adj']
+        kw.update({attr:getattr(self, attr) for attr in attrs})
+        return kw
+
+    @logger.catch
+    def _bind_to_parameter(self, p: ParameterSpec):
+        pmin, pmax = self.parameter_range
+        self.value_min_adj, self.value_max_adj = pmin, pmax
+        # self._validate_min_adj()
+        # self._validate_max_adj()
+        self._on_parameter_value(p, p.get_param_value())
+        p.bind(value=self._on_parameter_value)
+        self.bind(
+            value_min_adj=self._on_value_min_adj,
+            value_max_adj=self._on_value_max_adj,
+        )
+
+    def _scale_to_param(self, value: int) -> int:
+        min_adj, max_adj = self.effective_range
+        # if min_adj == max_adj:
+        #     return min_adj
+        range_adj = max_adj - min_adj
+
+        pmin, pmax = self.parameter_range
+        prange = pmax - pmin
+
+        result = (value - pmin) / prange * range_adj + min_adj
+        result = int(round(result))
+        assert min_adj <= result <= max_adj
+        return result
+
+    def _scale_from_param(self, value: int) -> int:
+        pmin, pmax = self.parameter_range
+        prange = pmax - pmin
+
+        min_adj, max_adj = self.effective_range
+        # if min_adj == max_adj:
+        #     return min_adj
+        range_adj = max_adj - min_adj
+
+        result = (value - min_adj) / range_adj * prange + pmin
+        result = int(round(result))
+        # assert pmin <= result <= pmax
+        if result > pmax:
+            result = pmax
+        elif result < pmin:
+            result = pmin
+        return result
+
+    def get_param_value(self) -> Optional[int]:
+        """Get the current device value scaled within the current range
+        """
+        p = self.parameter
+        if p is None:
+            return None
+        value = p.get_param_value()
+        if value is not None:
+            value = self._scale_from_param(value)
+        return value
+
+    async def set_param_value(self, value: int):
+        p = self.parameter
+        value = self._scale_to_param(value)
+        await p.set_param_value(value)
+
+    @logger.catch
+    def _on_parameter_value(self, instance, value, **kwargs):
+        if instance is not self.parameter:
+            return
+        if value is None:
+            return
+        value = self._scale_from_param(value)
+        assert value == self.get_param_value()
+        self.value = value
+        self.emit('on_device_value_changed', self, self.value,
+            prop_name=self.name, value_type=instance.value_type,
+        )
+
+    def __reset_range(self, prop_name, value):
+        # assert prop_name not in self.__resetting_ranges
+        assert not self.__reset_guard.is_acquired(prop_name)
+        # self.__resetting_ranges.add(prop_name)
+        with self.__reset_guard(prop_name):
+            setattr(self, prop_name, value)
+        # self.__resetting_ranges.discard(prop_name)
+
+    # def _validate_min_adj(self):
+    #     min_adj, max_adj = self.value_min_adj, self.value_max_adj
+    #     if min_adj == 0:
+    #         return
+    #     elif min_adj < 0:
+    #         self.__reset_range('value_min_adj', 0)
+    #         return
+    #
+    #     pmin, pmax = self.parameter_range
+    #     if pmin is None:
+    #         return
+    #     eff_min, eff_max = pmin + min_adj, pmax - max_adj
+    #     if eff_min > pmax:
+    #         new_min = min_adj - (eff_min - pmax)        # reset min to top of param range
+    #         assert pmin <= pmin+new_min <= pmax
+    #         self.__reset_range('value_min_adj', new_min)
+    #     elif eff_min > eff_max:
+    #         new_max = max_adj + (eff_min - eff_max)
+    #         if new_max <= pmax:                         # increase upper range
+    #             assert pmin <= pmax-new_max <= pmax
+    #             self.value_max_adj = new_max
+    #         else:
+    #             new_min = min_adj - (eff_min - eff_max) # reset min to top of adjusted range
+    #             assert pmin <= pmin+new_min <= pmax
+    #             self.__reset_range('value_min_adj', new_min)
+    #
+    # def _validate_max_adj(self):
+    #     min_adj, max_adj = self.value_min_adj, self.value_max_adj
+    #     if max_adj == 0:
+    #         return
+    #     elif max_adj < 0:
+    #         self.__reset_range('value_max_adj', 0)
+    #         return
+    #
+    #     pmin, pmax = self.parameter_range
+    #     if pmin is None:
+    #         return
+    #     eff_min, eff_max = pmin + min_adj, pmax - max_adj
+    #     if eff_max < pmin:
+    #         new_max = pmax + (pmax - pmin)              # reset max to bottom of param range
+    #         assert pmin <= pmax-new_max <= pmax
+    #         self.__reset_range('value_max_adj', new_max)
+    #     elif eff_max < eff_min:
+    #         new_min = min_adj - (eff_min - eff_max)
+    #         if new_min >= pmin:
+    #             assert pmin <= pmin+new_min <= eff_max
+    #             self.value_min_adj = new_min            # decrease lower range
+    #         else:
+    #             new_max = max_adj + (eff_min - eff_max) # reset max to top of adjusted range
+    #             assert pmin <= pmax-new_max <= pmax
+    #             self.__reset_range('value_max_adj', new_max)
+
+    @logger.catch
+    def _on_value_min_adj(self, instance, value, **kwargs):
+        if self.__reset_guard.is_acquired('value_min_adj'):
+            logger.debug(f'value_min_adj lock acquired: {value=}, {self.value_min_adj=}')
+            return
+        # if 'value_min_adj' in self.__resetting_ranges:
+        #     return
+        # self._validate_min_adj()
+        logger.debug(f'value_min_adj: orig={value}, validated={self.value_min_adj}, {self.effective_range=}')
+        self.value = self.get_param_value()
+
+    @logger.catch
+    def _on_value_max_adj(self, instance, value, **kwargs):
+        if self.__reset_guard.is_acquired('value_max_adj'):
+            return
+        # if 'value_max_adj' in self.__resetting_ranges:
+        #     return
+        # self._validate_max_adj()
+        logger.debug(f'value_max_adj: orig={value}, validated={self.value_max_adj}, {self.effective_range=}')
+        self.value = self.get_param_value()
+
+
 class MultiParameterSpec(BaseParameterSpec):
     """Combines multiple :class:`ParameterSpec` definitions
 
@@ -393,6 +690,10 @@ class ParameterGroupSpec(Dispatcher):
             for prop in param.prop_names:
                 self.multi_params[prop] = param
 
+        ranged_params = [p for p in self.parameters.values() if isinstance(p, ParameterRangeMap)]
+        for param in ranged_params:
+            param.get_parameter_obj()
+
     @classmethod
     def all_parameter_group_cls(cls) -> Iterator['ParameterGroupSpec']:
         """Iterate through all ParameterGroupSpec subclasses
@@ -497,6 +798,10 @@ class ExposureParams(ParameterGroupSpec):
             name='iris_pos',
             value_type=IntValue(),
             setter_method='set_iris_pos',
+        ),
+        ParameterRangeMap(
+            name='iris_scaled',
+            parameter_name='iris_pos',
         ),
         ParameterSpec(
             name='gain_mode',
