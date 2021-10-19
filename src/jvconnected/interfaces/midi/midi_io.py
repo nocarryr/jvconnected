@@ -79,13 +79,14 @@ class MidiIO(Interface):
         if engine is self.engine:
             return
         await super().set_engine(engine)
-        self.automap_engine_devices()
-        engine.bind(devices=self.automap_engine_devices)
+        await self.automap_engine_devices()
+        engine.bind_async(self.loop, devices=self.automap_engine_devices)
 
-    def automap_engine_devices(self, *args, **kwargs):
+    async def automap_engine_devices(self, *args, **kwargs):
         """Map the engine's devices by index
         """
         config = self.engine.config
+        coros = set()
         for conf_device in config.indexed_devices.values():
             device_id = conf_device.id
             device_index = conf_device.device_index
@@ -98,9 +99,11 @@ class MidiIO(Interface):
                 if mapped_device is not None:
                     self.unmap_device(device_index)
             elif mapped_device is None:
-                self.map_device(device_index, device)
+                coros.add(self.map_device(device_index, device))
             elif device is not mapped_device.device:
-                self.map_device(device_index, device)
+                coros.add(self.map_device(device_index, device))
+        if len(coros):
+            await asyncio.gather(*coros)
 
     @logger.catch
     async def open(self):
@@ -318,7 +321,7 @@ class MidiIO(Interface):
                 '{x}', x=lambda: '\n'.join([f'MIDI tx: {msg}' for msg in msgs])
             )
 
-    def map_device(self, midi_channel: int, device: 'jvconnected.device.Device'):
+    async def map_device(self, midi_channel: int, device: 'jvconnected.device.Device'):
         """Connect a :class:`jvconnected.device.Device` to a :class:`.mapped_device.MappedDevice`
         """
         if not 0 <= midi_channel <= 15:
@@ -327,6 +330,7 @@ class MidiIO(Interface):
             self.unmap_device(midi_channel)
         m = MappedDevice(self, midi_channel, device, self.mapper)
         self.mapped_devices[midi_channel] = m
+        await m.send_all_parameters()
         logger.debug(f'mapped device: {m}')
 
     def unmap_device(self, midi_channel: int):
