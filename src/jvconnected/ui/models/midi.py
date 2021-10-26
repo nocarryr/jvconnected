@@ -1,6 +1,6 @@
 from loguru import logger
 import asyncio
-from typing import Optional, ClassVar
+from typing import Optional, ClassVar, Dict, Sequence
 
 from PySide2 import QtCore, QtQml
 from PySide2.QtCore import Qt, Property, Signal, Slot
@@ -229,6 +229,8 @@ class OutportsModel(MidiPortsModel):
             await self.midi_io.remove_output(name)
 
 class DeviceMapModel(GenericQObject):
+    """Representation of a single device/channel map within :class:`DeviceMapsModel`
+    """
     _n_deviceId = Signal()
     _n_channel = Signal()
     _n_deviceIndex = Signal()
@@ -238,6 +240,18 @@ class DeviceMapModel(GenericQObject):
     _n_isOnline = Signal()
     _n_edited = Signal()
     dataChanged = Signal(str, str)
+    """Emitted on property changes
+
+    :param str deviceId: The :attr:`deviceId` of the instance emitting the signal
+    :param str attr: The property name that changed
+    """
+
+    midi_io: 'jvconnected.interfaces.midi.midi_io.MidiIO'
+    """The active :class:`~jvconnected.interfaces.midi.midi_io.MidiIO` instance
+    """
+
+    conf_device: 'jvconnected.config.DeviceConfig'
+
     def __init__(self, *args, **kwargs):
         self.midi_io = kwargs['midi_io']
         self._deviceId = kwargs['deviceId']
@@ -249,7 +263,6 @@ class DeviceMapModel(GenericQObject):
         self._isOnline = self._deviceId in self.midi_io.mapped_devices
         self._channel = channel
         self._edited = False
-        # self._emitting_change = False
         super().__init__(*args)
         self.midi_io.bind(
             device_channel_map=self.on_midi_io_device_channel_map,
@@ -262,93 +275,93 @@ class DeviceMapModel(GenericQObject):
 
     def _g_deviceId(self) -> str: return self._deviceId
     def _s_deviceId(self, value: str): self._generic_setter('_deviceId', value)
-    deviceId = Property(str, _g_deviceId, _s_deviceId, notify=_n_deviceId)
+    deviceId: str = Property(str, _g_deviceId, _s_deviceId, notify=_n_deviceId)
+    """The :attr:`device_id <jvconnected.config.DeviceConfig.id>` associated
+    with this instance
+    """
 
     def _g_deviceName(self) -> str: return self._deviceName
     def _s_deviceName(self, value: str):
         changed = self._deviceName != value
-        # self._generic_setter('_deviceName', value)
         if changed:
             self._deviceName = value
             self._emit_change('deviceName')
-    deviceName = Property(str, _g_deviceName, _s_deviceName, notify=_n_deviceName)
+    deviceName: str = Property(str, _g_deviceName, _s_deviceName, notify=_n_deviceName)
+    """The :attr:`display_name <jvconnected.config.DeviceConfig.display_name>`
+    of the device
+    """
 
     def _g_isMapped(self) -> bool: return self._isMapped
     def _s_isMapped(self, value: bool):
         changed = self._isMapped != value
-        # self._generic_setter('_isMapped', value)
         if changed:
             self._isMapped = value
             self._emit_change('isMapped')
-    isMapped = Property(bool, _g_isMapped, _s_isMapped, notify=_n_isMapped)
+    isMapped: bool = Property(bool, _g_isMapped, _s_isMapped, notify=_n_isMapped)
+    """True if the device is mapped to a Midi channel
+    """
 
     def _g_isOnline(self) -> bool: return self._isOnline
     def _s_isOnline(self, value: bool):
         changed = value != self._isOnline
-        # self._generic_setter('_isOnline', value)
         if changed:
             self._isOnline = value
             self._emit_change('isOnline')
-    isOnline = Property(bool, _g_isOnline, _s_isOnline, notify=_n_isOnline)
+    isOnline: bool = Property(bool, _g_isOnline, _s_isOnline, notify=_n_isOnline)
+    """True if the device is currently online
+    """
 
     def _g_channel(self) -> int: return self._channel
     def _s_channel(self, value: int):
         changed = value != self._channel
-        # self._generic_setter('_channel', value)
         if changed:
             self._channel = value
             self._emit_change('channel')
         self.isMapped = value >= 0
-        self.edited = value != self._get_current_channel()
-    channel = Property(int, _g_channel, _s_channel, notify=_n_channel)
+        self.edited = value != self.get_current_channel()
+    channel: int = Property(int, _g_channel, _s_channel, notify=_n_channel)
+    """If :attr:`edited` is True, the midi channel to assign to the device.
+    Otherwise the channel currently assigned
+
+    Allowed values are from 0 to 15 and ``-1`` is used to indicate no assignment
+    (where :attr:`isMapped` is False)
+    """
 
     def _g_deviceIndex(self) -> int: return self._deviceIndex
     def _s_deviceIndex(self, value: int):
         changed = value != self._deviceIndex
-        # self._generic_setter('_deviceIndex', value)
         if changed:
             self._deviceIndex = value
             self._emit_change('deviceIndex')
-    deviceIndex = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
+    deviceIndex: int = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
+    """The :attr:`~jvconnected.config.DeviceConfig.device_index`
+    """
 
     def _g_edited(self) -> bool: return self._edited
     def _s_edited(self, value: bool):
         changed = value != self._edited
-        # self._generic_setter('_edited', value)
         if changed:
             self._edited = value
             self._emit_change('edited')
-    edited = Property(bool, _g_edited, _s_edited, notify=_n_edited)
+    edited: bool = Property(bool, _g_edited, _s_edited, notify=_n_edited)
+    """True if the :attr:`channel` has been edited by the user
+    """
 
     @Slot()
     def reset(self):
-        self.channel = self._get_current_channel()
-
-    # @asyncSlot
-    # async def apply(self):
-    #     if not self.edited:
-    #         return
-    #     if self.isMapped:
-    #         channel = self.channel
-    #         other_map = self.midi_io.channel_device_map.get(channel)
-    #         if other_map is not None:
-    #             await self.midi_io.unmap_device(other_map)
-    #         await self.midi_io.remap_device_channel(self.deviceId, channel)
-    #         self.channel = self._get_current_channel()
-    #         assert not self.edited
-    #     else:
-    #         self.edited = False
-    #         await self.midi_io.unmap_device(self.deviceId)
-    #         assert self.channel == self._get_current_channel()
+        """Reset the :attr:`channel` to its original value
+        """
+        self.channel = self.get_current_channel()
 
     def _emit_change(self, attr: str):
         notify_sig = getattr(self, f'_n_{attr}')
         notify_sig.emit()
-        # if self._emitting_change:
-        #     return
         self.dataChanged.emit(self.deviceId, attr)
 
-    def _get_current_channel(self) -> int:
+    def get_current_channel(self) -> int:
+        """Get the midi channel currently assigned within :attr:`midi_io`.
+        ``-1`` is returned if there is not assigned channel
+        """
         d = self.midi_io.device_channel_map
         return d.get(self._deviceId, -1)
 
@@ -380,25 +393,54 @@ class DeviceMapModel(GenericQObject):
         return self.deviceId
 
 class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
+    """Sortable proxy model for :class:`DeviceMapsModel`
+    """
     @Slot(int, int)
-    def setSorting(self, column, order):
+    def setSorting(self, column: int, order: int):
         self.sort(column, order)
 
 class DeviceMapsModel(QtCore.QAbstractTableModel):
+    """A table model used to interface with :class:`~jvconnected.interfaces.midi.MidiIO`
+    device mapping
+
+    :class:`DeviceMapsModel` instances are created for each device within
+    :attr:`jvconnected.config.Config.devices` and their :attr:`~DeviceMapsModel.channel`
+    values are read from :attr:`MidiIO <MidiIO.device_channel_map>`.
+
+    Changes to the channel assignments are stored temporarily until
+    :meth:`applied <apply>` or :meth:`reset <reset>`
+    """
     _n_engine = Signal()
     _n_proxyModel = Signal()
     _n_sortColumn = Signal()
-    _role_attrs = [
+    role_attrs: ClassVar[Sequence[str]] = [
         'deviceId', 'deviceIndex', 'deviceName',
         'channel', 'isOnline', 'isMapped', 'edited',
     ]
+    """:class:`DeviceMapModel` property names used to populate the table columns
+    """
+
+    midi_io: 'jvconnected.interfaces.midi.midi_io.MidiIO'
+    """The :class:`~jvconnected.interfaces.midi.midi_io.MidiIO` instance within the
+    :attr:`engine`
+    """
+
+    role_names: Dict[Qt.ItemDataRole, bytes]
+    """Qt.UserRoles mapped to each property defined in :attr:`role_attrs`
+
+    This is convoluted, weird, cumbersome and many other adjectives, but it seems
+    to be the only way to make QAbstractTableModel act like a table. No clue
+    why "roles" are necessary to access columns since that's all a table
+    is supposed to be ``¯\_(ツ)_/¯``
+    """
+
     def __init__(self, *args):
         self.map_indices = []
         self.map_objs = {}
         self._sort_role = Qt.UserRole
-        roles = [Qt.UserRole+i+1 for i in range(len(self._role_attrs))]
-        self._role_names = {role:attr.encode() for role, attr in zip(roles, self._role_attrs)}
-        self._role_names[self._sort_role] = b'__sort_role__'
+        roles = [Qt.UserRole+i+1 for i in range(len(self.role_attrs))]
+        self.role_names = {role:attr.encode() for role, attr in zip(roles, self.role_attrs)}
+        self.role_names[self._sort_role] = b'__sort_role__'
         self._engine = None
         self.midi_io = None
         self._proxyModel = None
@@ -427,7 +469,12 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
             return
         self._proxyModel = value
         self._n_proxyModel.emit()
-    proxyModel = Property(QtCore.QAbstractItemModel, _g_proxyModel, _s_proxyModel, notify=_n_proxyModel)
+    proxyModel: SortFilterProxyModel = Property(
+        QtCore.QAbstractItemModel,
+        _g_proxyModel, _s_proxyModel, notify=_n_proxyModel,
+    )
+    """An attached :class:`SortFilterProxyModel` instance
+    """
 
     def _g_sortColumn(self) -> int: return self._sortColumn
     def _s_sortColumn(self, value: int):
@@ -435,16 +482,26 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
             return
         self._sortColumn = value
         self._n_sortColumn.emit()
-    sortColumn = Property(int, _g_sortColumn, _s_sortColumn, notify=_n_sortColumn)
+    sortColumn: int = Property(int, _g_sortColumn, _s_sortColumn, notify=_n_sortColumn)
+    """The current sort column (index of the current :attr:`role_name <role_names>`)
+    """
 
     @Slot(str, Qt.SortOrder)
-    def setSorting(self, role_name, order):
-        column = self._role_attrs.index(role_name)
+    def setSorting(self, role_name: str, order: Qt.SortOrder):
+        """Sort the :attr:`proxyModel` by the given :attr:`role_name <role_names>`
+        """
+        column = self.role_attrs.index(role_name)
         self.sortColumn = column
         self.proxyModel.sort(column, order)
 
     @Slot(str, result=int)
     def incrementChannel(self, device_id: str) -> int:
+        """Increment the :attr:`~DeviceMapModel.channel` for the given device_id
+        by at least one.
+
+        Existing channel mappings are skipped and if the channel number would be
+        out of range, no changes are made.
+        """
         map_obj = self.map_objs[device_id]
         channel = map_obj.channel + 1
         if channel > 15:
@@ -457,6 +514,14 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
 
     @Slot(str, result=int)
     def decrementChannel(self, device_id: str) -> int:
+        """Decrease the :attr:`~DeviceMapModel.channel` for the given device_id
+        by at least one.
+
+        Existing channel mappings are skipped and if the channel number would be
+        out of range, no changes are made.
+
+        This only affects the temporary value in the model.
+        """
         map_obj = self.map_objs[device_id]
         channel = map_obj.channel - 1
         if channel <= 0:
@@ -469,11 +534,19 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
 
     @Slot(str)
     def unassignChannel(self, device_id: str):
+        """Unassign the channel for the given device
+
+        This only affects the temporary value in the model.
+        """
         map_obj = self.map_objs[device_id]
         map_obj.channel = -1
 
     @Slot(str)
     def resetChannel(self, device_id: str):
+        """Reset the channel for the given device
+
+        This only affects the temporary value in the model.
+        """
         map_obj = self.map_objs[device_id]
         map_obj.reset()
 
@@ -532,6 +605,10 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
 
     @asyncSlot()
     async def apply(self):
+        """Apply any changes made to the :attr:`DeviceMapModel.channel` mappings
+
+        Remaps the necessary device/channel mappings in :attr:`midi_io`
+        """
         maps = {
             devId:map_obj.channel
                 for devId,map_obj in self.map_objs.items() if map_obj.edited
@@ -554,6 +631,8 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
 
     @Slot()
     def reset(self):
+        """Reset all edited channels back to their original states
+        """
         for map_obj in self.map_objs.values():
             map_obj.reset()
 
@@ -583,12 +662,12 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
         self.endRemoveRows()
 
     def roleNames(self):
-        return self._role_names
+        return self.role_names
 
     def columnCount(self, parent):
         if parent.isValid():
             return 0
-        return len(self._role_names)
+        return len(self.role_names)
 
     def rowCount(self, parent):
         return len(self.map_indices)
@@ -603,11 +682,11 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
         col = index.column()
         device_id = self.map_indices[row]
         if False:#col > 0:
-            attr = self._role_attrs[col]
+            attr = self.role_attrs[col]
         elif role == self._sort_role:
-            attr = self._role_attrs[self.sortColumn]
+            attr = self.role_attrs[self.sortColumn]
         else:
-            attr = self._role_names[role].decode('UTF-8')
+            attr = self.role_names[role].decode('UTF-8')
 
         map_obj = self.map_objs[device_id]
         return getattr(map_obj, attr)
@@ -618,7 +697,7 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
         map_obj = self.map_objs[deviceId]
         value = getattr(map_obj, attr)
         # logger.debug(f'dataChanged: {deviceId=}, {attr=}, {value=}')
-        attr_ix = self._role_attrs.index(attr)
+        attr_ix = self.role_attrs.index(attr)
         row_ix = self.map_indices.index(deviceId)
         ix = self.createIndex(row_ix, attr_ix)
         self.dataChanged.emit(ix, ix)
@@ -635,7 +714,10 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
             self._add_map(device_id)
 
 
-MODEL_CLASSES = (MidiPortModel, InportsModel, OutportsModel, DeviceMapModel, DeviceMapsModel, SortFilterProxyModel)
+MODEL_CLASSES = (
+    MidiPortModel, InportsModel, OutportsModel,
+    DeviceMapModel, DeviceMapsModel, SortFilterProxyModel,
+)
 
 def register_qml_types():
     for cls in MODEL_CLASSES:
