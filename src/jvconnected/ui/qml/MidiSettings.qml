@@ -11,6 +11,9 @@ Control {
 
     property EngineModel engine
 
+    signal submit()
+    signal cancel()
+
     InportsModel {
         id: inports
         engine: root.engine
@@ -54,60 +57,90 @@ Control {
         }
     }
 
-    Control {
-        anchors.fill: parent
-        padding: 8
+    MyTabBar {
+        id: bar
+        width: parent.width
 
-        GroupBox {
-            id: inportGroupBox
-            title: 'Inputs'
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            width: parent.width / 2
-            anchors.rightMargin: 4
+        MyTabButton { text: 'Ports'; width: bar.maxItemWidth }
+        MyTabButton { text: 'Mapping'; width: bar.maxItemWidth }
+    }
 
-            // leftPadding: 0
-            // rightPadding: 4
+    StackLayout {
+        id: stack
+        anchors.top: bar.bottom
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.topMargin: 8
+        currentIndex: bar.currentIndex
 
-            ListView {
-                id: inportListView
-                anchors.fill: parent
-                model: inportList
-                delegate: CheckBox {
-                    property string portName: name
-                    property MidiPortModel port: inports.getByName(name)
-                    text: port ? port.name : ''
-                    checked: port.isActive
-                    // onToggled: port.setIsActive(checked)
-                    onClicked: { port.setIsActive(!port.isActive) }
+        Control {
+            // anchors.fill: parent
+            // Layout.fillWidth: true
+            padding: 8
+
+            GroupBox {
+                id: inportGroupBox
+                title: 'Inputs'
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                width: parent.width / 2
+                anchors.rightMargin: 4
+
+                // leftPadding: 0
+                // rightPadding: 4
+
+                ListView {
+                    id: inportListView
+                    anchors.fill: parent
+                    model: inportList
+                    delegate: CheckBox {
+                        property string portName: name
+                        property MidiPortModel port: inports.getByName(name)
+                        text: port ? port.name : ''
+                        checked: port.isActive
+                        // onToggled: port.setIsActive(checked)
+                        onClicked: { port.setIsActive(!port.isActive) }
+                    }
+                }
+            }
+            GroupBox {
+                id: outportGroupBox
+                title: 'Outputs'
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.left: inportGroupBox.right
+                anchors.right: parent.right
+                anchors.leftMargin: 4
+
+                // leftPadding: 4
+                // rightPadding: 0
+
+                ListView {
+                    id: outportListView
+                    anchors.fill: parent
+                    model: outportList
+                    delegate: CheckBox {
+                        property string portName: name
+                        property MidiPortModel port: outports.getByName(name)
+                        text: port ? port.name : ''
+                        checked: port.isActive
+                        // onToggled: port.setIsActive(checked)
+                        onClicked: { port.setIsActive(!port.isActive) }
+                    }
                 }
             }
         }
-        GroupBox {
-            id: outportGroupBox
-            title: 'Outputs'
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.left: inportGroupBox.right
-            anchors.right: parent.right
-            anchors.leftMargin: 4
 
-            // leftPadding: 4
-            // rightPadding: 0
+        MidiDeviceMapTable {
+            id: deviceMapSettings
+            engine: root.engine
 
-            ListView {
-                id: outportListView
-                anchors.fill: parent
-                model: outportList
-                delegate: CheckBox {
-                    property string portName: name
-                    property MidiPortModel port: outports.getByName(name)
-                    text: port ? port.name : ''
-                    checked: port.isActive
-                    // onToggled: port.setIsActive(checked)
-                    onClicked: { port.setIsActive(!port.isActive) }
-                }
+            Connections {
+                target: root
+                function onSubmit() { deviceMapSettings.submit() }
+                function onCancel() { deviceMapSettings.cancel() }
             }
         }
     }

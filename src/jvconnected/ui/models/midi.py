@@ -3,7 +3,7 @@ import asyncio
 from typing import Optional, ClassVar
 
 from PySide2 import QtCore, QtQml
-from PySide2.QtCore import Property, Signal
+from PySide2.QtCore import Qt, Property, Signal, Slot
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 
@@ -228,7 +228,414 @@ class OutportsModel(MidiPortsModel):
         else:
             await self.midi_io.remove_output(name)
 
-MODEL_CLASSES = (MidiPortModel, InportsModel, OutportsModel)
+class DeviceMapModel(GenericQObject):
+    _n_deviceId = Signal()
+    _n_channel = Signal()
+    _n_deviceIndex = Signal()
+    _n_deviceName = Signal()
+    _n_isMapped = Signal()
+    _n_isActive = Signal()
+    _n_isOnline = Signal()
+    _n_edited = Signal()
+    dataChanged = Signal(str, str)
+    def __init__(self, *args, **kwargs):
+        self.midi_io = kwargs['midi_io']
+        self._deviceId = kwargs['deviceId']
+        self.conf_device = kwargs['conf_device']
+        self._deviceIndex = self.conf_device.device_index
+        self._deviceName = self.conf_device.display_name
+        channel = self.midi_io.device_channel_map.get(self._deviceId, -1)
+        self._isMapped = channel is not None
+        self._isOnline = self._deviceId in self.midi_io.mapped_devices
+        self._channel = channel
+        self._edited = False
+        # self._emitting_change = False
+        super().__init__(*args)
+        self.midi_io.bind(
+            device_channel_map=self.on_midi_io_device_channel_map,
+            mapped_devices=self.on_midi_io_mapped_devices,
+        )
+        self.conf_device.bind(
+            device_index=self.on_conf_device_index,
+            display_name=self.on_conf_device_name,
+        )
+
+    def _g_deviceId(self) -> str: return self._deviceId
+    def _s_deviceId(self, value: str): self._generic_setter('_deviceId', value)
+    deviceId = Property(str, _g_deviceId, _s_deviceId, notify=_n_deviceId)
+
+    def _g_deviceName(self) -> str: return self._deviceName
+    def _s_deviceName(self, value: str):
+        changed = self._deviceName != value
+        # self._generic_setter('_deviceName', value)
+        if changed:
+            self._deviceName = value
+            self._emit_change('deviceName')
+    deviceName = Property(str, _g_deviceName, _s_deviceName, notify=_n_deviceName)
+
+    def _g_isMapped(self) -> bool: return self._isMapped
+    def _s_isMapped(self, value: bool):
+        changed = self._isMapped != value
+        # self._generic_setter('_isMapped', value)
+        if changed:
+            self._isMapped = value
+            self._emit_change('isMapped')
+    isMapped = Property(bool, _g_isMapped, _s_isMapped, notify=_n_isMapped)
+
+    def _g_isOnline(self) -> bool: return self._isOnline
+    def _s_isOnline(self, value: bool):
+        changed = value != self._isOnline
+        # self._generic_setter('_isOnline', value)
+        if changed:
+            self._isOnline = value
+            self._emit_change('isOnline')
+    isOnline = Property(bool, _g_isOnline, _s_isOnline, notify=_n_isOnline)
+
+    def _g_channel(self) -> int: return self._channel
+    def _s_channel(self, value: int):
+        changed = value != self._channel
+        # self._generic_setter('_channel', value)
+        if changed:
+            self._channel = value
+            self._emit_change('channel')
+        self.isMapped = value >= 0
+        self.edited = value != self._get_current_channel()
+    channel = Property(int, _g_channel, _s_channel, notify=_n_channel)
+
+    def _g_deviceIndex(self) -> int: return self._deviceIndex
+    def _s_deviceIndex(self, value: int):
+        changed = value != self._deviceIndex
+        # self._generic_setter('_deviceIndex', value)
+        if changed:
+            self._deviceIndex = value
+            self._emit_change('deviceIndex')
+    deviceIndex = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
+
+    def _g_edited(self) -> bool: return self._edited
+    def _s_edited(self, value: bool):
+        changed = value != self._edited
+        # self._generic_setter('_edited', value)
+        if changed:
+            self._edited = value
+            self._emit_change('edited')
+    edited = Property(bool, _g_edited, _s_edited, notify=_n_edited)
+
+    @Slot()
+    def reset(self):
+        self.channel = self._get_current_channel()
+
+    # @asyncSlot
+    # async def apply(self):
+    #     if not self.edited:
+    #         return
+    #     if self.isMapped:
+    #         channel = self.channel
+    #         other_map = self.midi_io.channel_device_map.get(channel)
+    #         if other_map is not None:
+    #             await self.midi_io.unmap_device(other_map)
+    #         await self.midi_io.remap_device_channel(self.deviceId, channel)
+    #         self.channel = self._get_current_channel()
+    #         assert not self.edited
+    #     else:
+    #         self.edited = False
+    #         await self.midi_io.unmap_device(self.deviceId)
+    #         assert self.channel == self._get_current_channel()
+
+    def _emit_change(self, attr: str):
+        notify_sig = getattr(self, f'_n_{attr}')
+        notify_sig.emit()
+        # if self._emitting_change:
+        #     return
+        self.dataChanged.emit(self.deviceId, attr)
+
+    def _get_current_channel(self) -> int:
+        d = self.midi_io.device_channel_map
+        return d.get(self._deviceId, -1)
+
+    def on_midi_io_device_channel_map(self, instance, value, **kwargs):
+        if self.edited:
+            return
+        self._update_channel()
+
+    def _update_channel(self):
+        channel = self.midi_io.device_channel_map.get(self._deviceId, -1)
+        self.edited = channel != self._channel
+        self.channel = channel
+
+    def on_midi_io_mapped_devices(self, instance, value, **kwargs):
+        self.isOnline = self._deviceId in value
+
+    def on_conf_device_index(self, instance, value, **kwargs):
+        if value is None:
+            return
+        self.deviceIndex = value
+
+    def on_conf_device_name(self, instance, value, **kwargs):
+        self.deviceName = value
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__}: "{self}">'
+
+    def __str__(self):
+        return self.deviceId
+
+class SortFilterProxyModel(QtCore.QSortFilterProxyModel):
+    @Slot(int, int)
+    def setSorting(self, column, order):
+        self.sort(column, order)
+
+class DeviceMapsModel(QtCore.QAbstractTableModel):
+    _n_engine = Signal()
+    _n_proxyModel = Signal()
+    _n_sortColumn = Signal()
+    _role_attrs = [
+        'deviceId', 'deviceIndex', 'deviceName',
+        'channel', 'isOnline', 'isMapped', 'edited',
+    ]
+    def __init__(self, *args):
+        self.map_indices = []
+        self.map_objs = {}
+        self._sort_role = Qt.UserRole
+        roles = [Qt.UserRole+i+1 for i in range(len(self._role_attrs))]
+        self._role_names = {role:attr.encode() for role, attr in zip(roles, self._role_attrs)}
+        self._role_names[self._sort_role] = b'__sort_role__'
+        self._engine = None
+        self.midi_io = None
+        self._proxyModel = None
+        self._sortColumn = 0
+        super().__init__(*args)
+        self.proxyModel = QtCore.QSortFilterProxyModel()
+        self.proxyModel.setSourceModel(self)
+        self.proxyModel.setSortRole(self._sort_role)
+
+    def _g_engine(self) -> Optional[EngineModel]:
+        return self._engine
+    def _s_engine(self, value: EngineModel):
+        if value is None or value == self._engine:
+            return
+        assert self._engine is None
+        self._engine = value
+        midi_io = value.engine.interfaces.get('midi')
+        if midi_io is not None:
+            self.set_midi_io(midi_io)
+    engine = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
+    """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
+
+    def _g_proxyModel(self): return self._proxyModel
+    def _s_proxyModel(self, value):
+        if value is self._proxyModel:
+            return
+        self._proxyModel = value
+        self._n_proxyModel.emit()
+    proxyModel = Property(QtCore.QAbstractItemModel, _g_proxyModel, _s_proxyModel, notify=_n_proxyModel)
+
+    def _g_sortColumn(self) -> int: return self._sortColumn
+    def _s_sortColumn(self, value: int):
+        if value == self._sortColumn:
+            return
+        self._sortColumn = value
+        self._n_sortColumn.emit()
+    sortColumn = Property(int, _g_sortColumn, _s_sortColumn, notify=_n_sortColumn)
+
+    @Slot(str, Qt.SortOrder)
+    def setSorting(self, role_name, order):
+        column = self._role_attrs.index(role_name)
+        self.sortColumn = column
+        self.proxyModel.sort(column, order)
+
+    @Slot(str, result=int)
+    def incrementChannel(self, device_id: str) -> int:
+        map_obj = self.map_objs[device_id]
+        channel = map_obj.channel + 1
+        if channel > 15:
+            return map_obj.channel
+        channel = self._get_next_channel(device_id, channel, decrement=False)
+        if channel == -1:
+            return map_obj.channel
+        map_obj.channel = channel
+        return channel
+
+    @Slot(str, result=int)
+    def decrementChannel(self, device_id: str) -> int:
+        map_obj = self.map_objs[device_id]
+        channel = map_obj.channel - 1
+        if channel <= 0:
+            return map_obj.channel
+        channel = self._get_next_channel(device_id, channel, decrement=True)
+        if channel == -1:
+            return map_obj.channel
+        map_obj.channel = channel
+        return channel
+
+    @Slot(str)
+    def unassignChannel(self, device_id: str):
+        map_obj = self.map_objs[device_id]
+        map_obj.channel = -1
+
+    @Slot(str)
+    def resetChannel(self, device_id: str):
+        map_obj = self.map_objs[device_id]
+        map_obj.reset()
+
+    def _validate_channel(self, device_id: str, channel: int) -> bool:
+        if channel == -1:
+            return True
+        for map_obj in self.map_objs.values():
+            if map_obj.deviceId == device_id:
+                continue
+            if map_obj.channel == -1:
+                continue
+            elif map_obj.channel == channel:
+                return False
+        return True
+
+    def _get_next_channel(self, device_id: str, channel: int, decrement: bool = False) -> int:
+        all_channels = set(range(16))
+        in_use = set([map_obj.channel for map_obj in self.map_objs.values() if map_obj.deviceId != device_id])
+        in_use.discard(-1)
+        available = all_channels - in_use
+        if channel in available:
+            return channel
+        if decrement:
+            available = set([i for i in available if i < channel])
+            if not len(available):
+                return -1
+            return max(available)
+        else:
+            available = set([i for i in available if i > channel])
+            if not len(available):
+                return -1
+            return min(available)
+
+    @property
+    def config(self):
+        return self.engine.engine.config
+
+    def set_midi_io(self, midi_io: 'jvconnected.interfaces.midi_io.MidiIO'):
+        self.midi_io = midi_io
+        self.update_maps()
+        self.engine.engine.bind(on_config_device_added=self.update_maps)
+
+    @asyncSlot(str)
+    async def unmapDevice(self, device_id: str):
+        await self.midi_io.unmap_device(device_id, unassign_channel=True)
+
+    @asyncSlot(str, int)
+    async def mapDevice(self, device_id: str, midi_channel: int):
+        await self.midi_io.map_device(device_id, midi_channel=midi_channel)
+
+    @asyncSlot(str, int)
+    async def remapDevice(self, device_id: str, midi_channel: int):
+        await self.midi_io.remap_device_channel(device_id, midi_channel=midi_channel)
+        assert self.midi_io.device_channel_map[device_id] == midi_channel
+        assert self.midi_io.channel_device_map[midi_channel] == device_id
+
+    @asyncSlot()
+    async def apply(self):
+        maps = {
+            devId:map_obj.channel
+                for devId,map_obj in self.map_objs.items() if map_obj.edited
+        }
+        if not len(maps):
+            return
+        logger.debug(f'remapping: {maps}')
+        for device_id, channel in maps.items():
+            await self.midi_io.unmap_device(device_id, unassign_channel=True)
+            map_obj = self.map_objs[device_id]
+            map_obj._update_channel()
+            assert not map_obj.isMapped
+        for device_id, channel in maps.items():
+            if channel == -1:
+                continue
+            map_obj = self.map_objs[device_id]
+            await self.midi_io.remap_device_channel(device_id, channel)
+            assert map_obj.channel == channel
+            assert not map_obj.edited
+
+    @Slot()
+    def reset(self):
+        for map_obj in self.map_objs.values():
+            map_obj.reset()
+
+    def _add_map(self, device_id: str):
+        if device_id in self.map_objs:
+            return
+        conf_device = self.config.devices[device_id]
+        insert_ix = len(self.map_indices)
+        map_obj = DeviceMapModel(
+            midi_io=self.midi_io,
+            deviceId=device_id,
+            conf_device=conf_device,
+            # index=insert_ix,
+        )
+        self.map_objs[device_id] = map_obj
+        self.beginInsertRows(QtCore.QModelIndex(), insert_ix, insert_ix)
+        map_obj.dataChanged.connect(self.onMapObjDataChanged)
+        self.map_indices.append(device_id)
+        self.endInsertRows()
+
+    def _remove_map(self, device_id: str):
+        map_obj = self.map_objs[device_id]
+        ix = self.map_indices.index(device_id)
+        self.beginRemoveRows(QtCore.QModelIndex(), ix, ix)
+        del self.map_objs[device_id]
+        del self.map_indices[ix]
+        self.endRemoveRows()
+
+    def roleNames(self):
+        return self._role_names
+
+    def columnCount(self, parent):
+        if parent.isValid():
+            return 0
+        return len(self._role_names)
+
+    def rowCount(self, parent):
+        return len(self.map_indices)
+
+    def flags(self, index):
+        return Qt.ItemFlags.ItemIsEnabled
+
+    def data(self, index, role):
+        if not index.isValid():
+            return None
+        row = index.row()
+        col = index.column()
+        device_id = self.map_indices[row]
+        if False:#col > 0:
+            attr = self._role_attrs[col]
+        elif role == self._sort_role:
+            attr = self._role_attrs[self.sortColumn]
+        else:
+            attr = self._role_names[role].decode('UTF-8')
+
+        map_obj = self.map_objs[device_id]
+        return getattr(map_obj, attr)
+
+    def onMapObjDataChanged(self, deviceId: str, attr: str):
+        if deviceId not in self.map_indices:
+            return
+        map_obj = self.map_objs[deviceId]
+        value = getattr(map_obj, attr)
+        # logger.debug(f'dataChanged: {deviceId=}, {attr=}, {value=}')
+        attr_ix = self._role_attrs.index(attr)
+        row_ix = self.map_indices.index(deviceId)
+        ix = self.createIndex(row_ix, attr_ix)
+        self.dataChanged.emit(ix, ix)
+
+    def update_maps(self, *args, **kwargs):
+        old_keys = set(self.map_indices)
+        new_keys = set(self.config.devices.keys())
+
+        added = new_keys - old_keys
+        removed = old_keys - new_keys
+        for device_id in removed:
+            self._remove_map(device_id)
+        for device_id in added:
+            self._add_map(device_id)
+
+
+MODEL_CLASSES = (MidiPortModel, InportsModel, OutportsModel, DeviceMapModel, DeviceMapsModel, SortFilterProxyModel)
 
 def register_qml_types():
     for cls in MODEL_CLASSES:
