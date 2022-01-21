@@ -197,6 +197,25 @@ Control {
             }
 
             PanelGroup {
+                title: 'Lens'
+                groupName: 'lens'
+                Layout.fillWidth: true
+
+                content: ColumnLayout {
+                    MyGroupBox {
+                        title: 'Focus'
+                        Layout.fillWidth: true
+                        content: FocusControls { model: root.model }
+                    }
+                    MyGroupBox {
+                        title: 'Zoom'
+                        Layout.fillWidth: true
+                        content: ZoomControls { model: root.model }
+                    }
+                }
+            }
+
+            PanelGroup {
                 title: 'Paint'
                 groupName: 'paint'
                 Layout.fillWidth: true
