@@ -4,7 +4,9 @@ from typing import List, TYPE_CHECKING
 if TYPE_CHECKING:
     from jvconnected.config import DeviceConfig
     from jvconnected.device import Device, ParameterGroup
-from jvconnected.device import MenuChoices, BatteryState
+from jvconnected.device import (
+    MenuChoices, BatteryState, FocusDirection, ZoomDirection,
+)
 
 from PySide2 import QtCore, QtQml
 from PySide2.QtCore import Property, Signal
@@ -711,6 +713,155 @@ class MasterBlackModel(SingleAdjustableParam):
     async def _decrease(self):
         await self.paramGroup.decrease_master_black()
 
+class FocusModeModel(SingleParam):
+    _param_group_key = 'lens'
+    _param_group_attr = 'focus_mode'
+
+    @asyncSlot(str)
+    async def setMode(self, mode: str):
+        await self.paramGroup.set_focus_mode(mode)
+
+class SeesawParam(SingleParam):
+    """Base parameter for "seesaw" movement
+    """
+    _n_currentSpeed = Signal()
+    _n_moving = Signal()
+    def __init__(self, *args):
+        self._request_pending = asyncio.Lock()
+        self._currentSpeed = 0
+        self._moving = False
+        super().__init__(*args)
+
+    def _g_currentSpeed(self) -> int: return self._currentSpeed
+    def _s_currentSpeed(self, value: int):
+        self._generic_setter('_currentSpeed', value)
+        moving = value != 0
+        if moving != self._moving:
+            self.moving = moving
+    currentSpeed = Property(int, _g_currentSpeed, _s_currentSpeed, notify=_n_currentSpeed)
+    """Current speed of movement from -8 to 8
+    """
+
+    def _g_moving(self) -> bool: return self._moving
+    def _s_moving(self, value: bool):
+        logger.debug(f'{self.moving=}, {value=}')
+        self._generic_setter('_moving', value)
+        if not value:
+            if self._currentSpeed != 0:
+                self.currentSpeed = 0
+    moving = Property(bool, _g_moving, _s_moving, notify=_n_moving)
+    """True if the parameter is moving
+    """
+
+class FocusPosModel(SeesawParam):
+    """Focus position and movement
+    """
+    _param_group_key = 'lens'
+    _param_group_attr = 'focus_value'
+
+    @asyncSlot()
+    async def pushAuto(self):
+        await self.paramGroup.focus_push_auto()
+
+    @asyncSlot(int)
+    async def near(self, speed: int):
+        """Focus "near" at the specified speed (0 to 8)
+        """
+        await self.move(FocusDirection.Near, speed)
+
+    @asyncSlot(int)
+    async def far(self, speed: int):
+        """Focus "far" at the specified speed (0 to 8)
+        """
+        await self.move(FocusDirection.Far, speed)
+
+    @asyncSlot()
+    async def stop(self):
+        """Stop moving
+        """
+        await self.move(FocusDirection.Stop, 0)
+
+    async def move(self, direction: FocusDirection, speed: int):
+        async with self._request_pending:
+            await self.paramGroup.seesaw_focus(direction, speed)
+
+    def _on_param_group_set(self, param_group):
+        super()._on_param_group_set(param_group)
+        param_group.bind(focus_speed=self._on_focus_speed)
+
+    def _on_focus_speed(self, instance, value, **kwargs):
+        if instance is not self.paramGroup:
+            return
+        self.currentSpeed = value
+
+class ZoomPosModel(SeesawParam):
+    """Zoom position and movement
+    """
+    _param_group_key = 'lens'
+    _param_group_attr = 'zoom_value'
+    _n_pos = Signal()
+
+    def __init__(self, *args):
+        self._pos = 0
+        super().__init__(*args)
+
+    def _g_pos(self) -> int: return self._pos
+    def _s_pos(self, value: int):
+        self._generic_setter('_pos', value)
+    pos = Property(int, _g_pos, _s_pos, notify=_n_pos)
+    """Current zoom position from 0 to 499
+    """
+
+    @asyncSlot(int)
+    async def tele(self, speed: int):
+        """Zoom in (tele) at the specified speed (0 to 8)
+        """
+        await self.move(ZoomDirection.Tele, speed)
+
+    @asyncSlot(int)
+    async def wide(self, speed: int):
+        """Zoom out (wide) at the specified speed (0 to 8)
+        """
+        await self.move(ZoomDirection.Wide, speed)
+
+    @asyncSlot()
+    async def stop(self):
+        """Stop moving
+        """
+        await self.move(ZoomDirection.Stop, 0)
+
+    async def move(self, direction: ZoomDirection, speed: int):
+        async with self._request_pending:
+            await self.paramGroup.seesaw_zoom(direction, speed)
+
+    @asyncSlot(int)
+    async def setPos(self, pos: int):
+        """Set zoom position from 0 to 499
+        """
+        async with self._request_pending:
+            if self.moving:
+                await self.paramGroup.zoom_stop()
+            await self.paramGroup.set_zoom_position(pos)
+
+    def _on_param_group_set(self, param_group):
+        super()._on_param_group_set(param_group)
+        self.pos = param_group.zoom_pos
+        param_group.bind(
+            zoom_speed=self._on_zoom_speed,
+            zoom_pos=self._on_zoom_pos,
+        )
+
+    def _on_zoom_speed(self, instance, value, **kwargs):
+        if instance is not self.paramGroup:
+            return
+        self.currentSpeed = value
+
+    def _on_zoom_pos(self, instance, value, **kwargs):
+        if instance is not self.paramGroup:
+            return
+        self.pos = value
+
+
 class WbModeModel(SingleParam):
     _param_group_key = 'paint'
     _param_group_attr = 'white_balance_mode'
@@ -921,6 +1072,7 @@ class TallyModel(ParamBase):
 MODEL_CLASSES = (
     DeviceConfigModel, DeviceModel, CameraParamsModel, IrisModel, BatteryParamsModel,
     GainModeModel, GainValueModel, MasterBlackModel, DetailModel, TallyModel,
+    FocusModeModel, FocusPosModel, ZoomPosModel,
     WbModeModel, WbColorTempModel, WbPaintModelBase, WbRedPaintModel, WbBluePaintModel,
 )
 

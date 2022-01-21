@@ -21,6 +21,9 @@ QtObject {
     property GainModeModel gainMode: GainModeModel { device: root.device }
     property GainValueModel gainValue: GainValueModel { device: root.device }
     property MasterBlackModel masterBlack: MasterBlackModel { device: root.device }
+    property FocusModeModel focusMode: FocusModeModel { device: root.device }
+    property FocusPosModel focusPos: FocusPosModel { device: root.device }
+    property ZoomPosModel zoomPos: ZoomPosModel { device: root.device }
     property DetailModel detail: DetailModel { device: root.device }
     property QtObject paint: QtObject {
         property WbModeModel mode: WbModeModel { device: root.device }
