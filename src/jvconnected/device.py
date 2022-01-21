@@ -600,6 +600,203 @@ class ExposureParams(ParameterGroup):
                 logger.debug(f'{self}.master_black_pos: {self.master_black_pos}')
         super().on_prop(instance, value, **kwargs)
 
+
+class FocusMode(Enum):
+    """Values used for :attr:`LensParams.focus_mode`
+    """
+    Unknown = auto()
+    AFFace = auto()
+    AF = auto()         #: Auto focus
+    MFOnePush = auto()
+    MF = auto()         #: Manual focus
+    MFFace = auto()
+
+class ZoomDirection(Enum):
+    """Values used for :meth:`LensParams.seesaw_zoom`
+    """
+    Wide = auto()   #: Wide
+    Tele = auto()   #: Telephoto
+    Stop = auto()   #: Stop
+
+class FocusDirection(Enum):
+    """Values used for :meth:`LensParams.seesaw_focus`
+    """
+    Near = auto()   #: Near
+    Far = auto()    #: Far
+    Stop = auto()   #: Stop
+
+class LensParams(ParameterGroup):
+    """Lens Parameters
+
+    Properties:
+        focus_mode (FocusMode): The current focus mode
+        focus_value (str): Character string for focus value
+        zoom_pos (int): Zoom position from 0 to 499
+        zoom_value (str): Character string for zoom value
+        focus_speed (int): Current focus speed from -8 (near) to +8 (far) where
+            0 indicates no movement
+        zoom_speed (int): Current zoom speed from -8 (wide) to +8 (tele) where
+            0 indicates no movement
+        focusing (bool): True while focus is moving
+        zooming (bool): True while zoom is moving
+    """
+    _NAME = 'lens'
+
+    focus_mode = Property(FocusMode.Unknown)
+    focus_value = Property()
+    zoom_pos = Property(0)
+    zoom_value = Property()
+    focus_speed = Property(0)
+    zoom_speed = Property(0)
+    focusing = Property(False)
+    zooming = Property(False)
+
+    _prop_attrs = [
+        ('focus_mode', 'Focus.Status'),
+        ('focus_value', 'Focus.Value'),
+        ('zoom_pos', 'Zoom.Position'),
+        ('zoom_value', 'Zoom.DisplayValue')
+    ]
+
+    _focus_range_feet = (0.3, 328)
+
+    async def set_focus_mode(self, mode):
+        """Set focus mode
+
+        Arguments:
+            mode: A :class:`FocusMode` enum member, its string name or integer
+                value
+        """
+        if isinstance(mode, str):
+            mode = getattr(FocusMode, mode)
+        elif isinstance(mode, int):
+            mode = FocusMode(mode)
+        else:
+            assert isinstance(mode, FocusMode)
+        if 'AF' in mode.name:
+            value = 'Auto'
+        elif 'MF' in mode.name:
+            value = 'Manual'
+        else:
+            raise ValueError(f'Cannot set focus mode to "{mode}"')
+        await self.device.send_web_button('Focus', value)
+
+    async def set_zoom_position(self, value):
+        """Set the zoom position
+
+        Arguments:
+            value (int): The zoom position from 0 to 499
+        """
+        params = {'Kind':'ZoomBar', 'Position':value}
+        await self.device.queue_request('SetWebSliderEvent', params)
+
+    async def focus_near(self, speed):
+        """Begin focusing "near"
+
+        Arguments:
+            speed (int): Focus speed from 0 to 8 (0 stops movement)
+        """
+        await self.seesaw_focus(FocusDirection.Near, speed)
+
+    async def focus_far(self, speed):
+        """Begin focusing "far"
+
+        Arguments:
+            speed (int): Focus speed from 0 to 8 (0 stops movement)
+        """
+        await self.seesaw_focus(FocusDirection.Far, speed)
+
+    async def focus_stop(self):
+        """Stop focus movement
+        """
+        await self.seesaw_focus(FocusDirection.Stop, 0)
+
+    async def focus_push_auto(self):
+        """Focus PushAuto
+        """
+        await self.device.send_web_button('Focus', 'PushAuto')
+
+    async def zoom_wide(self, speed):
+        """Begin zooming "wide" (or "out")
+
+        Arguments:
+            speed (int): Zoom speed from 0 to 8 (0 stops movement)
+        """
+        await self.seesaw_zoom(ZoomDirection.Wide, speed)
+
+    async def zoom_tele(self, speed):
+        """Begin zooming "tele" (or "in")
+
+        Arguments:
+            speed (int): Zoom speed from 0 to 8 (0 stops movement)
+        """
+        await self.seesaw_zoom(ZoomDirection.Tele, speed)
+
+    async def zoom_stop(self):
+        """Stop zoom movement
+        """
+        await self.seesaw_zoom(ZoomDirection.Stop, 0)
+
+    async def seesaw_focus(self, direction, speed):
+        """Start or stop focus movement
+
+        Arguments:
+            direction: Either a :class:`FocusDirection` member, the name as str,
+                or the integer value of one of the members
+            speed (int): The focus speed from 0 to 8 (0 stops movement)
+        """
+        if isinstance(direction, str):
+            direction = getattr(FocusDirection, direction)
+        elif isinstance(direction, int):
+            direction = FocusDirection(direction)
+        params = {
+            'Kind':'FocusSeesaw',
+            'Direction':direction.name,
+            'Speed':speed,
+        }
+        await self.device.queue_request('SeesawSwitchOperation', params)
+        if direction == FocusDirection.Stop:
+            speed = 0
+        elif direction == FocusDirection.Near:
+            speed = -speed
+        self.focus_speed = speed
+        self.focusing = speed != 0
+
+    async def seesaw_zoom(self, direction, speed):
+        """Start or stop zoom movement
+
+        Arguments:
+            direction: Either a :class:`ZoomDirection` member, the name as str,
+                or the integer value of one of the members
+            speed (int): The zoom speed from 0 to 8 (0 stops movement)
+        """
+        if isinstance(direction, str):
+            direction = getattr(ZoomDirection, direction)
+        elif isinstance(direction, int):
+            direction = ZoomDirection(direction)
+        params = {
+            'Kind':'ZoomSeesaw',
+            'Direction':direction.name,
+            'Speed':speed,
+        }
+        await self.device.queue_request('SeesawSwitchOperation', params)
+        if direction == ZoomDirection.Stop:
+            speed = 0
+        elif direction == ZoomDirection.Wide:
+            speed = -speed
+        self.zoom_speed = speed
+        self.zooming = speed != 0
+
+    def on_prop(self, instance, value, **kwargs):
+        prop = kwargs['property']
+        if prop.name == 'focus_mode':
+            if not isinstance(value, FocusMode):
+                if hasattr(FocusMode, value):
+                    value = getattr(FocusMode, value)
+                else:
+                    value = FocusMode.Unknown
+        super().on_prop(instance, value, **kwargs)
+
 class PaintParams(ParameterGroup):
     """Paint parameters
 
@@ -817,7 +1014,10 @@ class TallyParams(ParameterGroup):
             self.preview = value == 'Preview'
         super().on_prop(instance, value, **kwargs)
 
-PARAMETER_GROUP_CLS = (CameraParams, BatteryParams, ExposureParams, PaintParams, TallyParams)
+PARAMETER_GROUP_CLS = (
+    CameraParams, BatteryParams, ExposureParams,
+    LensParams, PaintParams, TallyParams,
+)
 
 @logger.catch
 def main(hostaddr, auth_user, auth_pass, id_=None):
