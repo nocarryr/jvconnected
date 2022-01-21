@@ -179,6 +179,7 @@ class FakeDevice(Dispatcher):
             'GetCamStatus':self.handle_status_request,
             'SetWebButtonEvent':self.handle_web_button_event,
             'SetWebSliderEvent':self.handle_web_slider_event,
+            'SeesawSwitchOperation':self.handle_seesaw_event,
             'SetWebXYFieldEvent':self.handle_web_xy_event,
             'SetStudioTally':self.handle_tally_request,
             'JpegEncode':self.handle_jpg_encode_request,
@@ -190,6 +191,20 @@ class FakeDevice(Dispatcher):
     @property
     def dns_name(self):
         return f'{self.dns_name_prefix}-{self.serial_number}'
+
+    @logger.catch
+    async def open(self):
+        coros = set()
+        for pg in self.parameter_groups.values():
+            coros.add(pg.open())
+        await asyncio.gather(*coros)
+
+    @logger.catch
+    async def close(self):
+        coros = set()
+        for pg in self.parameter_groups.values():
+            coros.add(pg.open())
+        await asyncio.gather(*coros)
 
     def _add_param_group(self, cls, **kwargs):
         pg = cls(self, **kwargs)
@@ -246,6 +261,12 @@ class FakeDevice(Dispatcher):
             coros.append(pg.handle_web_slider_event(request, payload))
         await asyncio.gather(*coros)
 
+    async def handle_seesaw_event(self, request, payload):
+        coros = []
+        for pg in self.parameter_groups.values():
+            coros.append(pg.handle_seesaw_event(request, payload))
+        await asyncio.gather(*coros)
+
     async def handle_web_xy_event(self, request, payload):
         coros = []
         for pg in self.parameter_groups.values():
@@ -286,6 +307,12 @@ class FakeParamBase(Dispatcher):
         self.name = name
         self.bind(**{prop:self.on_prop for prop, _ in self._prop_attrs})
 
+    async def open(self):
+        pass
+
+    async def close(self):
+        pass
+
     def iter_api_key(self, api_key):
         if isinstance(api_key, str):
             for key in api_key.split('.'):
@@ -315,6 +342,9 @@ class FakeParamBase(Dispatcher):
         pass
 
     async def handle_web_slider_event(self, request, payload):
+        pass
+
+    async def handle_seesaw_event(self, request, payload):
         pass
 
     async def handle_web_xy_event(self, request, payload):
@@ -504,6 +534,235 @@ class ExposureParams(FakeParamBase):
         elif prop.name == 'master_black_pos':
             self.master_black = str(value)
 
+class SeesawMover:
+    timeout = .5
+    increments = [0, .001, .005, .01, .03, .05, .08, .1]
+    def __init__(self, parent: 'LensParams', pos_range, value_prop):
+        self.parent = parent
+        self.pos_range = pos_range
+        self.value_prop = value_prop
+        self.cur_speed = 0
+        self._lock = asyncio.Lock()
+        self._trigger = asyncio.Condition()
+        self.task = None
+        self.running = False
+        self.enabled = True
+
+    @property
+    def value(self):
+        return getattr(self.parent, self.value_prop)
+    @value.setter
+    def value(self, v):
+        setattr(self.parent, self.value_prop, v)
+
+    @property
+    def value_normalized(self):
+        vmin, vmax = self.pos_range
+        return (self.value - vmin) / (vmax - vmin)
+    @value_normalized.setter
+    def value_normalized(self, value):
+        vmin, vmax = self.pos_range
+        self.value = value * (vmax - vmin) + vmin
+
+    async def set_enabled(self, enabled: bool):
+        async with self:
+            self.enabled = enabled
+            if not enabled:
+                await self._set_speed(0)
+
+    async def set_speed(self, speed: int):
+        async with self:
+            await self._set_speed(speed)
+
+    async def _set_speed(self, speed: int):
+        if not self.enabled:
+            speed = 0
+        if speed == self.cur_speed:
+            return
+        self.cur_speed = speed
+        await self.trigger()
+
+    async def trigger(self):
+        async with self._trigger:
+            self._trigger.notify_all()
+
+    async def start(self):
+        async with self:
+            if self.running:
+                return
+            self.cur_speed = 0
+            self.running = True
+            assert self.task is None
+            self.running = True
+            self.task = asyncio.ensure_future(self.run_loop())
+
+    async def stop(self):
+        async with self:
+            if not self.running:
+                return
+            t = self.task
+            self.task = None
+            self.running = False
+            await self.trigger()
+            if t is not None:
+                await t
+
+    @logger.catch
+    async def run_loop(self):
+
+        async def wait_for_trigger():
+            async with self._trigger:
+                await self._trigger.wait()
+
+        async def move():
+            if not self.enabled:
+                return
+            if self.cur_speed == 0:
+                return
+            vnorm = None
+            ix = abs(self.cur_speed)
+            increment = self.increments[self.cur_speed-1]
+            if self.cur_speed < 0:
+                increment = -increment
+            vnorm = self.value_normalized + increment
+            if vnorm < 0:
+                vnorm = 0
+            elif vnorm > 1:
+                vnorm = 1
+            self.value_normalized = vnorm
+
+        while self.running:
+            async with self:
+                await move()
+
+            try:
+                await asyncio.wait_for(wait_for_trigger(), timeout=self.timeout)
+            except asyncio.TimeoutError:
+                continue
+
+    async def __aenter__(self):
+        await self._lock.acquire()
+
+    async def __aexit__(self, *args):
+        self._lock.release()
+
+
+class LensParams(FakeParamBase):
+    _NAME = device.LensParams._NAME
+
+    _prop_attrs = device.LensParams._prop_attrs
+
+    focus_mode = Property('MF')
+    focus_value = Property('0.3 ft')
+    focus_pos = Property(.3)
+
+    zoom_pos = Property(0)
+    zoom_value = Property('Z00')
+
+    _focus_range = [.3, 328]
+    _zoom_pos_range = [0, 499]
+    _zoom_value_range = [0, 99]
+
+    def __init__(self, device: FakeDevice, **kwargs):
+        self._zoom_task = None
+        super().__init__(device, **kwargs)
+        self.focus_mover = SeesawMover(self, self._focus_range, 'focus_pos')
+        self.zoom_mover = SeesawMover(self, self._zoom_pos_range, 'zoom_pos')
+        self.bind(
+            focus_pos=self.on_focus_pos,
+            zoom_pos=self.on_zoom_pos,
+        )
+        loop = asyncio.get_event_loop()
+        self.bind_async(loop, focus_mode=self.on_focus_mode)
+
+    async def open(self):
+        await self.focus_mover.start()
+        mover_enabled = self.focus_mode == 'MF'
+        await self.focus_mover.set_enabled(mover_enabled)
+        await self.zoom_mover.start()
+
+    async def close(self):
+        await self.focus_mover.stop()
+        await self.zoom_mover.stop()
+
+    async def handle_web_button_event(self, request, payload):
+        params = payload['Request']['Params']
+        kind = params['Kind']
+        btn = params['Button']
+        if kind == 'Focus':
+            if btn == 'Auto':
+                self.focus_mode = 'AF'
+            elif btn == 'Manual':
+                self.focus_mode = 'MF'
+            elif btn == 'PushAuto':
+                pass
+
+    async def handle_web_slider_event(self, request, payload):
+        params = payload['Request']['Params']
+        kind = params['Kind']
+        pos = params['Position']
+        if kind == 'ZoomBar':
+            await self.queue_zoom_change(pos)
+
+    async def handle_seesaw_event(self, request, payload):
+        params = payload['Request']['Params']
+        kind = params['Kind']
+        direction = params['Direction']
+        speed = params['Speed']
+        if kind == 'FocusSeesaw':
+            if direction == 'Near':
+                speed = -speed
+            elif direction == 'Stop':
+                speed = 0
+            await self.focus_mover.set_speed(speed)
+        elif kind == 'ZoomSeesaw':
+            if direction == 'Wide':
+                speed = -speed
+            elif direction == 'Stop':
+                speed = 0
+            async with self.zoom_mover:
+                if self._zoom_task is not None:
+                    self._zoom_task.cancel()
+                self._zoom_task = None
+            await self.zoom_mover.set_speed(speed)
+
+    async def queue_zoom_change(self, value: int):
+        async with self.zoom_mover:
+            t = self._zoom_task
+            if t is not None:
+                t.cancel()
+            self._zoom_task = asyncio.ensure_future(self._set_zoom_value(value))
+
+    async def _set_zoom_value(self, value: int):
+        zmin, zmax = self._zoom_pos_range
+        if value < zmin:
+            value = zmin
+        elif value > zmax:
+            value = zmax
+        await asyncio.sleep(.5)
+        async with self.zoom_mover:
+            await self.zoom_mover._set_speed(0)
+            self.zoom_pos = value
+            self._zoom_task = None
+
+    async def on_focus_mode(self, instance, value, **kwargs):
+        mover_enabled = value == 'MF'
+        await self.focus_mover.set_enabled(mover_enabled)
+
+    def on_focus_pos(self, instance, value, **kwargs):
+        if value == self._focus_range[1]:
+            self.focus_value = 'INF.ft'
+        else:
+            self.focus_value = f'{value:.1f}ft'
+
+    def on_zoom_pos(self, instance, value, **kwargs):
+        pmin, pmax = self._zoom_pos_range
+        vmin, vmax = self._zoom_value_range
+        v = int(value / (pmax - pmin) * (vmax - vmin))
+        self.zoom_value = f'Z{v:02d}'
+
+
+
 class PaintParams(FakeParamBase):
     _NAME = device.PaintParams._NAME
     _prop_attrs = device.PaintParams._prop_attrs
@@ -588,7 +847,10 @@ class TallyParams(FakeParamBase):
         self.tally_status = value
 
 
-PARAMETER_GROUP_CLS = (CameraParams, BatteryParams, ExposureParams, PaintParams, TallyParams)
+PARAMETER_GROUP_CLS = (
+    CameraParams, BatteryParams, ExposureParams,
+    LensParams, PaintParams, TallyParams,
+)
 
 
 
@@ -617,6 +879,12 @@ class DeviceService(Dispatcher):
     def id(self):
         return (self.info.name, self.info.port)
 
+    async def open(self):
+        await self.device.open()
+
+    async def close(self):
+        self.published = False
+        await self.device.close()
 
 
 class ZeroconfPublisher(Dispatcher):
@@ -648,8 +916,10 @@ class ZeroconfPublisher(Dispatcher):
         if not self.running:
             return
         zc = self.zeroconf
+        coros = set()
         for service in self.services.values():
-            service.published = False
+            coros.add(service.close())
+        await asyncio.gather(*coros)
         await zc.async_close()
         self.running = False
 
@@ -667,6 +937,7 @@ class ZeroconfPublisher(Dispatcher):
         self.infos_by_port[info.port] = info
 
         service = DeviceService(device, info)
+        await service.open()
         self.services[service.id] = service
         device.bind(zc_service_info=self.on_device_service_info_changed)
         service.bind_async(self.loop, published=self.on_service_published_changed)
