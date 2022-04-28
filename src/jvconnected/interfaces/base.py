@@ -1,3 +1,5 @@
+from __future__ import annotations
+import typing as tp
 import asyncio
 from typing import ClassVar, Optional, Dict
 
@@ -9,15 +11,15 @@ class Interface(Dispatcher):
     Subclasses must override the :meth:`open` and :meth:`close` methods.
     In order to operate with the :class:`~jvconnected.engine.Engine`, the class
     should be added to the :attr:`~jvconnected.interfaces.registry`
-
-    Properties:
-        running (bool): Run state
-        config: Instance of :class:`jvconnected.config.Config`. This is gathered
-            from the :attr:`engine` after :meth:`set_engine` has been called.
-
     """
-    running = Property(False)
-    config = Property()
+
+    running: bool = Property(False)
+    """Run state"""
+
+    config: 'jvconnected.config.Config'|None = Property()
+    """Instance of :class:`jvconnected.config.Config`. This is gathered
+    from the :attr:`engine` after :meth:`set_engine` has been called.
+    """
 
     loop: asyncio.BaseEventLoop
     """The :class:`asyncio.BaseEventLoop` associated with the instance"""

@@ -11,30 +11,34 @@ from jvconnected.interfaces.tslumd.mapper import DeviceMapping, MappedDevice
 
 class UmdIo(Interface):
     """Main UMD interface
-
-    Properties:
-        hostaddr (str): Alias for :attr:`tslumd.receiver.UmdReceiver.hostaddr`
-        hostport (int): Alias for :attr:`tslumd.receiver.UmdReceiver.hostport`
-        device_maps (Dict[int, DeviceMapping]): A ``dict`` of
-            :class:`~.mapper.DeviceMapping` definitions stored with their
-            :attr:`~.mapper.DeviceMapping.device_index` as keys
-        mapped_devices (Dict[int, MappedDevice]): A ``dict`` of
-            :class:`~.mapper.MappedDevice` stored with the ``device_index``
-            of their :attr:`~.mapper.MappedDevice.map` as keys
-
-    :Events:
-        .. event:: on_tally_added(tally: Tally)
-
-            Fired when a :class:`tslumd.tallyobj.Tally` instance is added to :attr:`tallies`
-
-        .. event:: on_tally_updated(tally: Tally)
-
-            Fired when any :class:`tslumd.tallyobj.Tally` instance has been updated
     """
-    hostaddr = Property('0.0.0.0')
-    hostport = Property(65000)
-    device_maps = DictProperty()
-    mapped_devices = DictProperty()
+
+    hostaddr: str = Property('0.0.0.0')
+    """Alias for :attr:`tslumd.receiver.UmdReceiver.hostaddr`"""
+
+    hostport: int = Property(65000)
+    """Alias for :attr:`tslumd.receiver.UmdReceiver.hostport`"""
+
+    device_maps: Dict[int, DeviceMapping] = DictProperty()
+    """A ``dict`` of :class:`~.mapper.DeviceMapping` definitions stored with
+    their :attr:`~.mapper.DeviceMapping.device_index` as keys
+    """
+
+    mapped_devices: Dict[int, MappedDevice] = DictProperty()
+    """A ``dict`` of :class:`~.mapper.MappedDevice` stored with the
+    ``device_index`` of their :attr:`~.mapper.MappedDevice.map` as keys
+    """
+
+    def on_tally_added(self, tally: Tally):
+        """Fired when a :class:`tslumd.tallyobj.Tally` instance is
+        added to :attr:`tallies`
+        """
+
+    def on_tally_updated(self, tally: Tally):
+        """Fired when any :class:`tslumd.tallyobj.Tally` instance has
+        been updated
+        """
+
     _events_ = ['on_tally_added', 'on_tally_updated']
     interface_name = 'tslumd'
     def __init__(self):
