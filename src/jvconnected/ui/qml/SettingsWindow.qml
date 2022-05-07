@@ -46,6 +46,13 @@ Dialog {
         MidiSettings {
             id: midiSettings
             engine: root.engine
+            Connections {
+                target: root
+                function onAccepted() { midiSettings.submit() }
+                function onApplied() { midiSettings.submit() }
+                function onRejected() { midiSettings.cancel() }
+                function onReset() { midiSettings.cancel() }
+            }
         }
         TallySettings {
             id: tallySettings

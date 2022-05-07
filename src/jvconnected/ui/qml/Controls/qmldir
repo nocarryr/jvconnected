@@ -2,6 +2,7 @@ module Controls
 
 ValueLabel 1.0 ValueLabel.qml
 TextInput 1.0 TextInput.qml
+IconButton 1.0 IconButton.qml
 Indicator 1.0 Indicator.qml
 ArrowButton 1.0 ArrowButton.qml
 UpDownButtons 1.0 UpDownButtons.qml
