@@ -260,15 +260,20 @@ class QtSignalDirective(PyMethod):
 
     def add_args_from_options(self, signode: desc_signature) -> None:
         params = addnodes.desc_parameterlist()
-        argnames = self.options.get('argnames')
-        argtypes = self.options.get('argtypes')
-        if None not in [argnames, argtypes]:
+        argnames = self.options.get('argnames', [])
+        argtypes = self.options.get('argtypes', [])
+        if len(argtypes):
             argnames, argtypes = list_option(argnames), list_option(argtypes)
             arglist = ', '.join([
                 f'{argname}: {argtype}' for argname, argtype in zip(argnames, argtypes)
             ])
             params = _parse_arglist(arglist, self.env)
             signode += params
+        else:
+            signode.extend([
+                addnodes.desc_sig_punctuation('', '('),
+                addnodes.desc_sig_punctuation('', ')'),
+            ])
 
     def get_signature_prefix(self, sig: str) -> tp.List[nodes.Node]:
         return [
