@@ -15,17 +15,16 @@ class BasePort(Dispatcher):
     Arguments:
         name (str): The port name
 
-    Properties:
-        name (str): The port name
-        running (bool): Current run state
-
     Attributes:
         stopped (asyncio.Event):
-
     """
     MAX_QUEUE = 100
-    name = Property()
-    running = Property(False)
+    name: str = Property()
+    """The port name"""
+
+    running: bool = Property(False)
+    """Current run state"""
+
     EXECUTOR: ClassVar['concurrent.futures.ThreadPoolExecutor'] = None
     """A :class:`concurrent.futures.ThreadPoolExecutor` to use in the
     :meth:`run_in_executor` method for all instances of all :class:`BasePort` subclasses

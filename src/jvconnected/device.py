@@ -1,3 +1,5 @@
+from __future__ import annotations
+import typing as tp
 from loguru import logger
 import asyncio
 from enum import Enum, auto
@@ -17,34 +19,39 @@ class Device(Dispatcher):
         auth_pass (str): Api password
         id_ (str): Unique string id
         hostport (int, optional): The network host port
-
-    Properties:
-        model_name (str):
-        serial_number (str):
-        resolution (str):
-        api_version (str):
-        parameter_groups (dict): Container for :class:`ParameterGroup` instances
-        connected (bool): Connection state
-        device_index (int): The device index
-        error (bool): Becomes ``True`` when a communication error occurs
-
-    :Events:
-
-        .. event:: on_client_error(self, exc)
-
-            Fired when an error is caught by the http client. The first argument
-            is the :class:`Device` instance and the second argument is the
-            :class:`Exception` that was raised
-
     """
-    model_name = Property()
-    serial_number = Property()
-    resolution = Property()
-    api_version = Property()
-    device_index = Property(0)
-    connected = Property(False)
-    error = Property(False)
-    parameter_groups = DictProperty()
+    model_name: str|None = Property()
+    """Model name of the device"""
+
+    serial_number: str|None = Property()
+    """The device serial number"""
+
+    resolution: str|None = Property()
+    """Current output resolution in string format"""
+
+    api_version: str|None = Property()
+    """Api version supported by the device"""
+
+    device_index: int = Property(0)
+    """The device index"""
+
+    connected: bool = Property(False)
+    """Connection state"""
+
+    error: bool = Property(False)
+    """Becomes ``True`` when a communication error occurs"""
+
+    parameter_groups: tp.Dict[str, 'ParameterGroup'] = DictProperty()
+    """Container for :class:`ParameterGroup` instances"""
+
+    def on_client_error(self, instance: 'Device', exc: Exception):
+        """Fired when an error is caught by the http client.
+
+        Arguments:
+            instance: The device instance
+            exc: The :class:`Exception` that was raised
+        """
+
     _events_ = ['on_client_error']
     def __init__(self, hostaddr:str, auth_user:str, auth_pass:str, id_: str, hostport: int = 80):
         self.hostaddr = hostaddr
@@ -206,9 +213,6 @@ class ParameterGroup(Dispatcher):
     Arguments:
         device (Device): The parent :class:`Device`
 
-    Properties:
-        name (str): The group name
-
     Attributes:
         _prop_attrs (list): A list of tuples to map instance attributes to the
             values returned by the api data from :meth:`Device._request_cam_status`
@@ -216,7 +220,9 @@ class ParameterGroup(Dispatcher):
             available. If the parameter is missing during :meth:`parse_status_response`,
             it will be allowed to fail if present in this list.
     """
-    name = Property('')
+    name: str = Property('')
+    """The group name"""
+
     _NAME = None
     _prop_attrs = []
     _optional_api_keys = []
@@ -301,21 +307,24 @@ class MenuChoices(Enum):
 
 class CameraParams(ParameterGroup):
     """Basic camera parameters
-
-    Properties:
-        status (str): Camera status. One of
-            ``['NoCard', 'Stop', 'Standby', 'Rec', 'RecPause']``
-        mode (str): Camera record / media mode. One of
-            ``['Normal', 'Pre', 'Clip', 'Frame', 'Interval', 'Variable']``
-        timecode (str): The current timecode value
-        menu_status (bool): ``True`` if the camera menu is open
-
     """
     _NAME = 'camera'
-    status = Property()
-    menu_status = Property(False)
-    mode = Property()
-    timecode = Property()
+    status: str|None = Property()
+    """Camera status. One of
+    ``['NoCard', 'Stop', 'Standby', 'Rec', 'RecPause']``
+    """
+
+    menu_status: bool = Property(False)
+    """``True`` if the camera menu is open"""
+
+    mode: str|None = Property()
+    """Camera record / media mode. One of
+    ``['Normal', 'Pre', 'Clip', 'Frame', 'Interval', 'Variable']``
+    """
+
+    timecode: str|None = Property()
+    """The current timecode value"""
+
     _prop_attrs = [
         ('status', 'Camera.Status'),
         ('mode', 'Camera.Mode'),
@@ -355,32 +364,35 @@ class BatteryState(Enum):
 
 class BatteryParams(ParameterGroup):
     """Battery Info
-
-    Properties:
-        info_str (str): Type of value given to :attr:`value_str`. One of
-            ``['Time', 'Capacity', 'Voltage']``
-        level_str (str): Numeric value indicating various charging/discharging
-            states
-        value_str (str): One of remaining time (in minutes), capacity (percent)
-            or voltage (x10) depending on the value of :attr:`info_str`
-        state (BatteryState): The current battery state as a member
-            of :class:`BatteryState`
-        minutes (int): Minutes remaining until full (while charging) or battery
-            runtime (while on-battery). If unavailable, this will be ``-1``
-        percent (int): Capacity remaining. If unavailable, this will be ``-1``
-        voltage (float): Battery voltage. If unavailable, this will be ``-1``
-
     """
     _NAME = 'battery'
-    info_str = Property()
-    level_str = Property()
-    value_str = Property('0')
+    info_str: str|None = Property()
+    """Type of value given to :attr:`value_str`. One of
+    ``['Time', 'Capacity', 'Voltage']``
+    """
+    level_str: str|None = Property()
+    """Numeric value indicating various charging/discharging states"""
 
-    state = Property(BatteryState.UNKNOWN)
+    value_str: str = Property('0')
+    """One of remaining time (in minutes), capacity (percent)
+    or voltage (x10) depending on the value of :attr:`info_str`
+    """
+
+    state: BatteryState = Property(BatteryState.UNKNOWN)
+    """The current battery state"""
+
     level = Property(1.)
-    minutes = Property(-1)
-    percent = Property(-1)
-    voltage = Property(-1)
+    minutes: int = Property(-1)
+    """Minutes remaining until full (while charging) or battery
+    runtime (while on-battery). If unavailable, this will be ``-1``
+    """
+
+    percent: int = Property(-1)
+    """Capacity remaining. If unavailable, this will be ``-1``"""
+
+    voltage: float = Property(-1)
+    """Battery voltage. If unavailable, this will be ``-1``"""
+
     _prop_attrs = [
         ('info_str', 'Battery.Info'),
         ('level_str', 'Battery.Level'),
@@ -436,36 +448,47 @@ class BatteryParams(ParameterGroup):
 
 class ExposureParams(ParameterGroup):
     """Exposure parameters
-
-    Properties:
-        mode (str): Exposure mode. One of
-            ``['Auto', 'Manual', 'IrisPriority', 'ShutterPriority']``
-        iris_mode (str): Iris mode. One of ``['Manual', 'Auto', 'AutoAELock']``
-        iris_fstop (str): Character string for iris value
-        iris_pos (int): Iris position (0-255)
-        gain_mode (str): Gain mode. One of
-            ``['ManualL', 'ManualM', 'ManualH', 'AGC', 'AlcAELock', 'LoLux', 'Variable']``
-        gain_value (str): Gain value
-        gain_pos (int): Gain value as an integer from -6 to 24
-        shutter_mode (str): Shutter mode. One of
-            ``['Off', 'Manual', 'Step', 'Variable', 'Eei']``
-        shutter_value (str): Shutter value
-        master_black (str): MasterBlack value
-        master_black_pos (int): MasterBlack value as an integer from -50 to 50
-
     """
     _NAME = 'exposure'
-    mode = Property()
-    iris_mode = Property()
-    iris_fstop = Property()
-    iris_pos = Property()
-    gain_mode = Property()
-    gain_value = Property()
-    gain_pos = Property(0)
-    shutter_mode = Property()
-    shutter_value = Property()
-    master_black = Property()
-    master_black_pos = Property(0)
+    mode: str|None = Property()
+    """Exposure mode. One of
+    ``['Auto', 'Manual', 'IrisPriority', 'ShutterPriority']``
+    """
+
+    iris_mode: str|None = Property()
+    """Iris mode. One of ``['Manual', 'Auto', 'AutoAELock']``"""
+
+    iris_fstop: str|None = Property()
+    """Character string for iris value"""
+
+    iris_pos: int|None = Property()
+    """Iris position (0-255)"""
+
+    gain_mode: str|None = Property()
+    """Gain mode. One of
+    ``['ManualL', 'ManualM', 'ManualH', 'AGC', 'AlcAELock', 'LoLux', 'Variable']``
+    """
+
+    gain_value: str|None = Property()
+    """Gain value"""
+
+    gain_pos: int = Property(0)
+    """The :attr:`gain_value` as an integer from -6 to 24"""
+
+    shutter_mode: str|None = Property()
+    """Shutter mode. One of
+    ``['Off', 'Manual', 'Step', 'Variable', 'Eei']``
+    """
+
+    shutter_value: str|None = Property()
+    """Shutter value"""
+
+    master_black: str|None = Property()
+    """MasterBlack value"""
+
+    master_black_pos: int = Property(0)
+    """MasterBlack value as an integer from -50 to 50"""
+
     _prop_attrs = [
         ('mode', 'Exposure.Status'),
         ('iris_mode', 'Iris.Status'),
@@ -627,29 +650,36 @@ class FocusDirection(Enum):
 
 class LensParams(ParameterGroup):
     """Lens Parameters
-
-    Properties:
-        focus_mode (FocusMode): The current focus mode
-        focus_value (str): Character string for focus value
-        zoom_pos (int): Zoom position from 0 to 499
-        zoom_value (str): Character string for zoom value
-        focus_speed (int): Current focus speed from -8 (near) to +8 (far) where
-            0 indicates no movement
-        zoom_speed (int): Current zoom speed from -8 (wide) to +8 (tele) where
-            0 indicates no movement
-        focusing (bool): True while focus is moving
-        zooming (bool): True while zoom is moving
     """
     _NAME = 'lens'
 
-    focus_mode = Property(FocusMode.Unknown)
-    focus_value = Property()
-    zoom_pos = Property(0)
-    zoom_value = Property()
-    focus_speed = Property(0)
-    zoom_speed = Property(0)
-    focusing = Property(False)
-    zooming = Property(False)
+    focus_mode: FocusMode = Property(FocusMode.Unknown)
+    """The current focus mode"""
+
+    focus_value: str|None = Property()
+    """Character string for focus value"""
+
+    zoom_pos: int = Property(0)
+    """Zoom position from 0 to 499"""
+
+    zoom_value: str|None = Property()
+    """Character string for zoom value"""
+
+    focus_speed: int = Property(0)
+    """Current focus speed from -8 (near) to +8 (far) where
+    0 indicates no movement
+    """
+
+    zoom_speed: int = Property(0)
+    """Current zoom speed from -8 (wide) to +8 (tele) where
+    0 indicates no movement
+    """
+
+    focusing: bool = Property(False)
+    """True while focus is moving"""
+
+    zooming: bool = Property(False)
+    """True while zoom is moving"""
 
     _prop_attrs = [
         ('focus_mode', 'Focus.Status'),
@@ -799,38 +829,49 @@ class LensParams(ParameterGroup):
 
 class PaintParams(ParameterGroup):
     """Paint parameters
-
-    Properties:
-        white_balance_mode (str): Current white balance mode. One of
-            ``['Preset', 'A', 'B', 'Faw', 'FawAELock',
-            'Faw', 'Awb', 'OnePush', '3200K', '5600K', 'Manual']``
-        color_temp (str): White balance value
-        red_scale (int): Total range for WB red paint (0-64)
-        red_pos (int): Current position of WB red paint (0-64)
-        red_value (str): WB red paint value
-        red_normalized (int): Red value from -31 to +31
-        blue_scale (int): Total range for WB blue paint (0-64)
-        blue_pos (int): Current position of WB blue paint (0-64)
-        blue_value (str): WB blue paint value
-        blue_normalized (int): Blue value from -31 to +31
-        detail (str): Detail value as string
-        detail_pos (int): Detail value as an integer from -10 to +10
-
     """
     _NAME = 'paint'
 
-    white_balance_mode = Property()
-    color_temp = Property()
-    red_scale = Property(64)
-    red_pos = Property()
-    red_value = Property()
-    red_normalized = Property(0)
-    blue_scale = Property(64)
-    blue_pos = Property()
-    blue_value = Property()
-    blue_normalized = Property(0)
-    detail = Property()
-    detail_pos = Property(0)
+    white_balance_mode: str = Property()
+    """Current white balance mode. One of
+    ``['Preset', 'A', 'B', 'Faw', 'FawAELock',
+    'Faw', 'Awb', 'OnePush', '3200K', '5600K', 'Manual']``
+    """
+
+    color_temp: str|None = Property()
+    """White balance value"""
+
+    red_scale: int = Property(64)
+    """Total range for WB red paint (0-64)"""
+
+    red_pos: int|None = Property()
+    """Current position of :attr:`red_value` (WB red paint) in the range of 0-64
+    """
+
+    red_value: str|None = Property()
+    """Character string for WB red paint value"""
+
+    red_normalized: int = Property(0)
+    """:attr:`red_pos` from -31 to +31"""
+
+    blue_scale: int = Property(64)
+    """Total range for WB blue paint (0-64)"""
+
+    blue_pos: int|None = Property()
+    """Current position of :attr:`blue_value` (WB blue paint) in the range of 0-64
+    """
+
+    blue_value: str|None = Property()
+    """Character string for WB blue paint value"""
+
+    blue_normalized: int = Property(0)
+    """:attr:`blue_pos` from -31 to +31"""
+
+    detail: str|None = Property()
+    """Detail value as string"""
+
+    detail_pos: int = Property(0)
+    """:attr:`detail` as an integer from -10 to +10"""
 
     _prop_attrs = [
         ('white_balance_mode', 'Whb.Status'),
@@ -949,20 +990,21 @@ class PaintParams(ParameterGroup):
 
 class TallyParams(ParameterGroup):
     """Tally light parameters
-
-    Properties:
-        program (bool): True if program tally is lit
-        preview (bool): True if preview tally is lit
-        tally_priority (str): The tally priority. One of ``['Camera', 'Web']``.
-        tally_status (str): Tally light status. One of ``['Off', 'Program', 'Preview']``
-
     """
-    _NAME = 'tally'
-    program = Property(False)
-    preview = Property(False)
 
-    tally_priority = Property()
-    tally_status = Property()
+    _NAME = 'tally'
+    program: bool = Property(False)
+    """True if program tally is lit"""
+
+    preview: bool = Property(False)
+    """True if preview tally is lit"""
+
+    tally_priority: str|None = Property()
+    """The tally priority. One of ``['Camera', 'Web']``."""
+
+    tally_status: str|None = Property()
+    """Tally light status. One of ``['Off', 'Program', 'Preview']``"""
+
     _prop_attrs = [
         ('tally_priority', 'TallyLamp.Priority'),
         ('tally_status', 'TallyLamp.StudioTally'),

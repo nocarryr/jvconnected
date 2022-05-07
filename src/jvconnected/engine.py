@@ -1,3 +1,5 @@
+from __future__ import annotations
+import typing as tp
 from loguru import logger
 import asyncio
 import enum
@@ -86,59 +88,64 @@ class ReconnectStatus:
 
 class Engine(Dispatcher):
     """Top level component to handle config, discovery and device control
-
-    Properties:
-        interfaces (dict): Container for :class:`jvconnected.interfaces.base.Interface`
-            instances
-        devices (dict): Container for :class:`~jvconnected.device.Device` instances
-        auto_add_devices (bool): If ``True``, devices will be added automatically
-            when discovered on the network. Otherwise, they must be added manually
-            using :meth:`add_device_from_conf`
-
-    Attributes:
-        config: The :class:`~jvconnected.config.Config` instance
-        discovery: The :class:`~jvconnected.discovery.Discovery` instance
-        connection_status (dict): Mapping of :class:`ReconnectStatus` instances
-
-    :Events:
-        .. event:: on_config_device_added(conf_device)
-
-            Fired when an instance of :class:`~jvconnected.config.DeviceConfig`
-            is added
-
-        .. event:: on_device_discovered(conf_device)
-
-            Fired when a device is detected on the network. An instance of
-            :class:`~jvconnected.config.DeviceConfig` is found (or created)
-            and passed as the argument
-
-        .. event:: on_device_added(device)
-
-            Fired when an instance of :class:`~jvconnected.device.Device` is
-            added to :attr:`devices`
-
-        .. event:: on_device_removed(device: jvconnected.device.Device, reason: RemovalReason)
-
-            Fired when an instance of :class:`~jvconnected.device.Device` is
-            removed
-
-            :param device: The device that was removed
-            :type device: jvconnected.device.Device
-            :param reason: Reason for removal
-            :type reason: RemovalReason
-
     """
-    devices = DictProperty()
+
+    devices: tp.Dict[str, Device] = DictProperty()
+    """Mapping of :class:`~.device.Device` instances using their
+    :attr:`~.device.Device.id` as keys
+    """
+
     discovered_devices = DictProperty()
     running = Property(False)
     auto_add_devices = Property(True)
+    """If ``True``, devices will be added automatically
+    when discovered on the network. Otherwise, they must be added manually
+    using :meth:`add_device_from_conf`
+    """
+
     midi_io = Property()
-    interfaces = DictProperty()
+    interfaces: tp.Dict[str, 'jvconnected.interfaces.base.Interface'] = DictProperty()
+    """Container for :class:`~.interfaces.base.Interface` instances
+    """
 
     _events_ = [
         'on_config_device_added', 'on_device_discovered',
         'on_device_added', 'on_device_removed',
     ]
+    config: Config
+    """The :class:`~.config.Config` instance"""
+
+    discovery: Discovery
+    """The :class:`~.discovery.Discovery` instance"""
+
+    connection_status: tp.Dict[str, ReconnectStatus]
+    """Mapping of :class:`ReconnectStatus` instances using the associated
+    :attr:`device_id <.config.DeviceConfig.id>` as keys
+    """
+
+    def on_config_device_added(self, conf_device: DeviceConfig):
+        """Fired when an instance of :class:`~.config.DeviceConfig` is added
+        """
+
+    def on_device_discovered(self, conf_device: DeviceConfig):
+        """Fired when a device is detected on the network. An instance of
+        :class:`~.config.DeviceConfig` is found (or created)
+        and passed as the argument
+        """
+
+    def on_device_added(self, device: Device):
+        """Fired when an instance of :class:`~.device.Device` is
+        added to :attr:`devices`
+        """
+
+    def on_device_removed(self, device: Device, reason: RemovalReason):
+        """Fired when an instance of :class:`~.device.Device` is removed
+
+        Arguments:
+            device: The device that was removed
+            reason: Reason for removal
+        """
+
     _device_reconnect_timeout = 5
     _device_reconnect_max_attempts = 100
     def __init__(self, **kwargs):

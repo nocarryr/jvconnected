@@ -1,3 +1,5 @@
+from __future__ import annotations
+import typing as tp
 from loguru import logger
 import asyncio
 
@@ -55,27 +57,27 @@ class ProcamListener(object):
 
 class Discovery(Dispatcher):
     """Listen for cameras using zeroconf
-
-    Properties:
-        procam_infos (dict): Container for discovered devices as instances of
-            :class:`zeroconf.ServiceInfo`. The service names (fqdn) are used as keys
-
-    :Events:
-        .. event:: on_service_added(name, info=info)
-
-            Fired when a new device is discovered
-
-        .. event:: on_service_updated(name, info=info, old=old_info)
-
-            Fired when an service is updated.
-            The pre-existing :class:`~zeroconf.ServiceInfo` is passed for comparison
-
-        .. event:: on_service_removed(name, info=info)
-
-            Fired when an existing service is no longer available
-
     """
-    procam_infos = DictProperty()
+
+    procam_infos: tp.Dict[str, ServiceInfo] = DictProperty()
+    """Container for discovered devices as instances of
+    :class:`zeroconf.ServiceInfo`. The service names (fqdn) are used as keys
+    """
+
+    def on_service_added(self, name: str, info: ServiceInfo):
+        """Fired when a new device is discovered
+        """
+
+    def on_service_updated(self, name: str, info: ServiceInfo, old: ServiceInfo):
+        """Fired when an service is updated.
+
+        The pre-existing info is passed for comparison
+        """
+
+    def on_service_removed(self, name: str, info: ServiceInfo):
+        """Fired when an existing service is no longer available
+        """
+
     _events_ = ['on_service_added', 'on_service_updated', 'on_service_removed']
     def __init__(self):
         self.running = False

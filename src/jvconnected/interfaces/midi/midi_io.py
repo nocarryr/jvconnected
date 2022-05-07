@@ -1,6 +1,8 @@
+from __future__ import annotations
+import typing as tp
 from loguru import logger
 import asyncio
-from typing import List, Sequence, Optional
+from typing import List, Dict, Sequence, Optional
 
 import mido
 import rtmidi
@@ -17,46 +19,46 @@ class ValidationError(Exception):
 
 class MidiIO(Interface):
     """Midi interface handler
-
-    Properties:
-        inport_names (List[str]): list of input port names to use (as ``str``)
-        outport_names (List[str]): list of output port names to use (as ``str``)
-        inports (Dict[str, InputPort]): Mapping of :class:`~.aioport.InputPort`
-            instances stored with the names as keys
-        outports (Dict[str, OutputPort]): Mapping of :class:`~.aioport.OutputPort`
-            instances stored with the names as keys
-        mapped_devices (Dict[str, MappedDevice]): Mapping of
-            :class:`~.mapped_device.MappedDevice` instances stored with
-            the device id as keys
-        device_channel_map (Dict[str, int]): Mapping of Midi channel assignments
-            using the :attr:`device_id <jvconnected.config.DeviceConfig.id>`
-            as keys and Midi channel as values
-        channel_device_map (Dict[int, str]): Mapping of Midi channel assignments
-            using the Midi channel as keys and
-            :attr:`device_id <jvconnected.config.DeviceConfig.id>` as values
-
-    :Events:
-
-        .. event:: port_state(io_type: jvconnected.utils.IOType, name: str, state: bool)
-
-            Fired when a port is added or removed using one of :meth:`add_input`,
-            :meth:`add_output`, :meth:`remove_input`, :meth:`remove_output`.
-
-            :param io_type: The type of port (input or output)
-            :type io_type: :class:`jvconnected.utils.IOType`
-            :param str name: The port name
-            :param bool state: ``True`` if the port was added, ``False`` if it
-                was removed
-
     """
-    inport_names = ListProperty(copy_on_change=True)
-    outport_names = ListProperty(copy_on_change=True)
-    inports = DictProperty()
-    outports = DictProperty()
-    mapped_devices = DictProperty()
-    device_channel_map = DictProperty()
-    channel_device_map = DictProperty()
+    inport_names: tp.List[str] = ListProperty(copy_on_change=True)
+    """list of input port names to use (as ``str``)"""
+
+    outport_names: tp.List[str] = ListProperty(copy_on_change=True)
+    """list of output port names to use (as ``str``)"""
+
+    inports: tp.Dict[str, InputPort] = DictProperty()
+    """Mapping of :class:`~.aioport.InputPort` instances stored with their
+    :attr:`~.aioport.Input.name` as keys
+    """
+
+    outports: tp.Dict[str, OutputPort] = DictProperty()
+    """Mapping of :class:`~.aioport.OutputPort` instances stored with their
+    :attr:`~.aioport.OutputPort.name` as keys
+    """
+
+    mapped_devices: tp.Dict[str, 'jvconnected.interfaces.midi.mapped_device.MappedDevice'] = DictProperty()
+    """Mapping of :class:`~.mapped_device.MappedDevice` instances stored with
+    the device id as keys
+    """
+
+    device_channel_map: Dict[str, int] = DictProperty()
+    """Mapping of :class:`~.mapped_device.MappedDevice` instances
+    stored with the device id as keys
+    """
+
+    channel_device_map: Dict[int, str] = DictProperty()
+    """Mapping of Midi channel assignments using the Midi channel
+    as keys and :attr:`device_id <jvconnected.config.DeviceConfig.id>`
+    as values
+    """
+
     mapper = Property()
+
+    def port_state(self, io_type: IOType, name: str, state: bool):
+        """Fired when a port is added or removed using one of :meth:`add_input`,
+        :meth:`add_output`, :meth:`remove_input`, :meth:`remove_output`.
+        """
+
     interface_name = 'midi'
     _events_ = ['port_state']
     def __init__(self):
