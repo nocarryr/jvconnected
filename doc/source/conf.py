@@ -13,6 +13,7 @@
 import os
 import sys
 # sys.path.insert(0, os.path.abspath('.'))
+sys.path.append(os.path.abspath('./ext'))
 
 
 # -- Project information -----------------------------------------------------
@@ -39,6 +40,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.doctest',
     'pydispatch_sphinx',
+    'autodoc_qt',
 ]
 autodoc_member_order = 'bysource'
 autodoc_default_options = {
@@ -82,4 +84,5 @@ intersphinx_mapping = {
     'mido':('https://mido.readthedocs.io/en/latest/', None),
     'numpy':('https://numpy.org/doc/stable/', None),
     'PIL':('https://pillow.readthedocs.io/en/stable/', None),
+    'PySide6':('https://doc.qt.io/qtforpython-6/', None),
 }

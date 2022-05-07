@@ -9,7 +9,9 @@ from PySide2.QtCore import Property, Signal
 from qasync import QEventLoop, asyncSlot, asyncClose
 
 from jvconnected.engine import Engine
-from jvconnected.ui.utils import GenericQObject, connect_async_close_event
+from jvconnected.ui.utils import (
+    GenericQObject, connect_async_close_event, AnnotatedQtSignal as AnnoSignal,
+)
 from jvconnected.ui.models.device import DeviceModel, DeviceConfigModel
 
 class EngineModel(GenericQObject):
@@ -17,31 +19,24 @@ class EngineModel(GenericQObject):
 
     This object creates an instance of :class:`jvconnected.engine.Engine`
     and handles all necessary interaction with it
-
-    Attributes:
-        engine: The engine instance
-
-    :Events:
-        .. event:: deviceAdded(device: DeviceModel)
-
-            Fired when an active device is added to the engine
-
-            :param device: The model for the added device
-            :type device: jvconnected.ui.models.device.DeviceModel
-
-        .. event:: configDeviceAdded(conf_device: DeviceConfigModel)
-
-            Fired when a device is detected or loaded from config
-
-            :param conf_device: The model for the device
-            :type conf_device: jvconnected.ui.models.device.DeviceConfigModel
-
     """
     _n_running = Signal()
     _n_deviceViewIndices = Signal()
-    deviceAdded = Signal(DeviceModel)
-    deviceRemoved = Signal(str)
-    configDeviceAdded = Signal(DeviceConfigModel)
+    deviceAdded: AnnoSignal(device=DeviceModel) = Signal(DeviceModel)
+    """Fired when an active device is added to the engine
+    """
+
+    deviceRemoved: AnnoSignal(device_id=str) = Signal(str)
+    """Fired when a device is removed
+    """
+
+    configDeviceAdded: AnnoSignal(conf_device=DeviceConfigModel) = Signal(DeviceConfigModel)
+    """Fired when a device is detected or loaded from config
+    """
+
+    engine: Engine
+    """The engine instance"""
+
     def __init__(self, *args):
         self.loop = asyncio.get_event_loop()
         self.engine = Engine(auto_add_devices=True)
@@ -100,12 +95,14 @@ class EngineModel(GenericQObject):
 
     def _g_running(self) -> bool: return self._running
     def _s_running(self, value: bool): self._generic_setter('_running', value)
-    running = Property(bool, _g_running, _s_running, notify=_n_running)
+    running: bool = Property(bool, _g_running, _s_running, notify=_n_running)
     """Run state"""
 
     def _g_deviceViewIndices(self): return self._deviceViewIndices
     def _s_deviceViewIndices(self, value): self._generic_setter('_deviceViewIndices', value)
-    deviceViewIndices = Property('QVariantList', _g_deviceViewIndices, _s_deviceViewIndices, notify=_n_deviceViewIndices)
+    deviceViewIndices: List[int] = Property('QVariantList',
+        _g_deviceViewIndices, _s_deviceViewIndices, notify=_n_deviceViewIndices,
+    )
 
     def on_engine_running(self, instance, value, **kwargs):
         self.running = value
