@@ -1,5 +1,5 @@
 :mod:`jvconnected.devicepreview`
 ================================
 
-.. automodule:: jvconnected.devicepreview
+.. autosectionedmodule:: jvconnected.devicepreview
     :members:

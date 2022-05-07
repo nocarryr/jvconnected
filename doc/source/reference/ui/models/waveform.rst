@@ -1,4 +1,4 @@
 :mod:`jvconnected.ui.models.waveform`
 =====================================
 
-.. automodule:: jvconnected.ui.models.waveform
+.. autosectionedmodule:: jvconnected.ui.models.waveform

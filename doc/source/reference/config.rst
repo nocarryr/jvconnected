@@ -1,5 +1,5 @@
 :mod:`jvconnected.config`
 =========================
 
-.. automodule:: jvconnected.config
+.. autosectionedmodule:: jvconnected.config
     :members:

@@ -1,5 +1,7 @@
 :mod:`jvconnected.device`
 =========================
 
-.. automodule:: jvconnected.device
+
+
+.. autosectionedmodule:: jvconnected.device
     :members:

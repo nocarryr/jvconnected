@@ -16,6 +16,8 @@ from jvconnected.client import ClientError, ClientAuthError, ClientNetworkError
 from jvconnected import interfaces
 from jvconnected.interfaces import midi
 
+__all__ = ('Engine', 'ConnectionState', 'ReconnectStatus', 'RemovalReason')
+
 class RemovalReason(enum.Enum):
     """Possible values used in :event:`Engine.on_device_removed`
     """

@@ -1,3 +1,4 @@
 Sphinx>=4.5
-sphinx_rtd_theme
+furo
+sphinx-design
 python-dispatch-sphinx>=0.2.0

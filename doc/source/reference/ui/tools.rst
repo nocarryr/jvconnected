@@ -8,23 +8,27 @@ itself.
 :mod:`jvconnected.ui.tools.build_qrc`
 -------------------------------------
 
-.. automodule:: jvconnected.ui.tools.build_qrc
+.. autosectionedmodule:: jvconnected.ui.tools.build_qrc
     :members:
+    :section-level: 3
 
 :mod:`jvconnected.ui.tools.qrc_utils`
 -------------------------------------
 
-.. automodule:: jvconnected.ui.tools.qrc_utils
+.. autosectionedmodule:: jvconnected.ui.tools.qrc_utils
     :members:
+    :section-level: 3
 
 :mod:`jvconnected.ui.tools.colorgradients`
 ------------------------------------------
 
-.. automodule:: jvconnected.ui.tools.colorgradients
+.. autosectionedmodule:: jvconnected.ui.tools.colorgradients
     :members:
+    :section-level: 3
 
 :mod:`jvconnected.ui.tools.fontawesome`
 ---------------------------------------
 
-.. automodule:: jvconnected.ui.tools.fontawesome
+.. autosectionedmodule:: jvconnected.ui.tools.fontawesome
     :members:
+    :section-level: 3

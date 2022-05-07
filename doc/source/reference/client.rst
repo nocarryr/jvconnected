@@ -1,5 +1,5 @@
 :mod:`jvconnected.client`
 =========================
 
-.. automodule:: jvconnected.client
+.. autosectionedmodule:: jvconnected.client
     :members:

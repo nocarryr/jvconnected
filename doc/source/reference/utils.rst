@@ -1,5 +1,6 @@
 :mod:`jvconnected.utils`
 ========================
 
-.. automodule:: jvconnected.utils
+
+.. autosectionedmodule:: jvconnected.utils
     :members:

@@ -1,5 +1,5 @@
 :mod:`jvconnected.ui.models.tslumd`
 ===================================
 
-.. automodule:: jvconnected.ui.models.tslumd
+.. autosectionedmodule:: jvconnected.ui.models.tslumd
     :members:

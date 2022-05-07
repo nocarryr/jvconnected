@@ -1,5 +1,5 @@
 :mod:`jvconnected.interfaces.base`
 ==================================
 
-.. automodule:: jvconnected.interfaces.base
+.. autosectionedmodule:: jvconnected.interfaces.base
     :members:

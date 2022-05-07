@@ -9,45 +9,47 @@ The :class:`~pydispatch.properties.Property` values associated with
 any information necessary for getting/setting values as well as the types and
 ranges of values.
 
+.. .. automodule:: jvconnected.interfaces.paramspec
+..     :members:
 
 ParameterGroupSpec
 ------------------
 
-.. autoclass:: ParameterGroupSpec
+.. autocategorizedclass:: ParameterGroupSpec
     :members:
 
-.. autoclass:: ExposureParams
+.. autocategorizedclass:: ExposureParams
     :members:
 
-.. autoclass:: PaintParams
+.. autocategorizedclass:: PaintParams
     :members:
 
-.. autoclass:: TallyParams
+.. autocategorizedclass:: TallyParams
     :members:
 
 ParameterSpec
 -------------
 
-.. autoclass:: BaseParameterSpec
+.. autocategorizedclass:: BaseParameterSpec
     :members:
 
-.. autoclass:: ParameterSpec
+.. autocategorizedclass:: ParameterSpec
     :members:
 
-.. autoclass:: MultiParameterSpec
+.. autocategorizedclass:: MultiParameterSpec
     :members:
 
 Value Types
 -----------
 
-.. autoclass:: Value
+.. autocategorizedclass:: Value
     :members:
 
-.. autoclass:: BoolValue
+.. autocategorizedclass:: BoolValue
     :members:
 
-.. autoclass:: IntValue
+.. autocategorizedclass:: IntValue
     :members:
 
-.. autoclass:: ChoiceValue
+.. autocategorizedclass:: ChoiceValue
     :members:

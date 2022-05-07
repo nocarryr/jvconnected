@@ -11,5 +11,5 @@ Submodules
     tslumd
     paramspec
 
-.. automodule:: jvconnected.interfaces
+.. autosectionedmodule:: jvconnected.interfaces
     :members: Registry, registry

@@ -1,5 +1,5 @@
 :mod:`jvconnected.discovery`
 ============================
 
-.. automodule:: jvconnected.discovery
+.. autosectionedmodule:: jvconnected.discovery
     :members:

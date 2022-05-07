@@ -69,21 +69,19 @@ def async_callback(fn):
 
 class IndexedDict(Dispatcher):
     """A ``dict`` like container that tracks indices for its items
-
-    :Events:
-        .. event:: on_item_added(key=key, item=item, index=index_)
-
-            Fired when an item is added
-
-        .. event:: on_item_removed(key=key, item=item, index=index_)
-
-            Fired when an item is removed
-
-        .. event:: on_item_index_changed(key=key, item=item, old_index=cur_index, new_index=new_index)
-
-            Fired when an item's index changes
-
     """
+    def on_item_added(self, key: Any, item: Any, index_: int):
+        """Fired when an item is added
+        """
+
+    def on_item_removed(self, key: Any, item: Any, index_: int):
+        """Fired when an item is removed
+        """
+
+    def on_item_index_changed(self, key: Any, item: Any, old_index: int, new_index: int):
+        """Fired when an item's index changes
+        """
+
     _events_ = ['on_item_added', 'on_item_removed', 'on_item_index_changed']
     def __init__(self):
         self._data = {}

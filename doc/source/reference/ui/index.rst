@@ -1,7 +1,7 @@
 :mod:`jvconnected.ui`
 =====================
 
-.. automodule:: jvconnected.ui
+.. autosectionedmodule:: jvconnected.ui
     :members:
 
 .. toctree::

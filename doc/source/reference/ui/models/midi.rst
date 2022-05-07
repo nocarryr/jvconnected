@@ -1,5 +1,5 @@
 :mod:`jvconnected.ui.models.midi`
 =================================
 
-.. automodule:: jvconnected.ui.models.midi
+.. autosectionedmodule:: jvconnected.ui.models.midi
     :members:
