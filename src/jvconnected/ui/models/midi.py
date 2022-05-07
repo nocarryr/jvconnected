@@ -69,7 +69,7 @@ class MidiPortsModel(GenericQObject):
     portRemoved: AnnoSignal(port=MidiPortModel) = Signal(MidiPortModel)
     """Fired when an existing port is removed"""
 
-    portsUpdated = Signal()
+    portsUpdated: AnnoSignal() = Signal()
     """Fired when any change is made in the container"""
 
     io_type: ClassVar[IOType] = IOType.NONE
@@ -232,11 +232,12 @@ class DeviceMapModel(GenericQObject):
     _n_isActive = Signal()
     _n_isOnline = Signal()
     _n_edited = Signal()
-    dataChanged = Signal(str, str)
+    dataChanged: AnnoSignal(deviceId=str, attr=str) = Signal(str, str)
     """Emitted on property changes
 
-    :param str deviceId: The :attr:`deviceId` of the instance emitting the signal
-    :param str attr: The property name that changed
+    Arguments:
+        deviceId: The :attr:`deviceId` of the instance emitting the signal
+        attr: The property name that changed
     """
 
     midi_io: 'jvconnected.interfaces.midi.midi_io.MidiIO'
@@ -453,7 +454,7 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
         midi_io = value.engine.interfaces.get('midi')
         if midi_io is not None:
             self.set_midi_io(midi_io)
-    engine = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
+    engine: EngineModel = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
     """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
 
     def _g_proxyModel(self): return self._proxyModel
