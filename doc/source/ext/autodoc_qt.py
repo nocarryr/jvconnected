@@ -176,8 +176,7 @@ class QtSignalDocumenter(MethodDocumenter):
 
     def add_anno_to_header(self, sig: str) -> None:
         sourcename = self.get_sourcename()
-        if None in [self.options.get(key) for key in ['argnames', 'argtypes']]:
-            self.get_signal_anno()
+        self.get_signal_anno()
         argtypes = self.options.get('argtypes')
         argnames = self.options.get('argnames')
         if argtypes:
