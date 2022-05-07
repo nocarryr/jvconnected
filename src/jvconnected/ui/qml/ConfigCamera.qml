@@ -15,7 +15,7 @@ Control {
     property string authPass: ''
     property string hostaddr: ''
     property int hostport: 80
-    property int deviceIndex: 0
+    property int deviceIndex: -1
     property string displayName: ''
     property alias alwaysConnect: alwaysConnectSwitch.checked
     property bool hasChanges: false
