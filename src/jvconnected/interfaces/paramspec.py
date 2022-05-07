@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import List, Dict, Any, ClassVar, Iterator, Optional
 from dataclasses import dataclass, field
 
@@ -40,14 +41,13 @@ class ChoiceValue(Value):
 
 
 class BaseParameterSpec(Dispatcher):
+    """Base Parameter Spec
     """
 
-    :Events:
-        .. event:: on_device_value_changed(param: ParameterSpec, value)
+    def on_device_value_changed(self, param: 'ParameterSpec', value: Any):
+        """Fired when the parameter value has changed on the device
+        """
 
-            Fired when the parameter value has changed on the device
-
-    """
     _doc_field_names: ClassVar[List[str]] = []
 
     group_name: str = ''
@@ -173,11 +173,6 @@ class BaseParameterSpec(Dispatcher):
 class ParameterSpec(BaseParameterSpec):
     """Specifications for a single parameter within a
     :class:`jvconnected.device.ParameterGroup`
-
-    :Properties:
-
-        value: The current device value
-
     """
 
     _doc_field_names: ClassVar[List[str]] = [
@@ -197,7 +192,8 @@ class ParameterSpec(BaseParameterSpec):
     One of :class:`BoolValue`, :class:`IntValue`, or :class:`ChoiceValue`
     """
 
-    value = Property()
+    value: Any = Property()
+    """The current device value"""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -252,11 +248,6 @@ class ParameterSpec(BaseParameterSpec):
 
 class MultiParameterSpec(BaseParameterSpec):
     """Combines multiple :class:`ParameterSpec` definitions
-
-    :Properties:
-
-        value(list): The current device value
-
     """
 
     _doc_field_names: ClassVar[List[str]] = [
@@ -274,7 +265,8 @@ class MultiParameterSpec(BaseParameterSpec):
     :class:`~jvconnected.device.ParameterGroup`
     """
 
-    value = ListProperty()
+    value: List[Any] = ListProperty()
+    """The current device value"""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -343,17 +335,17 @@ class ParameterGroupSpec(Dispatcher):
         device: Instance of :class:`jvconnected.device.Device`
         device_param_group: The :class:`jvconnected.device.ParameterGroup`
             associated with this instance
-
-    :Events:
-        .. event:: on_device_value_changed(group: ParameterGroupSpec, param: ParameterSpec, value)
-
-            Fired when the value of a parameter has changed on the device
-
     """
 
     name: ClassVar[str]
     parameter_list: ClassVar[List[ParameterSpec]]
     parameters: Dict[str, ParameterSpec]
+
+    def on_device_value_changed(
+        self, group: 'ParameterGroupSpec', param: ParameterSpec, value: Any
+    ):
+        """Fired when the value of a parameter has changed on the device
+        """
 
     _events_ = ['on_device_value_changed']
 

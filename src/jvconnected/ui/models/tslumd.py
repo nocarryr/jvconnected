@@ -56,28 +56,32 @@ class UmdModel(GenericQObject):
             hostaddr=self.on_interface_hostaddr,
             hostport=self.on_interface_hostport,
         )
-    engine = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
+    engine: EngineModel = Property(
+        EngineModel, _g_engine, _s_engine, notify=_n_engine,
+    )
     """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
 
     def _g_running(self) -> bool: return self._running
     def _s_running(self, value: bool): self._generic_setter('_running', value)
-    running = Property(bool, _g_running, _s_running, notify=_n_running)
+    running: bool = Property(bool, _g_running, _s_running, notify=_n_running)
     """Alias for :class:`jvconnected.interfaces.tslumd.umd_io.UmdIo.running`"""
 
     def _g_hostaddr(self) -> str: return self._hostaddr
     def _s_hostaddr(self, value: str): self._generic_setter('_hostaddr', value)
-    hostaddr = Property(str, _g_hostaddr, _s_hostaddr, notify=_n_hostaddr)
+    hostaddr: str = Property(str, _g_hostaddr, _s_hostaddr, notify=_n_hostaddr)
     """Alias for :class:`jvconnected.interfaces.tslumd.umd_io.UmdIo.hostaddr`"""
 
     def _g_hostport(self) -> int: return self._hostport
     def _s_hostport(self, value: int): self._generic_setter('_hostport', value)
-    hostport = Property(int, _g_hostport, _s_hostport, notify=_n_hostport)
+    hostport: int = Property(int, _g_hostport, _s_hostport, notify=_n_hostport)
     """Alias for :class:`jvconnected.interfaces.tslumd.umd_io.UmdIo.hostport`"""
 
     def _g_editedProperties(self) -> List[str]: return self._editedProperties
     def _s_editedProperties(self, value: List[str]):
         self._generic_setter('_editedProperties', value)
-    editedProperties = Property('QVariantList', _g_editedProperties, _s_editedProperties, notify=_n_editedProperties)
+    editedProperties: List[str] = Property('QVariantList',
+        _g_editedProperties, _s_editedProperties, notify=_n_editedProperties,
+    )
     """A list of attributes that have changed and are waiting to be set on the
     :attr:`umd_io`
     """
@@ -219,7 +223,7 @@ class TallyListModel(QtCore.QAbstractTableModel):
         self._engine = value
         self.umd_io = value.engine.interfaces['tslumd']
         self._init_interface()
-    engine = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
+    engine: EngineModel = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
     """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
 
     @property
@@ -343,7 +347,7 @@ class TallyMapListModel(QtCore.QAbstractTableModel):
         self._engine = value
         self.umd_io = value.engine.interfaces['tslumd']
         self._init_interface()
-    engine = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
+    engine: EngineModel = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
     """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
 
     @property
@@ -457,7 +461,9 @@ class TallyMapBase(GenericQObject):
             self.screenIndex = scr
         if tly != self.tallyIndex:
             self.tallyIndex = tly
-    tallyKey = Property('QVariantList', _g_tallyKey, _s_tallyKey, notify=_n_tallyKey)
+    tallyKey: Tuple[int, int] = Property('QVariantList',
+        _g_tallyKey, _s_tallyKey, notify=_n_tallyKey,
+    )
     """Tuple of :attr:`screenIndex`, :attr:`tallyIndex` matching
     :attr:`jvconnected.interfaces.tslumd.mapper.TallyMap.tally_key`
     """
@@ -468,7 +474,7 @@ class TallyMapBase(GenericQObject):
         self._generic_setter('_screenIndex', value)
         if changed:
             self._n_tallyKey.emit()
-    screenIndex = Property(int, _g_screenIndex, _s_screenIndex, notify=_n_screenIndex)
+    screenIndex: int = Property(int, _g_screenIndex, _s_screenIndex, notify=_n_screenIndex)
     """Alias for :attr:`jvconnected.interfaces.tslumd.mapper.TallyMap.screen_index`"""
 
     def _g_tallyIndex(self) -> int: return self._tallyIndex
@@ -477,12 +483,12 @@ class TallyMapBase(GenericQObject):
         self._generic_setter('_tallyIndex', value)
         if changed:
             self._n_tallyKey.emit()
-    tallyIndex = Property(int, _g_tallyIndex, _s_tallyIndex, notify=_n_tallyIndex)
+    tallyIndex: int = Property(int, _g_tallyIndex, _s_tallyIndex, notify=_n_tallyIndex)
     """Alias for :attr:`jvconnected.interfaces.tslumd.mapper.TallyMap.tally_index`"""
 
     def _g_tallyType(self) -> str: return self._tallyType
     def _s_tallyType(self, value: str): self._generic_setter('_tallyType', value)
-    tallyType = Property(str, _g_tallyType, _s_tallyType, notify=_n_tallyType)
+    tallyType: str = Property(str, _g_tallyType, _s_tallyType, notify=_n_tallyType)
     """Alias for :attr:`jvconnected.interfaces.tslumd.mapper.TallyMap.tally_type`
     """
 
@@ -497,12 +503,12 @@ class TallyMapModel(TallyMapBase):
 
     def _g_deviceIndex(self) -> int: return self._deviceIndex
     def _s_deviceIndex(self, value: int): self._generic_setter('_deviceIndex', value)
-    deviceIndex = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
+    deviceIndex: int = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
     """Alias for :attr:`jvconnected.interfaces.tslumd.mapper.DeviceMapping.device_index`"""
 
     def _g_destTallyType(self) -> str: return self._destTallyType
     def _s_destTallyType(self, value: str): self._generic_setter('_destTallyType', value)
-    destTallyType = Property(str, _g_destTallyType, _s_destTallyType, notify=_n_destTallyType)
+    destTallyType: str = Property(str, _g_destTallyType, _s_destTallyType, notify=_n_destTallyType)
     """The destination tally type to map to the device (``'Preview'`` or ``'Program'``)"""
 
     @QtCore.Slot(result=bool)
@@ -581,17 +587,21 @@ class TallyCreateMapModel(GenericQObject):
         self._generic_setter('_deviceIndex', value)
         self.program.deviceIndex = value
         self.preview.deviceIndex = value
-    deviceIndex = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
+    deviceIndex: int = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
     """The device index"""
 
     def _g_program(self) -> TallyMapModel: return self._program
     def _s_program(self, value: TallyMapModel): self._generic_setter('_program', value)
-    program = Property(TallyMapModel, _g_program, _s_program, notify=_n_program)
+    program: TallyMapModel = Property(TallyMapModel,
+        _g_program, _s_program, notify=_n_program,
+    )
     """Instance of :class:`TallyMapModel` to be used for program tally"""
 
     def _g_preview(self) -> TallyMapModel: return self._preview
     def _s_preview(self, value: TallyMapModel): self._generic_setter('_preview', value)
-    preview = Property(TallyMapModel, _g_preview, _s_preview, notify=_n_preview)
+    preview: TallyMapModel = Property(TallyMapModel,
+        _g_preview, _s_preview, notify=_n_preview,
+    )
     """Instance of :class:`TallyMapModel` to be used for preview tally"""
 
     @QtCore.Slot(result=bool)

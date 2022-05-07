@@ -9,7 +9,7 @@ from qasync import QEventLoop, asyncSlot, asyncClose
 
 from jvconnected.utils import IOType
 from jvconnected.interfaces.midi import MIDI_AVAILABLE
-from jvconnected.ui.utils import GenericQObject
+from jvconnected.ui.utils import GenericQObject, AnnotatedQtSignal as AnnoSignal
 from jvconnected.ui.models.engine import EngineModel
 
 class MidiPortModel(GenericQObject):
@@ -32,17 +32,17 @@ class MidiPortModel(GenericQObject):
 
     def _g_name(self) -> str: return self._name
     def _s_name(self, value: str): self._generic_setter('_name', value)
-    name = Property(str, _g_name, _s_name, notify=_n_name)
+    name: str = Property(str, _g_name, _s_name, notify=_n_name)
     """The port name"""
 
     def _g_index(self) -> int: return self._index
     def _s_index(self, value: int): self._generic_setter('_index', value)
-    index = Property(int, _g_index, _s_index, notify=_n_index)
+    index: int = Property(int, _g_index, _s_index, notify=_n_index)
     """The port index"""
 
     def _g_isActive(self) -> bool: return self._isActive
     def _s_isActive(self, value: bool): self._generic_setter('_isActive', value)
-    isActive = Property(bool, _g_isActive, _s_isActive, notify=_n_isActive)
+    isActive: bool = Property(bool, _g_isActive, _s_isActive, notify=_n_isActive)
     """Current state of the port"""
 
     @asyncSlot(bool)
@@ -60,25 +60,18 @@ class MidiPortModel(GenericQObject):
 
 class MidiPortsModel(GenericQObject):
     """Base container for :class:`MidiPortModel` instances
-
-    :Signals:
-        .. event:: portAdded(port: MidiPortModel)
-
-            Fired when a new port is added
-
-        .. event:: portRemoved(port: MidiPortModel)
-
-            Fired when an existing port is removed
-
-        .. event:: portsUpdated()
-
-            Fired when any change is made in the container
     """
     _n_engine = Signal()
     _n_count = Signal()
-    portAdded = Signal(MidiPortModel)
-    portRemoved = Signal(MidiPortModel)
+    portAdded: AnnoSignal(port=MidiPortModel) = Signal(MidiPortModel)
+    """Fired when a new port is added"""
+
+    portRemoved: AnnoSignal(port=MidiPortModel) = Signal(MidiPortModel)
+    """Fired when an existing port is removed"""
+
     portsUpdated = Signal()
+    """Fired when any change is made in the container"""
+
     io_type: ClassVar[IOType] = IOType.NONE
     def __init__(self, *args):
         self.loop = asyncio.get_event_loop()
@@ -96,11 +89,11 @@ class MidiPortsModel(GenericQObject):
         self._engine = value
         if MIDI_AVAILABLE:
             self.set_midi_io(value.engine.midi_io)
-    engine = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
+    engine: EngineModel = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
     """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
 
     def _g_count(self) -> int: return len(self.ports)
-    count = Property(int, _g_count, notify=_n_count)
+    count: int = Property(int, _g_count, notify=_n_count)
     """Number of ports"""
 
     def set_midi_io(self, midi_io: 'jvconnected.interfaces.midi_io.MidiIO'):

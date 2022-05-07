@@ -1,2 +1,3 @@
-Sphinx>=2
+Sphinx>=4.5
 sphinx_rtd_theme
+python-dispatch-sphinx>=0.2.0

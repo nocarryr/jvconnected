@@ -50,7 +50,7 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
         self._device = value
         value._n_connected.connect(self.checkModeOnDeviceConnect)
         self._n_device.emit()
-    device = Property(DeviceModel, _g_device, _s_device, notify=_n_device)
+    device: DeviceModel = Property(DeviceModel, _g_device, _s_device, notify=_n_device)
     """The :class:`~jvconnected.ui.models.DeviceModel` instance"""
 
     @asyncSlot()
@@ -74,7 +74,7 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
             return
         self._videoMode = value
         self._n_videoMode.emit()
-    videoMode = Property(str, _g_videoMode, _s_videoMode, notify=_n_videoMode)
+    videoMode: str = Property(str, _g_videoMode, _s_videoMode, notify=_n_videoMode)
     """The current display mode as a member of :class:`PreviewMode`
     """
 

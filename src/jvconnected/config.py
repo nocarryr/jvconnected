@@ -1,3 +1,5 @@
+from __future__ import annotations
+import typing as tp
 from loguru import logger
 import os
 import sys
@@ -75,18 +77,24 @@ class Config(Dispatcher):
     Arguments:
         filename (:class:`pathlib.Path`, optional): The configuration filename. If not provided,
             the :attr:`DEFAULT_FILENAME` is used
-
-    Attributes:
-        DEFAULT_FILENAME (:class:`pathlib.Path`): Platform-dependent default filename
-            (``<config_dir>/jvconnected/config.json``). Where ``<config_dir>``
-            is chosen in :func:`get_config_dir`
-        indexed_devices: An instance of :class:`jvconnected.utils.IndexedDict`
-            to handle device indexing
-
     """
-    data = DictProperty()
-    DEFAULT_FILENAME: 'pathlib.Path' = get_config_dir('jvconnected') / 'config.json'
+    data: tp.Dict[str, tp.Any] = DictProperty()
+    DEFAULT_FILENAME: Path = get_config_dir('jvconnected') / 'config.json'
+    """Platform-dependent default filename
+    (``<config_dir>/jvconnected/config.json``).
+    Where ``<config_dir>`` is chosen in :func:`get_config_dir`
+    """
+
+    indexed_devices: IndexedDict
+    """An instance of :class:`jvconnected.utils.IndexedDict` to handle
+    device indexing
+    """
     _events_ = ['on_device_added']
+
+    def on_device_added(self, device: 'DeviceConfig'):
+        """Triggered when a device is added to the config
+        """
+
     def __init__(self, filename: tp.Optional['pathlib.Path'] = None):
         if filename is None:
             filename = self.DEFAULT_FILENAME
@@ -104,7 +112,10 @@ class Config(Dispatcher):
         self.bind(data=self.on_data_changed)
 
     @property
-    def devices(self):
+    def devices(self) -> tp.Dict[str, 'DeviceConfig']:
+        """Mapping of :class:`DeviceConfig` using their :attr:`~DeviceConfig.id`
+        as keys
+        """
         if 'devices' not in self:
             self['devices'] = {}
         return self['devices']
@@ -253,48 +264,67 @@ class Config(Dispatcher):
 
 class DeviceConfig(Dispatcher):
     """Configuration data for a device
-
-    Properties:
-        name (str): The device name, taken from :meth:`zeroconf.ServiceInfo.get_name`
-        dns_name (str): The fully qualified name for the service host, taken from
-            :class:`ServiceInfo.server <zeroconf.ServiceInfo>`
-        fqdn (str): The fully qualified service name, taken from
-            :class:`ServiceInfo.name <zeroconf.ServiceInfo>`
-        hostaddr (str): The IPv4 address (in string form)
-        hostport (int): The service port
-        display_name (str): A user-defined name for the device, defaults to
-            :attr:`name`
-        auth_user (str): Username to use with authentication
-        auth_pass (str): Password to use with authentication
-        device_index (int): Index for the device for organization purposes.
-            If ``None`` (default), no index is assigned. Otherwise, the index
-            will be assigned according to :meth:`jvconnected.utils.IndexedDict.add`
-        always_connect (bool): If ``True``, the :class:`~jvconnected.engine.Engine`
-            will attempt to connect to this device without it being discovered
-            on the network
-        online (bool): ``True`` if the device is currently active on the network
-        active (bool): ``True`` if a :class:`jvconnected.device.Device` is
-            currently communicating with the device
-
-    :Events:
-        .. event:: on_change(instance, prop_name, value)
-
-            Fired when any property value changes
-
     """
-    name = Property('')
-    dns_name = Property('')
-    fqdn = Property('')
-    hostaddr = Property('')
-    hostport = Property(80)
-    display_name = Property('')
-    auth_user = Property(None)
-    auth_pass = Property(None)
-    device_index = Property(None)
-    always_connect = Property(False)
-    stored_in_config = Property(False)
-    online = Property(False)
-    active = Property(False)
+    name: str = Property('')
+    """The device name, taken from :meth:`zeroconf.ServiceInfo.get_name`"""
+
+    dns_name: str = Property('')
+    """The fully qualified name for the service host, taken from
+    :class:`ServiceInfo.server <zeroconf.ServiceInfo>`
+    """
+
+    fqdn: str = Property('')
+    """The fully qualified service name, taken from
+    :class:`ServiceInfo.name <zeroconf.ServiceInfo>`
+    """
+
+    hostaddr: str = Property('')
+    """The IPv4 address (in string form)"""
+
+    hostport: int = Property(80)
+    """The service port"""
+
+    display_name: str = Property('')
+    """A user-defined name for the device, defaults to :attr:`name`"""
+
+    auth_user: str|None = Property(None)
+    """Username to use with authentication"""
+
+    auth_pass: str|None = Property(None)
+    """Password to use with authentication"""
+
+    device_index: int|None = Property(None)
+    """Index for the device for organization purposes.
+
+    If ``None`` (default), no index is assigned. Otherwise, the index
+    will be assigned according to :meth:`jvconnected.utils.IndexedDict.add`
+    """
+
+    always_connect: bool = Property(False)
+    """If ``True``, the :class:`~jvconnected.engine.Engine`
+    will attempt to connect to this device without it being discovered
+    on the network
+    """
+
+    stored_in_config: bool = Property(False)
+    """``True`` if the device is stored in :class:`Config`"""
+
+    online: bool = Property(False)
+    """``True`` if the device is currently active on the network"""
+
+    active: bool = Property(False)
+    """``True`` if a :class:`jvconnected.device.Device` is currently
+    communicating with the device
+    """
+
+    def on_change(instance: 'DeviceConfig', prop_name: str, value: tp.Any):
+        """Fired when any property value changes
+
+        Arguments:
+            instance: The instance whose property changed
+            prop_name: The Property name
+            value: New value for the Property
+        """
 
     _zeroconf_prop_names = (
         'name', 'dns_name', 'fqdn', 'hostaddr', 'hostport',

@@ -25,27 +25,6 @@ author = 'Matthew Reid'
 # The full version, including alpha/beta/rc tags
 release = '0.0.1'
 
-# <napoleon monkeypatching> --------------------------------------------------
-# Hacked on Sphinx v2.2.2
-# https://github.com/sphinx-doc/sphinx/tree/0c48a28ad7216ee064b0db564745d749c049bfd5
-
-from sphinx.ext.napoleon.docstring import GoogleDocstring
-from propertyobj import _parse_propertyobj_section
-
-def _parse_attributes_section_monkeyed(self, section):
-    return self._format_fields(section.title(), self._consume_fields())
-
-GoogleDocstring._parse_attributes_section_monkeyed = _parse_attributes_section_monkeyed
-GoogleDocstring._parse_propertyobj_section = _parse_propertyobj_section
-
-def _load_custom_sections(self):
-    for key in ['attributes', 'class attributes']:
-        self._sections[key] = self._parse_attributes_section_monkeyed
-    self._sections['properties'] = self._parse_propertyobj_section
-
-GoogleDocstring._load_custom_sections = _load_custom_sections
-
-# </napoleon monkeypatching> -------------------------------------------------
 
 # -- General configuration ---------------------------------------------------
 
@@ -60,14 +39,15 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
     'sphinx.ext.doctest',
-    'propertyobj',
-    'builtinproperty',
-    'eventobj',
+    'pydispatch_sphinx',
+    'autodoc_qt',
 ]
 autodoc_member_order = 'bysource'
 autodoc_default_options = {
     'show-inheritance':True,
 }
+autodoc_typehints = 'both'
+autodoc_typehints_description_target = 'documented'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -104,4 +84,5 @@ intersphinx_mapping = {
     'mido':('https://mido.readthedocs.io/en/latest/', None),
     'numpy':('https://numpy.org/doc/stable/', None),
     'PIL':('https://pillow.readthedocs.io/en/stable/', None),
+    'PySide6':('https://doc.qt.io/qtforpython-6/', None),
 }
