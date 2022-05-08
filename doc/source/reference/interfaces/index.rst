@@ -7,7 +7,7 @@ Submodules
 .. toctree::
 
     base
-    midi
+    midi/index.rst
     tslumd
     paramspec
 

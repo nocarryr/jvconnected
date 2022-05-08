@@ -2,7 +2,7 @@ from __future__ import annotations
 import typing as tp
 from loguru import logger
 import asyncio
-from typing import List
+from typing import List, Dict, Sequence, Optional
 
 import mido
 import rtmidi
@@ -13,6 +13,9 @@ from jvconnected.interfaces import Interface
 from jvconnected.interfaces.midi.aioport import InputPort, OutputPort
 from jvconnected.interfaces.midi.mapped_device import MappedDevice
 from jvconnected.interfaces.midi.mapper import MidiMapper
+
+class ValidationError(Exception):
+    pass
 
 class MidiIO(Interface):
     """Midi interface handler
@@ -38,6 +41,17 @@ class MidiIO(Interface):
     the device id as keys
     """
 
+    device_channel_map: Dict[str, int] = DictProperty()
+    """Mapping of :class:`~.mapped_device.MappedDevice` instances
+    stored with the device id as keys
+    """
+
+    channel_device_map: Dict[int, str] = DictProperty()
+    """Mapping of Midi channel assignments using the Midi channel
+    as keys and :attr:`device_id <jvconnected.config.DeviceConfig.id>`
+    as values
+    """
+
     mapper = Property()
 
     def port_state(self, io_type: IOType, name: str, state: bool):
@@ -51,6 +65,7 @@ class MidiIO(Interface):
         super().__init__()
         self._consume_tasks = {}
         self._reading_config = False
+        self._device_map_lock = asyncio.Lock()
         self._port_lock = asyncio.Lock()
         self._refresh_event = asyncio.Event()
         self._refresh_task = None
@@ -78,28 +93,38 @@ class MidiIO(Interface):
         if engine is self.engine:
             return
         await super().set_engine(engine)
-        self.automap_engine_devices()
-        engine.bind(devices=self.automap_engine_devices)
+        await self.automap_engine_devices()
+        engine.bind_async(self.loop, devices=self.automap_engine_devices)
 
-    def automap_engine_devices(self, *args, **kwargs):
+    async def automap_engine_devices(self, *args, **kwargs):
         """Map the engine's devices by index
         """
         config = self.engine.config
-        for conf_device in config.indexed_devices.values():
-            device_id = conf_device.id
-            device_index = conf_device.device_index
-            if device_index > 15:
-                break
-            device = self.engine.devices.get(device_id)
-            mapped_device = self.mapped_devices.get(device_index)
+        coros = set()
+        config_update = False
+        async with self._device_map_lock:
+            for conf_device in config.indexed_devices.values():
+                device_id = conf_device.id
+                device_index = conf_device.device_index
+                if device_index > 15:
+                    break
+                device = self.engine.devices.get(device_id)
+                mapped_device = self.mapped_devices.get(device_id)
 
-            if device is None:
-                if mapped_device is not None:
-                    self.unmap_device(device_index)
-            elif mapped_device is None:
-                self.map_device(device_index, device)
-            elif device is not mapped_device.device:
-                self.map_device(device_index, device)
+                if device is None:
+                    if mapped_device is not None:
+                        self._unmap_device(device_id)
+                        config_update = True
+                elif mapped_device is None:
+                    mapped_device = await self.map_device(device, send_all_parameters=False)
+                    coros.add(mapped_device.send_all_parameters())
+                    config_update = True
+                else:
+                    assert device is mapped_device.device
+            if config_update:
+                self.update_config()
+        if len(coros):
+            await asyncio.gather(*coros)
 
     @logger.catch
     async def open(self):
@@ -273,18 +298,17 @@ class MidiIO(Interface):
     @logger.catch
     async def consume_incoming_messages(self, port: InputPort):
         while self.running and port.running:
-            msg = await port.receive(timeout=.5)
-            if msg is None:
+            msgs = await port.receive_many(timeout=.5)
+            if msgs is None:
                 continue
-            if msg is False:
-                port.task_done()
-                break
-            logger.debug(f'MIDI rx: {msg}')
-            coros = []
+            logger.opt(lazy=True).debug(
+                '{x}', x=lambda: '\n'.join([f'MIDI rx: {msg}' for msg in msgs])
+            )
+            coros = set()
             for device in self.mapped_devices.values():
-                coros.append(device.handle_incoming_message(msg))
-            await asyncio.gather(*coros)
-            port.task_done()
+                coros.add(device.handle_incoming_messages(msgs))
+            if len(coros):
+                await asyncio.gather(*coros)
 
     async def send_message(self, msg: mido.messages.messages.BaseMessage):
         """Send a message to all output ports in :attr:`outports`
@@ -298,27 +322,166 @@ class MidiIO(Interface):
             if port.running:
                 coros.add(port.send(msg))
         if len(coros):
-            logger.debug(f'MIDI tx: {msg}')
             await asyncio.gather(*coros)
+            logger.opt(lazy=True).debug(f'MIDI tx: {msg}')
 
-    def map_device(self, midi_channel: int, device: 'jvconnected.device.Device'):
+    async def send_messages(self, msgs: Sequence[mido.Message]):
+        """Send a message to all output ports in :attr:`outports`
+
+        Arguments:
+            msgs: A sequence of :class:`Messages <mido.Message>` to send
+
+        """
+        coros = set()
+        for port in self.outports.values():
+            if port.running:
+                coros.add(port.send_many(*msgs))
+        if len(coros):
+            await asyncio.gather(*coros)
+            logger.opt(lazy=True).debug(
+                '{x}', x=lambda: '\n'.join([f'MIDI tx: {msg}' for msg in msgs])
+            )
+
+    @logger.catch
+    async def map_device(
+        self,
+        device: 'jvconnected.device.Device',
+        send_all_parameters: bool = True,
+        midi_channel: Optional[int] = None
+    ) -> MappedDevice:
         """Connect a :class:`jvconnected.device.Device` to a :class:`.mapped_device.MappedDevice`
-        """
-        if not 0 <= midi_channel <= 15:
-            raise ValueError('midi_channel must be between 0 and 15')
-        if midi_channel in self.mapped_devices:
-            self.unmap_device(midi_channel)
-        m = MappedDevice(self, midi_channel, device, self.mapper)
-        self.mapped_devices[midi_channel] = m
-        logger.debug(f'mapped device: {m}')
 
-    def unmap_device(self, midi_channel: int):
-        """Unmap a device
+        The Midi channel used for the device is retreived from the :attr:`config`
+        if available. If no channel assignment was found, the next available
+        channel is used and saved in the :attr:`config`.
+
+        Arguments:
+            device: The :class:`~jvconnected.device.Device` to map
+            send_all_parameters (bool, optional): If True, send all current
+                parameter values once the device is mapped. Default is True
+            midi_channel (int, optional): The Midi channel to use for
+                the device (from 0 to 15). If not provided, the channel is
+                assigned automatically using :meth:`get_midi_channel_for_device`
+
+        Raises:
+            ValidationError: If *midi_channel* was provided and already in use
+            ValueError: If there are no Midi channels available
+
         """
-        if midi_channel not in self.mapped_devices:
-            return
-        logger.debug(f'unmap device: {self.mapped_devices[midi_channel]}')
-        del self.mapped_devices[midi_channel]
+        device_id = device.id
+        assert device_id not in self.mapped_devices
+        if midi_channel is None:
+            midi_channel = self.get_midi_channel_for_device(device_id)
+        self.validate_device_channel(device_id, midi_channel)
+
+        m = MappedDevice(self, midi_channel, device, self.mapper)
+        self.mapped_devices[device_id] = m
+        await self._assign_device_channel(device_id, midi_channel)
+        if send_all_parameters:
+            await m.send_all_parameters()
+        logger.debug(f'mapped device: {m} to midi channel {midi_channel}')
+        return m
+
+    @logger.catch
+    async def unmap_device(self, device_id: str, unassign_channel: bool = False):
+        """Unmap a device
+
+        Arguments:
+            device_id (str): The :attr:`id <jvconnected.config.DeviceConfig.id>`
+                of the device to unmap
+            unassign_channel (bool, optional): If True, removes the Midi channel
+                assignment for the device and updates the saved config. If False
+                (the default), only removes the :class:`~.mapped_device.MappedDevice`
+                from :attr:`mapped_devices`.
+
+        """
+        logger.debug(f'unmap_device: {device_id}')
+        async with self._device_map_lock:
+            if device_id not in self.device_channel_map:
+                return
+            self._unmap_device(device_id, unassign_channel)
+            self.update_config()
+
+    def _unmap_device(self, device_id: str, unassign_channel: bool = False):
+        if device_id in self.mapped_devices:
+            # logger.debug(f'unmap device: {self.mapped_devices[device_id]}')
+            del self.mapped_devices[device_id]
+        if unassign_channel:
+            midi_channel = self.device_channel_map[device_id]
+            del self.channel_device_map[midi_channel]
+            del self.device_channel_map[device_id]
+
+    @logger.catch
+    async def remap_device_channel(self, device_id: str, midi_channel: int):
+        """Reassign the Midi channel for a device
+
+        If the device is online, the existing :class:`~.mapped_device.MappedDevice`
+        attached to it is reassigned as well.
+
+        Arguments:
+            device_id (str): The :attr:`id <jvconnected.config.DeviceConfig.id>`
+                of the device
+            midi_channel (int): The new Midi channel for the device
+
+        Raises:
+            ValidationError: If the given *midi_channel* is already in use
+
+        """
+        mapped_device = self.mapped_devices.get(device_id)
+        logger.debug(f'remap_device: {device_id}, {midi_channel}, {mapped_device}')
+        if mapped_device is not None:
+            if mapped_device.midi_channel == midi_channel:
+                return
+            await self.unmap_device(device_id, unassign_channel=True)
+        self.validate_device_channel(device_id, midi_channel)
+        device = self.engine.devices.get(device_id)
+        if device is not None:
+            await self.map_device(device, midi_channel=midi_channel)
+        else:
+            await self._assign_device_channel(device_id, midi_channel)
+
+    def get_midi_channel_for_device(self, device_id: str) -> int:
+        """Get the assigned Midi channel for a device or next one available
+
+        If the :attr:`device_id <jvconnected.config.DeviceConfig.id>` exists
+        in the :attr:`config`, it is used. If no assignment exists, the next
+        available channel is returned.
+
+        Raises:
+            ValueError: If there are no available channels
+
+        """
+        chan = self.device_channel_map.get(device_id)
+        if chan is not None:
+            return chan
+        all_channels = set(range(16))
+        in_use = set(self.channel_device_map.keys())
+        available = all_channels - in_use
+        if not len(available):
+            raise ValueError('No Midi channel available')
+        return min(available)
+
+    def validate_device_channel(self, device_id: str, midi_channel: int) -> None:
+        if midi_channel < 0 or midi_channel > 15:
+            raise ValidationError('Midi channel out of range')
+        if midi_channel in self.channel_device_map:
+            if self.channel_device_map[midi_channel] != device_id:
+                raise ValidationError(f'Channel {midi_channel} already assigned')
+
+    async def _assign_device_channel(self, device_id: str, midi_channel: int):
+        assert len(device_id)
+        # self.validate_device_channel(device_id, midi_channel)
+        if midi_channel in self.channel_device_map:
+            assert self.channel_device_map[midi_channel] == device_id
+        else:
+            self.channel_device_map[midi_channel] = device_id
+        if device_id in self.device_channel_map:
+            assert self.device_channel_map[device_id] == midi_channel
+        else:
+            self.device_channel_map[device_id] = midi_channel
+        if not self._device_map_lock.locked():
+            async with self._device_map_lock:
+                self.update_config()
 
     async def on_engine_running(self, instance, value, **kwargs):
         if instance is not self.engine:
@@ -339,6 +502,7 @@ class MidiIO(Interface):
             return
         d['inport_names'] = self.inport_names.copy()
         d['outport_names'] = self.outport_names.copy()
+        d['device_channel_map'] = self.device_channel_map.copy()
 
     def read_config(self, *args, **kwargs):
         d = self.get_config_section()
@@ -351,6 +515,10 @@ class MidiIO(Interface):
             if conf_val == prop_val:
                 continue
             setattr(self, attr, conf_val.copy())
+        conf_val = d.get('device_channel_map', {})
+        if conf_val != self.device_channel_map:
+            self.device_channel_map = conf_val.copy()
+            self.channel_device_map = {v:k for k,v in conf_val.items()}
         self._reading_config = False
 
     async def on_inport_names(self, instance, value, **kwargs):

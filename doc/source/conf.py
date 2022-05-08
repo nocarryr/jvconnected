@@ -39,6 +39,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
     'sphinx.ext.doctest',
+    'doctest_ignore_output',
     'sphinx_design',
     'autodoc_sections',
     'pydispatch_sphinx',
@@ -49,6 +50,7 @@ autodoc_default_options = {
     'show-inheritance':True,
 }
 autodoc_typehints = 'both'
+autodoc_typehints_description_target = 'documented'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

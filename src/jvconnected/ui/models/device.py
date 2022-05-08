@@ -213,6 +213,8 @@ class DeviceConfigModel(DeviceBase):
         """Set the :attr:`~jvconnected.config.DeviceConfig.device_index`
         on the :attr:`device`
         """
+        if value == -1:
+            value = None
         self.device.device_index = value
 
     # async def _remove_device_index(self):
@@ -229,6 +231,8 @@ class DeviceConfigModel(DeviceBase):
         for dev_attr in self.editedProperties:
             attr = self._prop_attr_map[dev_attr]
             val = getattr(self, attr)
+            if attr == 'deviceIndex' and val is None:
+                val = -1
             logger.debug(f'DeviceConfigModel setting {dev_attr}={val}')
             setattr(self.device, dev_attr, val)
         self.editedProperties.clear()
