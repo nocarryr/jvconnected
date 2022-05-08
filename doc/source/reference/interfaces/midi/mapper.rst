@@ -1,5 +1,5 @@
 :mod:`jvconnected.interfaces.midi.mapper`
 =========================================
 
-.. automodule:: jvconnected.interfaces.midi.mapper
+.. autosectionedmodule:: jvconnected.interfaces.midi.mapper
     :members:

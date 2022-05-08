@@ -1,5 +1,5 @@
 :mod:`jvconnected.interfaces.midi.aioport`
 ==========================================
 
-.. automodule:: jvconnected.interfaces.midi.aioport
+.. autosectionedmodule:: jvconnected.interfaces.midi.aioport
     :members:
