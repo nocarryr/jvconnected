@@ -47,6 +47,9 @@ SECTIONS = {
 }
 
 DIRECTIVE_ROLE_MAP = {
+    'class':'class',
+    'function':'func',
+    'data':'data',
     'method':'meth',
     'property':'attr',
     'attribute':'attr',
@@ -286,51 +289,6 @@ class IndentBlock:
 
 
 
-# def serialize_stringlist(sl: StringList) -> tp.Dict[str, tp.Any]:
-#     d = dict(
-#         data=sl.data,
-#         items=sl.items,
-#         parent_offset=sl.parent_offset,
-#         parent=None,
-#     )
-#     if sl.parent is not None:
-#         d['parent'] = serialize_stringlist(sl.parent)
-#     return d
-#
-# def deserialize_stringlist(data: tp.Dict[str, tp.Any]) -> StringList:
-#
-#     def _deserialize(_data):
-#         p = d['parent']
-#         if p is not None:
-#             p = _deserialize(p)
-#         sl = StringList(
-#             initlist=d['data'], items=d['items'], parent=p,
-#             parent_offset=d['parent_offset'],
-#         )
-#         assert sl.data == d['data']
-#         assert sl.items == d['items']
-#         return sl
-#
-#     return _deserialize(data)
-#
-#
-# def serialize_doc_bridge(br: DocumenterBridge) -> tp.Dict[str, tp.Any]:
-#     d = dict(
-#         lineno=br.lineno,
-#         record_dependencies=list(br.record_dependencies),
-#         result=serialize_stringlist(br.result),
-#     )
-#     return d
-#
-# def deserialize_doc_bridge(data: tp.Dict[str, tp.Any]) -> DocumenterBridge:
-#     result = data.pop('result')
-#     record_dependencies = set(data.pop('record_dependencies'))
-#     br = DocumenterBridge(**data)
-#     br.result = deserialize_stringlist(result)
-#     br.record_dependencies = record_dependencies
-#     return br
-
-
 class InterruptingMemberDocumenter:
     # Direct copy-paste from Documenter.document_members:
     # https://github.com/sphinx-doc/sphinx/blob/e7cba3516e6e3cd1cf90c29068c63c011e860204/sphinx/ext/autodoc/__init__.py#L820-L863
@@ -416,9 +374,6 @@ class SectionedModuleDocumenter(InterruptingMemberDocumenter, _ModuleDocumenter)
     objtype = 'sectionedmodule'
     directivetype = 'module'
     _section_levels = ['=', '-', '^', '"']
-    _objtypes = {
-        'class':'class', 'attribute':'attr', 'function':'func', 'data':'data',
-    }
 
     def import_object(self, raiseerror: bool = False) -> bool:
         ret = super().import_object(raiseerror)
@@ -432,8 +387,8 @@ class SectionedModuleDocumenter(InterruptingMemberDocumenter, _ModuleDocumenter)
         section_level = self.options.get('section-level', 2)
         section_char = self._section_levels[section_level-1]
         objtype = getattr(documenter, 'directivetype', documenter.objtype)
-        if objtype in self._objtypes:
-            objrole = self._objtypes[objtype]
+        if objtype in DIRECTIVE_ROLE_MAP:
+            objrole = DIRECTIVE_ROLE_MAP[objtype]
             if (documenter.parse_name() and
                 documenter.import_object() and
                 documenter.check_module()
@@ -503,18 +458,6 @@ class CategorizedClassDocumenter(InterruptingMemberDocumenter, _ClassDocumenter)
             return []
         else:
             return memberdocumenters
-
-    # def generate(
-    #     self, more_content: StringList|None = None, real_modname: str|None = None,
-    #     check_module: bool = False, all_members: bool = False
-    # ) -> None:
-    #     super().generate(more_content, real_modname, check_module, all_members)
-    #     if self.fullname in ['jvconnected.engine.Engine', 'jvconnected.device.Device']:
-    #         ser = serialize_doc_bridge(self.directive)
-    #         fn = DEBUG_DATA_DIR / f'{self.fullname}.json'
-    #         fn.write_text(json.dumps(ser, indent=2))
-    #         fn = DEBUG_DATA_DIR / f'{self.fullname}.rst'
-    #         fn.write_text('\n'.join(ser['result']['data']))
 
     def categorize_documenters(
         self, memberdocumenters: tp.List[DocumenterIsAttr]
@@ -613,28 +556,6 @@ class CategorizedClassDocumenter(InterruptingMemberDocumenter, _ClassDocumenter)
                 continue
             sec_ref = self._get_section_ref(section_name)
 
-            # # root = IndentBlock([], sourcename)
-            # #
-            # # dropdown = root.append([#IndentBlock([
-            # #     f'.. dropdown:: {section_name.title()}',
-            # # ])
-            # root = dropdown = IndentBlock([], sourcename)
-            #
-            # root.append(#IndentBlock([
-            #     f'.. dropdown:: {section_name.title()}',
-            # )
-            #
-            # if dropdown_open:
-            #     dropdown.append('   :open:')
-            # dropdown.append('')
-            # card = dropdown.append([#IndentBlock([
-            #     f'.. _{sec_ref}:',
-            #     '',
-            #     f'.. card::',
-            #     '',
-            # ])
-
-            # card_content = card.add_child()
             root = IndentBlock([
                 f'.. card::',
                 ''
@@ -642,15 +563,11 @@ class CategorizedClassDocumenter(InterruptingMemberDocumenter, _ClassDocumenter)
             card_content = root.append([
                 f'.. dropdown:: {section_name.title()}',
             ])
-            # card = root.add_child()
-            # card.append('.. dropdown::')
             if dropdown_open:
                 card_content.append('   :open:')
             card_content.append('')
             dropdown_content = card_content.add_child()
             dropdown_content.append(f'.. _{sec_ref}:')
-
-
 
             root.add_to_documenter(self)
 
@@ -663,45 +580,9 @@ class CategorizedClassDocumenter(InterruptingMemberDocumenter, _ClassDocumenter)
             self.add_line('', sourcename)
 
 
-# class SectionDirective(SphinxDirective):
-#     has_content = True
-#     required_arguments = 0
-#     optional_arguments = 0
-#     final_argument_whitespace = False
-#     option_spec = {
-#         'title':directives.unchanged_required,
-#         # 'ref-domain':directives.unchanged,
-#         # 'ref-role':directives.unchanged,
-#         'ref-target':directives.unchanged_required,
-#     }
-#
-#     def run(self) -> tp.List[Node]:
-#         # nodes = []
-#         # self.options.setdefault('ref-domain', 'py')
-#         # keys = ['ref-domain', 'ref-role', 'ref-target']
-#         # ref_vars = [self.options.get(key) for key in keys]
-#         # if None not in ref_vars:
-#         #     domain, role, target = ref_vars
-#         #     # ref = f':{domain}:{role}:`{target}`'
-#         #     nodes.append(
-#         #         # pending_xref('', )
-#         #         type_to_xref(target, self.env, suppress_prefix=True),
-#         #     )
-#         sect = nodes.section(ids=[self.options['ref-target']])
-#         title = nodes.title()
-#         title += nodes.Text(self.options['title'])
-#         sect += title
-#         # sect += nodes.title(self.options.get('title'))
-#         nested_parse_with_titles(self.state, self.content, sect)
-#         return [sect]
-
-
 def setup(app: Sphinx) -> tp.Dict[str, tp.Any]:
     app.setup_extension('sphinx.ext.autodoc')
     app.add_autodocumenter(SectionedModuleDocumenter)
     app.add_autodocumenter(CategorizedClassDocumenter)
-
-    # app.setup_extension('sphinx.directives')
-    # app.add_directive_to_domain('py', 'mysection', SectionDirective)
 
     return {'version': '0.1', 'parallel_read_safe': True}
