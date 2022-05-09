@@ -462,10 +462,13 @@ class CategorizedClassDocumenter(InterruptingMemberDocumenter, _ClassDocumenter)
         for documenter, isattr in memberdocumenters.copy():
             for section_name, objtypes in sections:
                 if documenter.objtype not in objtypes:
-                    continue
+                    directivetype = getattr(documenter, 'directivetype', None)
+                    if directivetype is not None and directivetype not in objtypes:
+                        continue
                 section = tmp.setdefault(section_name, [])
                 section.append((documenter, isattr))
                 remaining.remove((documenter, isattr))
+                break
         for section_name, _unused in sections:
             if section_name in tmp:
                 results.append((section_name, list(tmp[section_name])))
