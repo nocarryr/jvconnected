@@ -43,20 +43,6 @@ SECTIONS = {
     ],
 }
 
-DIRECTIVE_ROLE_MAP = {
-    'class':'class',
-    'function':'func',
-    'data':'data',
-    'method':'meth',
-    'property':'attr',
-    'attribute':'attr',
-    'event':'event',
-    'dispatcherproperty':'dispatcherproperty',
-    'qtsignal':'qtsignal',
-    'qtslot':'qtslot',
-    'qtproperty':'qtproperty',
-}
-
 
 def int_option(arg: tp.Any) -> int|None:
     if arg in (None, True):
@@ -65,6 +51,14 @@ def int_option(arg: tp.Any) -> int|None:
         return int(arg)
     else:
         raise ValueError(f'invalid value for int option: {arg}')
+
+
+def get_role_for_directive(env, directive: str, domain: str='py') -> str:
+    objtypes = env.domains[domain].object_types
+    if directive not in objtypes:
+        raise KeyError(f'{directive} not found in {objtypes}')
+    objtype = objtypes[directive]
+    return objtype.roles[0]
 
 
 class BlockItem:
@@ -384,27 +378,28 @@ class SectionedModuleDocumenter(InterruptingMemberDocumenter, _ModuleDocumenter)
         section_level = self.options.get('section-level', 2)
         section_char = self._section_levels[section_level-1]
         objtype = getattr(documenter, 'directivetype', documenter.objtype)
-        if objtype in DIRECTIVE_ROLE_MAP:
-            objrole = DIRECTIVE_ROLE_MAP[objtype]
-            if (documenter.parse_name() and
-                documenter.import_object() and
-                documenter.check_module()
-            ):
-                objname = documenter.object_name
-                sourcename = documenter.get_sourcename()
-                obj_ref = f':py:{objrole}:`{objname} <{documenter.fullname}>`'
-                section_str = section_char * len(obj_ref)
+        objrole = get_role_for_directive(self.env, objtype)
 
-                hdr_txt = [
-                    '',
-                    section_str,
-                    obj_ref,
-                    section_str,
-                    '',
-                ]
-                for line in hdr_txt:
-                    self.directive.result.append(line, sourcename)
-                members_check_module = False
+        if (documenter.parse_name() and
+            documenter.import_object() and
+            documenter.check_module()
+        ):
+            objname = documenter.object_name
+            sourcename = documenter.get_sourcename()
+            obj_ref = f':py:{objrole}:`{objname} <{documenter.fullname}>`'
+            section_str = section_char * len(obj_ref)
+
+            hdr_txt = [
+                '',
+                section_str,
+                obj_ref,
+                section_str,
+                '',
+            ]
+            for line in hdr_txt:
+                self.directive.result.append(line, sourcename)
+            members_check_module = False
+
         super()._document_single_member(documenter, isattr, members_check_module)
 
 
@@ -531,7 +526,7 @@ class CategorizedClassDocumenter(InterruptingMemberDocumenter, _ClassDocumenter)
                     continue
                 lbl_text = documenter.objpath[-1]
                 directive = getattr(documenter, 'directivetype', documenter.objtype)
-                role_name = DIRECTIVE_ROLE_MAP[directive]
+                role_name = get_role_for_directive(self.env, directive)
                 xref = f':py:{role_name}:`{lbl_text} <{documenter.fullname}>`'
                 section_content.append(f'* {xref}')
 
