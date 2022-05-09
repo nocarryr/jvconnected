@@ -38,10 +38,7 @@ CategorizedDocumenters = tp.NewType('CategorizedDocumenters', tp.List[tp.Tuple[s
 
 SECTIONS = {
     'class':[
-        ('Properties', ['dispatcherproperty', 'qtproperty']),
-        ('Events', ['event', 'eventmethod', 'qtsignal']),
         ('Attributes', ['property', 'attribute']),
-        ('Slots', ['qtslot']),
         ('Methods', ['method']),
     ],
 }
@@ -463,7 +460,7 @@ class CategorizedClassDocumenter(InterruptingMemberDocumenter, _ClassDocumenter)
         self, memberdocumenters: tp.List[DocumenterIsAttr]
     ) -> tp.Tuple[CategorizedDocumenters, int]:
         results: tp.List[tp.Tuple[str, tp.List[DocumenterIsAttr]]] = []
-        sections = SECTIONS['class']
+        sections = self.config.autodoc_sections_map['class']
         max_section = 0
         tmp = {}
         remaining = memberdocumenters.copy()
@@ -582,6 +579,10 @@ class CategorizedClassDocumenter(InterruptingMemberDocumenter, _ClassDocumenter)
 
 def setup(app: Sphinx) -> tp.Dict[str, tp.Any]:
     app.setup_extension('sphinx.ext.autodoc')
+    app.add_config_value(
+        'autodoc_sections_map', default=SECTIONS,
+        rebuild='env', types=[dict],
+    )
     app.add_autodocumenter(SectionedModuleDocumenter)
     app.add_autodocumenter(CategorizedClassDocumenter)
 

@@ -52,6 +52,16 @@ autodoc_default_options = {
 autodoc_typehints = 'both'
 autodoc_typehints_description_target = 'documented'
 
+autodoc_sections_map = {
+    'class':[
+        ('Properties', ['dispatcherproperty', 'qtproperty']),
+        ('Events', ['event', 'eventmethod', 'qtsignal']),
+        ('Attributes', ['property', 'attribute']),
+        ('Slots', ['qtslot']),
+        ('Methods', ['method']),
+    ],
+}
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
