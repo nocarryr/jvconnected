@@ -324,8 +324,8 @@ def setup(app: Sphinx) -> None:
     sig_role = PyXRefRole()
     slot_role = PyXRefRole()
     prop_role = PyXRefRole()
-    sig_obj_type = ObjType(_('QtSignal'), 'signal', 'attr', 'obj')
-    slot_obj_type = ObjType(_('QtSlot'), 'slot', 'meth', 'obj')
+    sig_obj_type = ObjType(_('QtSignal'), 'qtsignal', 'attr', 'obj')
+    slot_obj_type = ObjType(_('QtSlot'), 'qtslot', 'meth', 'obj')
     prop_obj_type = ObjType(_('QtProperty'), 'qtproperty', 'attr', 'obj')
 
     app.add_directive_to_domain('py', 'qtsignal', QtSignalDirective)
