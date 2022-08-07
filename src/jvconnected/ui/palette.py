@@ -35,7 +35,7 @@ def build_dark_palette():
     darkPalette.setColor(QPalette.HighlightedText, Qt.white)
     darkPalette.setColor(QPalette.Disabled, QPalette.HighlightedText, QColor(127, 127, 127))
     darkPalette.setColor(QPalette.Shadow, Qt.black)
-    darkPalette.setColor(QPalette.Link, highlight.lighter(130))
+    darkPalette.setColor(QPalette.Link, highlight.lighter(160))
     return darkPalette
 
 class PaletteManager(GenericQObject):
