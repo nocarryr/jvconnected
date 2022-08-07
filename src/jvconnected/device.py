@@ -183,6 +183,10 @@ class Device(Dispatcher):
                 logger.error(exc)
                 raise
 
+        if not short:
+            await self.parameter_groups['ntp']._update()
+            await self.parameter_groups['preset_zoom']._update()
+
     @logger.catch
     async def _handle_client_error(self, exc: Exception):
         logger.warning(f'caught client error: {exc}')
@@ -352,6 +356,44 @@ class CameraParams(ParameterGroup):
         if prop.name == 'timecode':
             return
         super().on_prop(instance, value, **kwargs)
+
+class NTPParams(ParameterGroup):
+    """NTP parameters
+    """
+    _NAME = 'ntp'
+
+    address: str = Property('')
+    """The NTP server address (IP or URL)"""
+
+    tc_sync: bool = Property(False)
+    """True if using NTP for timecode"""
+
+    syncronized: bool = Property(False)
+    """Whether the device is syncronized to the :attr:`server <address>`"""
+
+    sync_master: bool = Property(False)
+
+    def __init__(self, device: Device, **kwargs):
+        super().__init__(device, **kwargs)
+        props = ['address', 'tc_sync', 'syncronized', 'sync_master']
+        self.bind(**{k:self.on_prop for k in props})
+
+    async def _update(self):
+        c = self.device.client
+        resp = await c.request('GetNTPStatus')
+        data = resp['Data']
+        self.address = data['Address']
+        self.tc_sync = data.get('TcSync', '') == 'On'
+        status = data['Status']
+        self.syncronized = status == 'Syncronized'
+        self.sync_master = status == 'Master'
+
+    async def set_address(self, address: str):
+        """Set the NTP server :attr:`address`
+        """
+        params = {'Address':address}
+        await self.device.queue_request('SetNTPServer', params)
+
 
 class BatteryState(Enum):
     """Values used for :attr:`BatteryParams.state`
@@ -827,6 +869,43 @@ class LensParams(ParameterGroup):
                     value = FocusMode.Unknown
         super().on_prop(instance, value, **kwargs)
 
+class PresetZoomParams(ParameterGroup):
+    """Preset zoom
+    """
+    _NAME = 'preset_zoom'
+
+    preset_values: Dict[str, int] = DictProperty({'A':-1, 'B':-1, 'C':-1})
+    """Zoom value for preset id's ``'A', 'B', 'C'``"""
+
+    def __init__(self, device: Device, **kwargs):
+        super().__init__(device, **kwargs)
+        props = ['preset_values']
+        self.bind(**{k:self.on_prop for k in props})
+
+    async def _update(self):
+        c = self.device.client
+        resp = await c.request('GetPresetZoomPosition')
+        data = resp['Data']
+        assert set(data.keys()) == set(self.preset_values.keys())
+        logger.debug(f'{data=}')
+        self.preset_values.update(data)
+
+    async def set_preset(self, preset_id: str, value: int):
+        """Set zoom position for the given preset
+
+        Arguments:
+            preset_id: The preset to store. "A", "B" or "C"
+            value: The zoom position in the range of ``0 - 499``
+        """
+        params = {'ID': preset_id, 'Position': value}
+        await self.device.queue_request('SetPresetZoomPosition', params)
+
+    async def clear_preset(self, preset_id: str):
+        """Delete the value for the given preset
+        """
+        await self.set_preset(preset_id, -1)
+
+
 class PaintParams(ParameterGroup):
     """Paint parameters
     """
@@ -1057,8 +1136,8 @@ class TallyParams(ParameterGroup):
         super().on_prop(instance, value, **kwargs)
 
 PARAMETER_GROUP_CLS = (
-    CameraParams, BatteryParams, ExposureParams,
-    LensParams, PaintParams, TallyParams,
+    CameraParams, NTPParams, BatteryParams, ExposureParams,
+    LensParams, PresetZoomParams, PaintParams, TallyParams,
 )
 
 @logger.catch
