@@ -389,8 +389,8 @@ class BatteryParams(FakeParamBase):
     _NAME = device.BatteryParams._NAME
     _prop_attrs = device.BatteryParams._prop_attrs
     info_str = Property('Time')
-    level_str = Property(1)
-    value_str = Property(0)
+    level_str = Property(2)
+    value_str = Property(2)
 
 def build_fstops():
     f = 0
