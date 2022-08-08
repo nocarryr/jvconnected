@@ -18,6 +18,8 @@ ColumnLayout {
         ValueLabel {
             labelText: 'Value'
             valueText: root.model ? model.gainValue.value : ''
+            valueFont.pointSize: 12
+            valueFont.bold: true
         }
 
 

@@ -57,6 +57,9 @@ ColumnLayout {
         Item { Layout.fillWidth: true }
         Label {
             text: root.zoomPos ? root.zoomPos.value : ''
+            font.pointSize: 12
+            font.bold: true
+            color: 'white'
         }
     }
 }

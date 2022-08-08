@@ -84,6 +84,9 @@ ColumnLayout {
         }
         Label {
             text: root.focusPos ? root.focusPos.value : ''
+            font.pointSize: 12
+            font.bold: true
+            color: 'white'
         }
     }
 }

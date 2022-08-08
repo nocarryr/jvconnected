@@ -114,6 +114,8 @@ Control {
                 labelText: 'R'
                 valueText: root.redPaint ? root.redPaint.value : ''
                 orientation: Qt.Horizontal
+                valueFont.pointSize: 12
+                valueFont.bold: true
             }
         }
 
@@ -136,6 +138,8 @@ Control {
                 labelText: 'B'
                 valueText: root.bluePaint ? root.bluePaint.value : ''
                 orientation: Qt.Horizontal
+                valueFont.pointSize: 12
+                valueFont.bold: true
             }
         }
     }

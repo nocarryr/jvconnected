@@ -41,6 +41,8 @@ ColumnLayout {
             labelText: 'F-Stop'
             valueText: root.model ? root.model.iris.fstop : ''
             orientation: Qt.Horizontal
+            valueFont.pointSize: 12
+            valueFont.bold: true
         }
     }
 
