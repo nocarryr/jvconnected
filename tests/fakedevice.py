@@ -971,8 +971,9 @@ def init_func(argv=None, **kwargs):
     app = web.Application()
     routes = web.RouteTableDef()
     app['servers'] = {}
-    app['zeroconf'] = ZeroconfPublisher()
+    app['zeroconf'] = None
 
+    @logger.catch
     async def on_startup(app):
         APP_LEVEL.set(APP_LEVEL.get() + 1)
         lvl = APP_LEVEL.get()
@@ -980,6 +981,8 @@ def init_func(argv=None, **kwargs):
         if lvl > 0:
             return
         zc = app['zeroconf']
+        if zc is None:
+            zc = app['zeroconf'] = ZeroconfPublisher()
         await zc.open()
         coros = []
         for _ in range(num_devices):
@@ -1030,6 +1033,7 @@ def init_func(argv=None, **kwargs):
 
     return app
 
+@logger.catch
 async def build_device(app, **kwargs):
     port_offset = kwargs.pop('port_offset', 0)
     no_publish = kwargs.pop('no_publish', False)
