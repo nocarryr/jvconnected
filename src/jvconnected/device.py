@@ -241,7 +241,8 @@ class ParameterGroup(Dispatcher):
         """Debug method
         """
         prop = kwargs['property']
-        logger.info(f'{self}.{prop.name} = {value}')
+        prop_value = getattr(self, prop.name)
+        logger.info(f'{self}.{prop.name} = {prop_value}')
 
     def iter_api_key(self, api_key):
         if isinstance(api_key, str):
@@ -357,6 +358,7 @@ class BatteryState(Enum):
     """Values used for :attr:`BatteryParams.state`
     """
     UNKNOWN = auto()    #: UNKNOWN
+    ERROR = auto()      #: ERROR
     NO_BATTERY = auto() #: NO_BATTERY
     ON_BATTERY = auto() #: ON_BATTERY
     CHARGING = auto()   #: CHARGING
@@ -401,7 +403,8 @@ class BatteryParams(ParameterGroup):
 
     _state_to_level_map = {
         BatteryState.NO_BATTERY: [0],
-        BatteryState.ON_BATTERY: [2, 4, 5, 6, 7, 8, 9],
+        BatteryState.ERROR: [2],
+        BatteryState.ON_BATTERY: [3, 4, 5, 6, 7, 8, 9],
         BatteryState.CHARGING: [10, 11, 12, 14],
         BatteryState.CHARGED: [1, 13],
 
