@@ -12,6 +12,7 @@ Control {
     implicitWidth: grid.implicitWidth + leftPadding + rightPadding
     implicitHeight: grid.implicitHeight + topPadding + bottomPadding
     font.pointSize: 9
+    property alias valueFont: valueLbl.font
 
     contentItem: GridLayout {
         id: grid
@@ -38,7 +39,9 @@ Control {
         Label {
             id: valueLbl
             text: root.valueText
+            color: 'white'
             // font.family: 'Droid Sans Mono'
+            font.family: 'monospace'
             horizontalAlignment: root.orientation == Qt.Horizontal ? Text.AlignRight : Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             Layout.alignment: root.orientation == Qt.Horizontal ? Layout.AlignVCenter | Layout.AlignRight : Layout.AlignVCenter | Layout.AlignLeft

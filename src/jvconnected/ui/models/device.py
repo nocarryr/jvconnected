@@ -205,7 +205,7 @@ class DeviceConfigModel(DeviceBase):
             self._on_device_set(device)
             self._n_device.emit()
         else:
-            self._generic_setter('_device', value)
+            self._generic_setter('_device', device)
         self._updating_from_device = False
 
     @asyncSlot(int)

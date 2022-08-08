@@ -11,6 +11,8 @@ RowLayout {
     ValueLabel {
         labelText: 'Value'
         valueText: root.model ? model.masterBlack.value : ''
+        valueFont.pointSize: 12
+        valueFont.bold: true
     }
 
     Item { Layout.fillWidth: true }
