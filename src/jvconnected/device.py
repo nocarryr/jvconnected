@@ -112,12 +112,14 @@ class Device(Dispatcher):
         if not self._is_open:
             return
         self._is_open = False
-        self._poll_enabled = False
         logger.debug(f'{self} closing...')
         pv = self._devicepreview
         if pv is not None and pv.encoding:
             await pv.release()
 
+        coros = [pg.close() for pg in self.parameter_groups.values()]
+        await asyncio.gather(*coros)
+        self._poll_enabled = False
         await self._poll_fut
         for pg in self.parameter_groups.values():
             await pg.close()
