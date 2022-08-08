@@ -26,6 +26,8 @@ GridLayout {
         property IconFont iconFont: IconFont {
             pointSize: 12
             iconName: root.model.battery.batteryState == 'ON_BATTERY' ? 'faCarBattery' :
+                      root.model.battery.batteryState == 'NO_BATTERY' ? 'faBatterySlash' :
+                      root.model.battery.batteryState == 'ERROR' ? 'faExclamationTriangle' :
                       root.model.battery.batteryState == 'CHARGING' ? 'faChargingStation' :
                       root.model.battery.batteryState == 'CHARGED'? 'faPlug' : 'faPlug'
         }
