@@ -872,41 +872,96 @@ class LensParams(ParameterGroup):
                     value = FocusMode.Unknown
         super().on_prop(instance, value, **kwargs)
 
+class ZoomPreset(Dispatcher):
+    """Preset data for :class:`PresetZoomParams`
+    """
+
+    name: str = Property('')
+    """The preset name (one of ``["A", "B", "C"]``)"""
+
+    value: int = Property(-1)
+    """The :attr:`~LensParams.zoom_pos` stored in the preset.
+    (``-1`` indicates no data is stored)
+    """
+
+    is_active: bool = Property(False)
+    """Flag indicating if the current :attr:`~LensParams.zoom_pos`
+    matches the preset :attr:`value`
+    """
+
+    def __init__(self, name: str, value: int = -1):
+        self.name = name
+        self.value = value
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}: {self}>'
+
+    def __str__(self) -> str:
+        suffix = ' (active)' if self.is_active else ''
+        return f'{self.name} {self.value}{suffix}'
+
+
 class PresetZoomParams(ParameterGroup):
     """Preset zoom
     """
     _NAME = 'preset_zoom'
 
-    preset_values: Dict[str, int] = DictProperty({'A':-1, 'B':-1, 'C':-1})
-    """Zoom value for preset id's ``'A', 'B', 'C'``"""
+    presets: tp.Dict[str, ZoomPreset] = DictProperty()
+    """Mapping of :class:`ZoomPreset` objects stored by their
+    :attr:`~ZoomPreset.name`
+    """
 
     def __init__(self, device: Device, **kwargs):
+        for key in 'ABC':
+            p = ZoomPreset(key)
+            p.bind(value=self.on_preset_value)
+            self.presets[key] = p
         super().__init__(device, **kwargs)
-        props = ['preset_values']
-        self.bind(**{k:self.on_prop for k in props})
+        self.device.lens.bind(zoom_pos=self.on_camera_zoom_changed)
 
     async def _update(self):
         c = self.device.client
         resp = await c.request('GetPresetZoomPosition')
         data = resp['Data']
-        assert set(data.keys()) == set(self.preset_values.keys())
-        logger.debug(f'{data=}')
-        self.preset_values.update(data)
+        for key, val in data.items():
+            preset = self.presets[key]
+            preset.value = val
 
-    async def set_preset(self, preset_id: str, value: int):
+    async def set_preset(self, name: str, value: int|None = None):
         """Set zoom position for the given preset
 
         Arguments:
-            preset_id: The preset to store. "A", "B" or "C"
-            value: The zoom position in the range of ``0 - 499``
+            name: The :attr:`~ZoomPreset.name` of preset to store
+            value: The zoom position in the range of ``0 - 499``.
+                If not given, the current :attr:`~LensParams.zoom_pos`
+                is used.
         """
-        params = {'ID': preset_id, 'Position': value}
+        if value is None:
+            value = self.device.lens.zoom_pos
+        params = {'ID': name, 'Position': value}
         await self.device.queue_request('SetPresetZoomPosition', params)
 
-    async def clear_preset(self, preset_id: str):
+    async def recall_preset(self, name: str):
+        """Recall the preset by the given :attr:`~ZoomPreset.name`
+        """
+        p = self.presets[name]
+        if p.value < 0:
+            return
+        params = {'Position': p.value}
+        await self.device.queue_request('SetZoomCtrl', params)
+
+    async def clear_preset(self, name: str):
         """Delete the value for the given preset
         """
-        await self.set_preset(preset_id, -1)
+        await self.set_preset(name, -1)
+
+    def on_preset_value(self, instance, value, **kwargs):
+        pos = self.device.lens.zoom_pos
+        instance.is_active = value == pos
+
+    def on_camera_zoom_changed(self, instance, value, **kwargs):
+        for p in self.presets.values():
+            p.is_active = p.value == value
 
 
 class PaintParams(ParameterGroup):
