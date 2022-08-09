@@ -174,6 +174,7 @@ class FakeDevice(Dispatcher):
                 setattr(self, key, kwargs[key])
         for cls in PARAMETER_GROUP_CLS:
             self._add_param_group(cls)
+        pgs = self.parameter_groups
         self._command_map = {
             'GetSystemInfo':self.handle_system_info_req,
             'GetCamStatus':self.handle_status_request,
@@ -183,6 +184,11 @@ class FakeDevice(Dispatcher):
             'SetWebXYFieldEvent':self.handle_web_xy_event,
             'SetStudioTally':self.handle_tally_request,
             'JpegEncode':self.handle_jpg_encode_request,
+            'GetNTPStatus':pgs['ntp'].handle_ntp_request,
+            'SetNTPServer':pgs['ntp'].handle_ntp_request,
+            'GetPresetZoomPosition':pgs['preset_zoom'].handle_preset_zoom,
+            'SetPresetZoomPosition':pgs['preset_zoom'].handle_preset_zoom,
+            'SetZoomCtrl':pgs['lens'].handle_set_zoom_ctrl,
         }
         self.zc_service_info = self._build_zc_service_info()
         attrs = ['dns_name_prefix', 'serial_number', 'hostaddr', 'hostport']
@@ -384,6 +390,29 @@ class CameraParams(FakeParamBase):
                     self.menu_status = 'Off'
             elif btn == 'Cancel':
                 self.menu_status = 'Off'
+
+class NTPParams(FakeParamBase):
+    _NAME = device.NTPParams._NAME
+
+    _prop_attrs = {}
+
+    address = Property('pool.ntp.org')
+    tc_sync = Property(False)
+    syncronized = Property(True)
+    sync_master = Property(False)
+
+    async def handle_ntp_request(self, request, payload):
+        cmd = payload['Request']['Command']
+        if cmd == 'GetNTPStatus':
+            data = {
+                'Address':self.address,
+                'TcSync':'On' if self.tc_sync else 'Off',
+                'Status':'Syncronized' if self.syncronized else 'Not Syncronized',
+            }
+            return data
+        elif cmd == 'SetNTPServer':
+            self.address = payload['Request']['Params']['Address']
+
 
 class BatteryParams(FakeParamBase):
     _NAME = device.BatteryParams._NAME
@@ -726,6 +755,11 @@ class LensParams(FakeParamBase):
                 self._zoom_task = None
             await self.zoom_mover.set_speed(speed)
 
+    async def handle_set_zoom_ctrl(self, request, payload):
+        params = payload['Request']['Params']
+        pos = params['Position']
+        await self.queue_zoom_change(pos)
+
     async def queue_zoom_change(self, value: int):
         async with self.zoom_mover:
             t = self._zoom_task
@@ -761,6 +795,21 @@ class LensParams(FakeParamBase):
         v = int(value / (pmax - pmin) * (vmax - vmin))
         self.zoom_value = f'Z{v:02d}'
 
+class PresetZoomParams(FakeParamBase):
+    _NAME = device.PresetZoomParams._NAME
+    _prop_attrs = {}
+
+    preset_values = DictProperty({'A':0, 'B':-1, 'C':-1})
+
+    async def handle_preset_zoom(self, request, payload):
+        cmd = payload['Request']['Command']
+        if cmd == 'GetPresetZoomPosition':
+            return self.preset_values
+        elif cmd == 'SetPresetZoomPosition':
+            params = payload['Request']['Params']
+            key, value = params['ID'], params['Position']
+            assert key in self.preset_values
+            self.preset_values[key] = value
 
 
 class PaintParams(FakeParamBase):
@@ -848,8 +897,8 @@ class TallyParams(FakeParamBase):
 
 
 PARAMETER_GROUP_CLS = (
-    CameraParams, BatteryParams, ExposureParams,
-    LensParams, PaintParams, TallyParams,
+    CameraParams, NTPParams, BatteryParams, ExposureParams,
+    LensParams, PresetZoomParams, PaintParams, TallyParams,
 )
 
 
