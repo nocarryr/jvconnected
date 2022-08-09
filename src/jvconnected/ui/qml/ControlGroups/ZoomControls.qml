@@ -62,4 +62,55 @@ ColumnLayout {
             color: 'white'
         }
     }
+
+    RowLayout {
+        Label {
+            text: 'Presets'
+        }
+        ColumnLayout {
+            id: presetModeBtns
+            property bool recordEnabled: false
+            IconButton {
+                iconName: 'faSave'
+                checkable: true
+                checked: parent.recordEnabled
+                font.pointSize: 9
+                Layout.maximumHeight: 16
+                padding: 0
+                width: height
+                backgroundBlendColor: checked ? Qt.rgba(.8,0,0,1) : Qt.rgba(.2,0,0,.8)
+                onClicked: { parent.recordEnabled = !parent.recordEnabled }
+            }
+            IconButton {
+                iconName: 'faPlayCircle'
+                checkable: true
+                checked: !parent.recordEnabled
+                font.pointSize: 9
+                Layout.maximumHeight: 16
+                padding: 0
+                width: height
+                backgroundBlendColor: checked ? Qt.rgba(0,.8,0,1) : Qt.rgba(0,.2,0,.8)
+                onClicked: { parent.recordEnabled = !parent.recordEnabled }
+
+            }
+        }
+        RowLayout {
+            Repeater {
+                model: root.zoomPos ? root.zoomPos.presets : []
+                RoundButton {
+                    text: modelData.name
+                    highlighted: modelData.isActive
+
+                    onClicked: {
+                        if (presetModeBtns.recordEnabled){
+                            root.zoomPos.setPreset(modelData.name);
+                            presetModeBtns.recordEnabled = false;
+                        } else {
+                            root.zoomPos.recallPreset(modelData.name);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
