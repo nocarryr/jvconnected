@@ -16,6 +16,7 @@ QtObject {
     }
 
     property CameraParamsModel cameraParams: CameraParamsModel { device: root.device }
+    property NTPParamsModel ntpParams: NTPParamsModel { device: root.device }
     property BatteryParamsModel battery: BatteryParamsModel { device: root.device }
     property IrisModel iris: IrisModel { device: root.device }
     property GainModeModel gainMode: GainModeModel { device: root.device }

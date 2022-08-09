@@ -505,6 +505,44 @@ class CameraParamsModel(ParamBase):
         enum_value = getattr(MenuChoices, value.upper())
         await self.paramGroup.send_menu_button(enum_value)
 
+class NTPParamsModel(ParamBase):
+    _param_group_key = 'ntp'
+    _prop_attr_map = {
+        'address':'address', 'tc_sync':'tcSync',
+        'syncronized':'syncronized', 'sync_master':'syncMaster',
+    }
+    _n_address = Signal()
+    _n_tcSync = Signal()
+    _n_syncronized = Signal()
+    _n_syncMaster = Signal()
+
+    def __init__(self, *args):
+        self._address = ''
+        self._tcSync = False
+        self._syncronized = False
+        self._syncMaster = False
+        super().__init__(*args)
+
+    def _g_address(self) -> str: return self._address
+    def _s_address(self, value: str): self._generic_setter('_address', value)
+    address: str = Property(str, _g_address, _s_address, notify=_n_address)
+
+    def _g_tcSync(self) -> bool: return self._tcSync
+    def _s_tcSync(self, value: bool): self._generic_setter('_tcSync', value)
+    tcSync: bool = Property(bool, _g_tcSync, _s_tcSync, notify=_n_tcSync)
+
+    def _g_syncronized(self) -> bool: return self._syncronized
+    def _s_syncronized(self, value: bool): self._generic_setter('_syncronized', value)
+    syncronized: bool = Property(bool, _g_syncronized, _s_syncronized, notify=_n_syncronized)
+
+    def _g_syncMaster(self) -> bool: return self._syncMaster
+    def _s_syncMaster(self, value: bool): self._generic_setter('_syncMaster', value)
+    syncMaster: bool = Property(bool, _g_syncMaster, _s_syncMaster, notify=_n_syncMaster)
+
+    @asyncSlot(str)
+    async def setAddress(self, address: str):
+        await self.paramGroup.set_address(address)
+
 class BatteryParamsModel(ParamBase):
     _param_group_key = 'battery'
     _prop_attr_map = {'state':'batteryState', 'level':'level'}
@@ -818,16 +856,63 @@ class FocusPosModel(SeesawParam):
             return
         self.currentSpeed = value
 
+
+class ZoomPresetModel(GenericQObject):
+    _n_name = Signal()
+    _n_value = Signal()
+    _n_isActive = Signal()
+    def __init__(self, *args, **kwargs):
+        self._name = kwargs.get('name', '')
+        self._value = kwargs.get('value', -1)
+        self._isActive = kwargs.get('isActive', False)
+        super().__init__(*args)
+
+    def _bind_to_preset(self, preset: 'jvconnected.device.ZoomPreset'):
+        assert self.name == preset.name
+        self.value = preset.value
+        self.isActive = preset.is_active
+        preset.bind(value=self._on_preset_value, is_active=self._on_preset_active)
+
+    def _g_name(self) -> str: return self._name
+    def _s_name(self, value: str): self._generic_setter('_name', value)
+    name: str = Property(str, _g_name, _s_name, notify=_n_name)
+    """The preset name (or id)"""
+
+    def _g_value(self) -> int: return self._value
+    def _s_value(self, value: int): self._generic_setter('_value', value)
+    value: int = Property(int, _g_value, _s_value, notify=_n_value)
+    """Stored zoom position of the preset"""
+
+    def _g_isActive(self) -> bool: return self._isActive
+    def _s_isActive(self, value: bool): self._generic_setter('_isActive', value)
+    isActive: bool = Property(bool, _g_isActive, _s_isActive, notify=_n_isActive)
+    """Flag indicating if the current zoom :attr:`~ZoomPosModel.pos`
+    matches the stored :attr:`value`
+    """
+
+    def _on_preset_value(self, instance, value, **kwargs):
+        self.value = value
+
+    def _on_preset_active(self, instance, value, **kwargs):
+        self.isActive = value
+
+
 class ZoomPosModel(SeesawParam):
     """Zoom position and movement
     """
     _param_group_key = 'lens'
     _param_group_attr = 'zoom_value'
     _n_pos = Signal()
+    _n_presets = Signal()
 
     def __init__(self, *args):
         self._pos = 0
+        self._presets = []
+        self._preset_map = {}
         super().__init__(*args)
+        self.presets = [ZoomPresetModel(name=name) for name in 'ABC']
+        self._preset_map = {p.name: p for p in self.presets}
+
 
     def _g_pos(self) -> int: return self._pos
     def _s_pos(self, value: int):
@@ -835,6 +920,11 @@ class ZoomPosModel(SeesawParam):
     pos: int = Property(int, _g_pos, _s_pos, notify=_n_pos)
     """Current zoom position from 0 to 499
     """
+
+    def _g_presets(self) -> tp.List[ZoomPresetModel]: return self._presets
+    def _s_presets(self, presets: tp.List[ZoomPresetModel]): self._generic_setter('_presets', presets)
+    presets: tp.List[ZoomPresetModel] = Property('QVariantList', _g_presets, _s_presets, notify=_n_presets)
+    """A list of :class:`ZoomPresetModel` instances"""
 
     @asyncSlot(int)
     async def tele(self, speed: int):
@@ -867,6 +957,34 @@ class ZoomPosModel(SeesawParam):
                 await self.paramGroup.zoom_stop()
             await self.paramGroup.set_zoom_position(pos)
 
+    @asyncSlot(str)
+    async def setPreset(self, name: str):
+        """Store the current zoom :attr:`pos` to a preset
+
+        Arguments:
+            name: The preset name (one of ``["A", "B", "C"]``)
+        """
+        pos = self.pos
+        device = self.paramGroup.device
+        pg = device.preset_zoom
+        await pg.set_preset(name, pos)
+
+    @asyncSlot(str)
+    async def recallPreset(self, name: str):
+        """Recall the zoom preset matching the given :attr:`~ZoomPresetModel.name`
+        """
+        device = self.paramGroup.device
+        pg = device.preset_zoom
+        await pg.recall_preset(name)
+
+    @asyncSlot(str)
+    async def clearPreset(self, name: str):
+        """Clear the stored value of the preset by the given :attr:`~ZoomPresetModel.name`
+        """
+        device = self.paramGroup.device
+        pg = device.preset_zoom
+        await pg.clear_preset(name)
+
     def _on_param_group_set(self, param_group):
         super()._on_param_group_set(param_group)
         self.pos = param_group.zoom_pos
@@ -874,6 +992,9 @@ class ZoomPosModel(SeesawParam):
             zoom_speed=self._on_zoom_speed,
             zoom_pos=self._on_zoom_pos,
         )
+        preset_group = param_group.device.preset_zoom
+        for preset in self.presets:
+            preset._bind_to_preset(preset_group.presets[preset.name])
 
     def _on_zoom_speed(self, instance, value, **kwargs):
         if instance is not self.paramGroup:
@@ -1094,7 +1215,7 @@ class TallyModel(ParamBase):
 
 
 MODEL_CLASSES = (
-    DeviceConfigModel, DeviceModel, CameraParamsModel, IrisModel, BatteryParamsModel,
+    DeviceConfigModel, DeviceModel, NTPParamsModel, CameraParamsModel, IrisModel, BatteryParamsModel,
     GainModeModel, GainValueModel, MasterBlackModel, DetailModel, TallyModel,
     FocusModeModel, FocusPosModel, ZoomPosModel,
     WbModeModel, WbColorTempModel, WbPaintModelBase, WbRedPaintModel, WbBluePaintModel,
