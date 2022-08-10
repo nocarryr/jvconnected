@@ -823,6 +823,46 @@ class SeesawParam(SingleParam):
     """True if the parameter is moving
     """
 
+class MasterBlackPosModel(SeesawParam):
+    """MasterBlack seesaw operation
+    """
+
+    _param_group_key = 'exposure'
+    _param_group_attr = 'master_black'
+
+    @asyncSlot(int)
+    async def up(self, speed: int):
+        """Move MasterBlack up at the specified speed (0 to 8)
+        """
+        await self.move('Up', speed)
+
+    @asyncSlot(int)
+    async def down(self, speed: int):
+        """Move MasterBlack down at the specified speed (0 to 8)
+        """
+        await self.move('Down', speed)
+
+    @asyncSlot()
+    async def stop(self):
+        """Stop moving
+        """
+        await self.move('Stop', 0)
+
+    @logger.catch
+    async def move(self, direction: MasterBlackDirection, speed: int):
+        async with self._request_pending:
+            await self.paramGroup.seesaw_master_black(direction, speed)
+
+    def _on_param_group_set(self, param_group):
+        super()._on_param_group_set(param_group)
+        param_group.bind(master_black_speed=self._on_master_black_speed)
+
+    def _on_master_black_speed(self, instance, value, **kwargs):
+        if instance is not self.paramGroup:
+            return
+        self.currentSpeed = value
+
+
 class FocusPosModel(SeesawParam):
     """Focus position and movement
     """
@@ -1234,7 +1274,7 @@ class TallyModel(ParamBase):
 MODEL_CLASSES = (
     DeviceConfigModel, DeviceModel, NTPParamsModel, CameraParamsModel, IrisModel, BatteryParamsModel,
     GainModeModel, GainValueModel, MasterBlackModel, DetailModel, TallyModel,
-    FocusModeModel, FocusPosModel, ZoomPosModel,
+    MasterBlackPosModel, FocusModeModel, FocusPosModel, ZoomPosModel,
     WbModeModel, WbColorTempModel, WbPaintModelBase, WbRedPaintModel, WbBluePaintModel,
 )
 
