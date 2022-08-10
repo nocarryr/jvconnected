@@ -506,6 +506,8 @@ class CameraParamsModel(ParamBase):
         await self.paramGroup.send_menu_button(enum_value)
 
 class NTPParamsModel(ParamBase):
+    """Qt bridge for :class:`jvconnected.device.NTPParams`
+    """
     _param_group_key = 'ntp'
     _prop_attr_map = {
         'address':'address', 'tc_sync':'tcSync',
@@ -526,21 +528,27 @@ class NTPParamsModel(ParamBase):
     def _g_address(self) -> str: return self._address
     def _s_address(self, value: str): self._generic_setter('_address', value)
     address: str = Property(str, _g_address, _s_address, notify=_n_address)
+    """Alias for :class:`jvconnected.device.NTPParams.address`"""
 
     def _g_tcSync(self) -> bool: return self._tcSync
     def _s_tcSync(self, value: bool): self._generic_setter('_tcSync', value)
     tcSync: bool = Property(bool, _g_tcSync, _s_tcSync, notify=_n_tcSync)
+    """Alias for :class:`jvconnected.device.NTPParams.tc_sync`"""
 
     def _g_syncronized(self) -> bool: return self._syncronized
     def _s_syncronized(self, value: bool): self._generic_setter('_syncronized', value)
     syncronized: bool = Property(bool, _g_syncronized, _s_syncronized, notify=_n_syncronized)
+    """Alias for :class:`jvconnected.device.NTPParams.syncronized`"""
 
     def _g_syncMaster(self) -> bool: return self._syncMaster
     def _s_syncMaster(self, value: bool): self._generic_setter('_syncMaster', value)
     syncMaster: bool = Property(bool, _g_syncMaster, _s_syncMaster, notify=_n_syncMaster)
+    """Alias for :class:`jvconnected.device.NTPParams.sync_master`"""
 
     @asyncSlot(str)
     async def setAddress(self, address: str):
+        """Set the NTP server using :meth:`jvconnected.device.NTPParams.set_address`
+        """
         await self.paramGroup.set_address(address)
 
 class BatteryParamsModel(ParamBase):
@@ -858,6 +866,8 @@ class FocusPosModel(SeesawParam):
 
 
 class ZoomPresetModel(GenericQObject):
+    """Qt bridge for :class:`jvconnected.device.ZoomPreset`
+    """
     _n_name = Signal()
     _n_value = Signal()
     _n_isActive = Signal()
@@ -961,6 +971,8 @@ class ZoomPosModel(SeesawParam):
     async def setPreset(self, name: str):
         """Store the current zoom :attr:`pos` to a preset
 
+        (See :meth:`jvconnected.device.PresetZoomParams.set_preset`)
+
         Arguments:
             name: The preset name (one of ``["A", "B", "C"]``)
         """
@@ -972,6 +984,8 @@ class ZoomPosModel(SeesawParam):
     @asyncSlot(str)
     async def recallPreset(self, name: str):
         """Recall the zoom preset matching the given :attr:`~ZoomPresetModel.name`
+
+        (See :meth:`jvconnected.device.PresetZoomParams.recall_preset`)
         """
         device = self.paramGroup.device
         pg = device.preset_zoom
@@ -979,7 +993,10 @@ class ZoomPosModel(SeesawParam):
 
     @asyncSlot(str)
     async def clearPreset(self, name: str):
-        """Clear the stored value of the preset by the given :attr:`~ZoomPresetModel.name`
+        """Clear the stored value of the preset by the given
+        :attr:`~ZoomPresetModel.name`
+
+        (See :meth:`jvconnected.device.PresetZoomParams.clear_preset`)
         """
         device = self.paramGroup.device
         pg = device.preset_zoom
