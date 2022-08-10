@@ -493,6 +493,15 @@ class BatteryParams(ParameterGroup):
                 self.voltage = float(value) / 10
         super().on_prop(instance, value, **kwargs)
 
+
+class MasterBlackDirection(Enum):
+    """Values used for :meth:`ExposureParams.seesaw_master_black`
+    """
+    Up = auto()     #: Up
+    Down = auto()   #: Down
+    Stop = auto()   #: Stop
+
+
 class ExposureParams(ParameterGroup):
     """Exposure parameters
     """
@@ -535,6 +544,16 @@ class ExposureParams(ParameterGroup):
 
     master_black_pos: int = Property(0)
     """MasterBlack value as an integer from -50 to 50"""
+
+    master_black_moving: bool = Property(False)
+    """True if MasterBlack is being adjusted with the :meth:`seesaw_master_black`
+    method
+    """
+
+    master_black_speed: int = Property(0)
+    """Current MasterBlack movement speed from -8 (down) to +8 (up) where
+    0 indicates no movement.
+    """
 
     _prop_attrs = [
         ('mode', 'Exposure.Status'),
@@ -646,6 +665,31 @@ class ExposureParams(ParameterGroup):
         """
         value = {True:'Up1', False:'Down1'}.get(direction)
         await self.device.send_web_button('MasterBlack', value)
+
+    async def seesaw_master_black(self, direction: MasterBlackDirection|str|int, speed: int):
+        """Start or stop MasterBlack movement
+
+        Arguments:
+            direction: Either a :class:`MasterBlackDirection` member,
+                the name as str, or the integer value of one of the members
+            speed (int): The movement speed from 0 to 8 (0 stops movement)
+        """
+        if isinstance(direction, str):
+            direction = getattr(MasterBlackDirection, direction)
+        elif isinstance(direction, int):
+            direction = MasterBlackDirection(direction)
+        params = {
+            'Kind':'MasterBlackSeesaw',
+            'Direction':direction.name,
+            'Speed':speed,
+        }
+        await self.device.queue_request('SeesawSwitchOperation', params)
+        if direction == MasterBlackDirection.Stop:
+            speed = 0
+        elif direction == MasterBlackDirection.Down:
+            speed = -speed
+        self.master_black_speed = speed
+        self.master_black_moving = speed != 0
 
     def set_prop_from_api(self, prop_attr, value):
         if prop_attr == 'iris_fstop':
