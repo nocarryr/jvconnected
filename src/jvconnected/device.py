@@ -373,6 +373,8 @@ class NTPParams(ParameterGroup):
     """Whether the device is syncronized to the :attr:`server <address>`"""
 
     sync_master: bool = Property(False)
+    """True if the device is being used as a TC and sync (Genlock) master [#fsync_master]_
+    """
 
     def __init__(self, device: Device, **kwargs):
         super().__init__(device, **kwargs)
