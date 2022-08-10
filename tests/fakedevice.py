@@ -468,6 +468,7 @@ class ExposureParams(FakeParamBase):
     shutter_value = Property(' [OFF]  ')
     master_black = Property('-3')
     master_black_pos = Property(-3)
+    mb_float = Property(-3.)
 
     _gain_range = [-6, 30]
     _master_black_range = [-12, 12]
@@ -478,7 +479,15 @@ class ExposureParams(FakeParamBase):
         self.pos_fstop_arr = build_fstops()
 
         super().__init__(device, **kwargs)
+        self.mb_mover = SeesawMover(self, self._master_black_range, 'mb_float')
+        self.bind(mb_float=self.on_mb_float)
         self.bind(**{k:self.on_prop for k in ['gain_pos', 'master_black_pos']})
+
+    async def open(self):
+        await self.mb_mover.start()
+
+    async def close(self):
+        await self.mb_mover.stop()
 
     async def handle_iris_bump(self, btn: str):
         if 'Open' in btn:
@@ -554,6 +563,18 @@ class ExposureParams(FakeParamBase):
         if kind == 'IrisBar':
             await self.queue_iris_change(pos)
 
+    async def handle_seesaw_event(self, request, payload):
+        params = payload['Request']['Params']
+        kind = params['Kind']
+        direction = params['Direction']
+        speed = params['Speed']
+        if kind == 'MasterBlackSeesaw':
+            if direction == 'Down':
+                speed = -speed
+            elif direction == 'Stop':
+                speed = 0
+            await self.mb_mover.set_speed(speed)
+
     def on_prop(self, instance, value, **kwargs):
         prop = kwargs['property']
         if prop.name == 'iris_pos':
@@ -563,10 +584,13 @@ class ExposureParams(FakeParamBase):
         elif prop.name == 'master_black_pos':
             self.master_black = str(value)
 
+    def on_mb_float(self, instance, value, **kwargs):
+        self.master_black_pos = round(value)
+
 class SeesawMover:
     timeout = .5
-    increments = [0, .001, .005, .01, .03, .05, .08, .1]
-    def __init__(self, parent: 'LensParams', pos_range, value_prop):
+    increments = [.001, .005, .01, .03, .04, .7, .9, .1]
+    def __init__(self, parent: FakeParamBase, pos_range, value_prop):
         self.parent = parent
         self.pos_range = pos_range
         self.value_prop = value_prop
@@ -649,8 +673,8 @@ class SeesawMover:
             if self.cur_speed == 0:
                 return
             vnorm = None
-            ix = abs(self.cur_speed)
-            increment = self.increments[self.cur_speed-1]
+            ix = abs(self.cur_speed) - 1
+            increment = self.increments[ix]
             if self.cur_speed < 0:
                 increment = -increment
             vnorm = self.value_normalized + increment
