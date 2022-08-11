@@ -15,6 +15,7 @@ ColumnLayout {
             ShuttleSlider {
                 id: speedSlider
                 orientation: Qt.Horizontal
+                Layout.fillWidth: true
                 from: -8
                 to: 8
                 stepSize: 1
@@ -52,6 +53,7 @@ ColumnLayout {
                 from: 0
                 to: 499
                 value: root.zoomPos ? root.zoomPos.pos : 0
+                Layout.fillWidth: true
             }
         }
         Item { Layout.fillWidth: true }

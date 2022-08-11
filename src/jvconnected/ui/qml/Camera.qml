@@ -16,6 +16,7 @@ Control {
     property alias deviceIndex: model.deviceIndex
     property CameraModel model: model
     signal deviceIndexUpdate()
+    // NOTE: width should be 390
 
     onDeviceIndexChanged: {
         deviceIndexUpdate();
@@ -44,11 +45,15 @@ Control {
         headerBackgroundColor: '#215c98'
         headerTextColor: '#ffffff'
         horizontalPadding: 8
+        implicitWidth: 376
 
         content: ColumnLayout {
+            // NOTE: width should be 376
 
             ColumnLayout {
+                // NOTE: width should be 360
                 RowLayout {
+                    // NOTE: width should be 342
                     ValueLabel {
                         labelText: 'Index'
                         valueText: root.device.deviceIndex
@@ -196,18 +201,18 @@ Control {
                     }
                     RowLayout {
                         MyGroupBox {
-                            title: 'Gain'
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-
-                            content: GainControls { model: root.model }
-                        }
-                        MyGroupBox {
                             title: 'Master Black'
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
                             content: MasterBlackControls { model: root.model }
+                        }
+                        MyGroupBox {
+                            title: 'Gain'
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            content: GainControls { model: root.model }
                         }
                     }
                 }
