@@ -257,17 +257,17 @@ class QRCDocument(QRCElement):
             if isinstance(c, QRCResource):
                 yield c
 
-    def iter_files(self) -> Iterator['QRCFile']:
+    def iter_files(self, missing_ok: bool = True) -> Iterator['QRCFile']:
         """Iterate through all :class:`QRCFile` instances in the tree
         """
         for r in self.iter_resources():
-            yield from r.iter_files()
+            yield from r.iter_files(missing_ok)
 
     def hash_contents(self) -> str:
         """Create a single hash from all :class:`QRCFile` data on the local
         filesystem using :meth:`QRCFile.hash_contents`
         """
-        hashes = [f.hash_contents() for f in self.iter_files()]
+        hashes = [f.hash_contents() for f in self.iter_files(missing_ok=False)]
         m = HASH_FUNC()
         for hval in sorted(hashes):
             m.update(hval.encode('utf-8'))
@@ -350,11 +350,13 @@ class QRCResource(QRCElement):
             if c.filename == rel_p:
                 return c
 
-    def iter_files(self) -> Iterator['QRCFile']:
+    def iter_files(self, missing_ok: bool = True) -> Iterator['QRCFile']:
         """Iterate over all :class:`QRCFile` instances within this qresource
         """
         for c in self.children:
             if isinstance(c, QRCFile):
+                if not missing_ok and not c.exists():
+                    continue
                 yield c
 
     def __str__(self):
