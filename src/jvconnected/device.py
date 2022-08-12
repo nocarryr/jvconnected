@@ -183,6 +183,10 @@ class Device(Dispatcher):
                 logger.error(exc)
                 raise
 
+        if not short:
+            await self.parameter_groups['ntp']._update()
+            await self.parameter_groups['preset_zoom']._update()
+
     @logger.catch
     async def _handle_client_error(self, exc: Exception):
         logger.warning(f'caught client error: {exc}')
@@ -354,6 +358,46 @@ class CameraParams(ParameterGroup):
             return
         super().on_prop(instance, value, **kwargs)
 
+class NTPParams(ParameterGroup):
+    """NTP parameters
+    """
+    _NAME = 'ntp'
+
+    address: str = Property('')
+    """The NTP server address (IP or URL)"""
+
+    tc_sync: bool = Property(False)
+    """True if using NTP for timecode"""
+
+    syncronized: bool = Property(False)
+    """Whether the device is syncronized to the :attr:`server <address>`"""
+
+    sync_master: bool = Property(False)
+    """True if the device is being used as a TC and sync (Genlock) master [#fsync_master]_
+    """
+
+    def __init__(self, device: Device, **kwargs):
+        super().__init__(device, **kwargs)
+        props = ['address', 'tc_sync', 'syncronized', 'sync_master']
+        self.bind(**{k:self.on_prop for k in props})
+
+    async def _update(self):
+        c = self.device.client
+        resp = await c.request('GetNTPStatus')
+        data = resp['Data']
+        self.address = data['Address']
+        self.tc_sync = data.get('TcSync', '') == 'On'
+        status = data['Status']
+        self.syncronized = status == 'Syncronized'
+        self.sync_master = status == 'Master'
+
+    async def set_address(self, address: str):
+        """Set the NTP server :attr:`address`
+        """
+        params = {'Address':address}
+        await self.device.queue_request('SetNTPServer', params)
+
+
 class BatteryState(Enum):
     """Values used for :attr:`BatteryParams.state`
     """
@@ -449,6 +493,15 @@ class BatteryParams(ParameterGroup):
                 self.voltage = float(value) / 10
         super().on_prop(instance, value, **kwargs)
 
+
+class MasterBlackDirection(Enum):
+    """Values used for :meth:`ExposureParams.seesaw_master_black`
+    """
+    Up = auto()     #: Up
+    Down = auto()   #: Down
+    Stop = auto()   #: Stop
+
+
 class ExposureParams(ParameterGroup):
     """Exposure parameters
     """
@@ -491,6 +544,16 @@ class ExposureParams(ParameterGroup):
 
     master_black_pos: int = Property(0)
     """MasterBlack value as an integer from -50 to 50"""
+
+    master_black_moving: bool = Property(False)
+    """True if MasterBlack is being adjusted with the :meth:`seesaw_master_black`
+    method
+    """
+
+    master_black_speed: int = Property(0)
+    """Current MasterBlack movement speed from -8 (down) to +8 (up) where
+    0 indicates no movement.
+    """
 
     _prop_attrs = [
         ('mode', 'Exposure.Status'),
@@ -602,6 +665,31 @@ class ExposureParams(ParameterGroup):
         """
         value = {True:'Up1', False:'Down1'}.get(direction)
         await self.device.send_web_button('MasterBlack', value)
+
+    async def seesaw_master_black(self, direction: MasterBlackDirection|str|int, speed: int):
+        """Start or stop MasterBlack movement
+
+        Arguments:
+            direction: Either a :class:`MasterBlackDirection` member,
+                the name as str, or the integer value of one of the members
+            speed (int): The movement speed from 0 to 8 (0 stops movement)
+        """
+        if isinstance(direction, str):
+            direction = getattr(MasterBlackDirection, direction)
+        elif isinstance(direction, int):
+            direction = MasterBlackDirection(direction)
+        params = {
+            'Kind':'MasterBlackSeesaw',
+            'Direction':direction.name,
+            'Speed':speed,
+        }
+        await self.device.queue_request('SeesawSwitchOperation', params)
+        if direction == MasterBlackDirection.Stop:
+            speed = 0
+        elif direction == MasterBlackDirection.Down:
+            speed = -speed
+        self.master_black_speed = speed
+        self.master_black_moving = speed != 0
 
     def set_prop_from_api(self, prop_attr, value):
         if prop_attr == 'iris_fstop':
@@ -829,6 +917,98 @@ class LensParams(ParameterGroup):
                 else:
                     value = FocusMode.Unknown
         super().on_prop(instance, value, **kwargs)
+
+class ZoomPreset(Dispatcher):
+    """Preset data for :class:`PresetZoomParams`
+    """
+
+    name: str = Property('')
+    """The preset name (one of ``["A", "B", "C"]``)"""
+
+    value: int = Property(-1)
+    """The :attr:`~LensParams.zoom_pos` stored in the preset.
+    (``-1`` indicates no data is stored)
+    """
+
+    is_active: bool = Property(False)
+    """Flag indicating if the current :attr:`~LensParams.zoom_pos`
+    matches the preset :attr:`value`
+    """
+
+    def __init__(self, name: str, value: int = -1):
+        self.name = name
+        self.value = value
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__}: {self}>'
+
+    def __str__(self) -> str:
+        suffix = ' (active)' if self.is_active else ''
+        return f'{self.name} {self.value}{suffix}'
+
+
+class PresetZoomParams(ParameterGroup):
+    """Preset zoom
+    """
+    _NAME = 'preset_zoom'
+
+    presets: tp.Dict[str, ZoomPreset] = DictProperty()
+    """Mapping of :class:`ZoomPreset` objects stored by their
+    :attr:`~ZoomPreset.name`
+    """
+
+    def __init__(self, device: Device, **kwargs):
+        for key in 'ABC':
+            p = ZoomPreset(key)
+            p.bind(value=self.on_preset_value)
+            self.presets[key] = p
+        super().__init__(device, **kwargs)
+        self.device.lens.bind(zoom_pos=self.on_camera_zoom_changed)
+
+    async def _update(self):
+        c = self.device.client
+        resp = await c.request('GetPresetZoomPosition')
+        data = resp['Data']
+        for key, val in data.items():
+            preset = self.presets[key]
+            preset.value = val
+
+    async def set_preset(self, name: str, value: int|None = None):
+        """Set zoom position for the given preset
+
+        Arguments:
+            name: The :attr:`~ZoomPreset.name` of preset to store
+            value: The zoom position in the range of ``0 - 499``.
+                If not given, the current :attr:`~LensParams.zoom_pos`
+                is used.
+        """
+        if value is None:
+            value = self.device.lens.zoom_pos
+        params = {'ID': name, 'Position': value}
+        await self.device.queue_request('SetPresetZoomPosition', params)
+
+    async def recall_preset(self, name: str):
+        """Recall the preset by the given :attr:`~ZoomPreset.name`
+        """
+        p = self.presets[name]
+        if p.value < 0:
+            return
+        params = {'Position': p.value}
+        await self.device.queue_request('SetZoomCtrl', params)
+
+    async def clear_preset(self, name: str):
+        """Delete the value for the given preset
+        """
+        await self.set_preset(name, -1)
+
+    def on_preset_value(self, instance, value, **kwargs):
+        pos = self.device.lens.zoom_pos
+        instance.is_active = value == pos
+
+    def on_camera_zoom_changed(self, instance, value, **kwargs):
+        for p in self.presets.values():
+            p.is_active = p.value == value
+
 
 class PaintParams(ParameterGroup):
     """Paint parameters
@@ -1060,8 +1240,8 @@ class TallyParams(ParameterGroup):
         super().on_prop(instance, value, **kwargs)
 
 PARAMETER_GROUP_CLS = (
-    CameraParams, BatteryParams, ExposureParams,
-    LensParams, PaintParams, TallyParams,
+    CameraParams, NTPParams, BatteryParams, ExposureParams,
+    LensParams, PresetZoomParams, PaintParams, TallyParams,
 )
 
 @logger.catch

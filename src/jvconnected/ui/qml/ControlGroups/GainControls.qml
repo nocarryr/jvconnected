@@ -11,21 +11,24 @@ ColumnLayout {
     ValueLabel {
         labelText: 'Mode'
         valueText: root.model ? root.model.gainMode.value : ''
+        Layout.fillWidth: true
+    }
+
+    ValueLabel {
+        labelText: 'Value'
+        valueText: root.model ? model.gainValue.value : ''
+        valueFont.pointSize: 12
+        valueFont.bold: true
+        Layout.fillWidth: true
     }
 
     RowLayout {
-
-        ValueLabel {
-            labelText: 'Value'
-            valueText: root.model ? model.gainValue.value : ''
-            valueFont.pointSize: 12
-            valueFont.bold: true
-        }
-
-
+        Item { Layout.fillWidth: true }
         PlusMinusButtons {
+            Layout.alignment: Qt.AlignVCenter || Qt.AlignHCenter
             onPlusClicked: model.gainValue.increase()
             onMinusClicked: model.gainValue.decrease()
         }
+        Item { Layout.fillWidth: true }
     }
 }

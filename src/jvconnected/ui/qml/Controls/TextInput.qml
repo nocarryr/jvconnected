@@ -14,6 +14,7 @@ Control {
     font.pointSize: 9
 
     signal submit(string value)
+    signal textEdited(string value)
 
     contentItem: GridLayout {
         id: grid
@@ -46,6 +47,9 @@ Control {
             Layout.fillHeight: root.orientation == Qt.Horizontal ? true : false
             onEditingFinished: {
                 root.submit(text);
+            }
+            onTextEdited: {
+                root.textEdited(text);
             }
         }
     }

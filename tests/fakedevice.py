@@ -174,6 +174,7 @@ class FakeDevice(Dispatcher):
                 setattr(self, key, kwargs[key])
         for cls in PARAMETER_GROUP_CLS:
             self._add_param_group(cls)
+        pgs = self.parameter_groups
         self._command_map = {
             'GetSystemInfo':self.handle_system_info_req,
             'GetCamStatus':self.handle_status_request,
@@ -183,6 +184,11 @@ class FakeDevice(Dispatcher):
             'SetWebXYFieldEvent':self.handle_web_xy_event,
             'SetStudioTally':self.handle_tally_request,
             'JpegEncode':self.handle_jpg_encode_request,
+            'GetNTPStatus':pgs['ntp'].handle_ntp_request,
+            'SetNTPServer':pgs['ntp'].handle_ntp_request,
+            'GetPresetZoomPosition':pgs['preset_zoom'].handle_preset_zoom,
+            'SetPresetZoomPosition':pgs['preset_zoom'].handle_preset_zoom,
+            'SetZoomCtrl':pgs['lens'].handle_set_zoom_ctrl,
         }
         self.zc_service_info = self._build_zc_service_info()
         attrs = ['dns_name_prefix', 'serial_number', 'hostaddr', 'hostport']
@@ -385,6 +391,29 @@ class CameraParams(FakeParamBase):
             elif btn == 'Cancel':
                 self.menu_status = 'Off'
 
+class NTPParams(FakeParamBase):
+    _NAME = device.NTPParams._NAME
+
+    _prop_attrs = {}
+
+    address = Property('pool.ntp.org')
+    tc_sync = Property(False)
+    syncronized = Property(True)
+    sync_master = Property(False)
+
+    async def handle_ntp_request(self, request, payload):
+        cmd = payload['Request']['Command']
+        if cmd == 'GetNTPStatus':
+            data = {
+                'Address':self.address,
+                'TcSync':'On' if self.tc_sync else 'Off',
+                'Status':'Syncronized' if self.syncronized else 'Not Syncronized',
+            }
+            return data
+        elif cmd == 'SetNTPServer':
+            self.address = payload['Request']['Params']['Address']
+
+
 class BatteryParams(FakeParamBase):
     _NAME = device.BatteryParams._NAME
     _prop_attrs = device.BatteryParams._prop_attrs
@@ -439,6 +468,7 @@ class ExposureParams(FakeParamBase):
     shutter_value = Property(' [OFF]  ')
     master_black = Property('-3')
     master_black_pos = Property(-3)
+    mb_float = Property(-3.)
 
     _gain_range = [-6, 30]
     _master_black_range = [-12, 12]
@@ -449,7 +479,15 @@ class ExposureParams(FakeParamBase):
         self.pos_fstop_arr = build_fstops()
 
         super().__init__(device, **kwargs)
+        self.mb_mover = SeesawMover(self, self._master_black_range, 'mb_float')
+        self.bind(mb_float=self.on_mb_float)
         self.bind(**{k:self.on_prop for k in ['gain_pos', 'master_black_pos']})
+
+    async def open(self):
+        await self.mb_mover.start()
+
+    async def close(self):
+        await self.mb_mover.stop()
 
     async def handle_iris_bump(self, btn: str):
         if 'Open' in btn:
@@ -525,6 +563,18 @@ class ExposureParams(FakeParamBase):
         if kind == 'IrisBar':
             await self.queue_iris_change(pos)
 
+    async def handle_seesaw_event(self, request, payload):
+        params = payload['Request']['Params']
+        kind = params['Kind']
+        direction = params['Direction']
+        speed = params['Speed']
+        if kind == 'MasterBlackSeesaw':
+            if direction == 'Down':
+                speed = -speed
+            elif direction == 'Stop':
+                speed = 0
+            await self.mb_mover.set_speed(speed)
+
     def on_prop(self, instance, value, **kwargs):
         prop = kwargs['property']
         if prop.name == 'iris_pos':
@@ -534,10 +584,13 @@ class ExposureParams(FakeParamBase):
         elif prop.name == 'master_black_pos':
             self.master_black = str(value)
 
+    def on_mb_float(self, instance, value, **kwargs):
+        self.master_black_pos = round(value)
+
 class SeesawMover:
     timeout = .5
-    increments = [0, .001, .005, .01, .03, .05, .08, .1]
-    def __init__(self, parent: 'LensParams', pos_range, value_prop):
+    increments = [.001, .005, .01, .03, .04, .7, .9, .1]
+    def __init__(self, parent: FakeParamBase, pos_range, value_prop):
         self.parent = parent
         self.pos_range = pos_range
         self.value_prop = value_prop
@@ -620,8 +673,8 @@ class SeesawMover:
             if self.cur_speed == 0:
                 return
             vnorm = None
-            ix = abs(self.cur_speed)
-            increment = self.increments[self.cur_speed-1]
+            ix = abs(self.cur_speed) - 1
+            increment = self.increments[ix]
             if self.cur_speed < 0:
                 increment = -increment
             vnorm = self.value_normalized + increment
@@ -726,6 +779,11 @@ class LensParams(FakeParamBase):
                 self._zoom_task = None
             await self.zoom_mover.set_speed(speed)
 
+    async def handle_set_zoom_ctrl(self, request, payload):
+        params = payload['Request']['Params']
+        pos = params['Position']
+        await self.queue_zoom_change(pos)
+
     async def queue_zoom_change(self, value: int):
         async with self.zoom_mover:
             t = self._zoom_task
@@ -761,6 +819,21 @@ class LensParams(FakeParamBase):
         v = int(value / (pmax - pmin) * (vmax - vmin))
         self.zoom_value = f'Z{v:02d}'
 
+class PresetZoomParams(FakeParamBase):
+    _NAME = device.PresetZoomParams._NAME
+    _prop_attrs = {}
+
+    preset_values = DictProperty({'A':0, 'B':-1, 'C':-1})
+
+    async def handle_preset_zoom(self, request, payload):
+        cmd = payload['Request']['Command']
+        if cmd == 'GetPresetZoomPosition':
+            return self.preset_values
+        elif cmd == 'SetPresetZoomPosition':
+            params = payload['Request']['Params']
+            key, value = params['ID'], params['Position']
+            assert key in self.preset_values
+            self.preset_values[key] = value
 
 
 class PaintParams(FakeParamBase):
@@ -848,8 +921,8 @@ class TallyParams(FakeParamBase):
 
 
 PARAMETER_GROUP_CLS = (
-    CameraParams, BatteryParams, ExposureParams,
-    LensParams, PaintParams, TallyParams,
+    CameraParams, NTPParams, BatteryParams, ExposureParams,
+    LensParams, PresetZoomParams, PaintParams, TallyParams,
 )
 
 

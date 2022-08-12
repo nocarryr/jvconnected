@@ -16,9 +16,15 @@ Control {
     property alias deviceIndex: model.deviceIndex
     property CameraModel model: model
     signal deviceIndexUpdate()
+    // NOTE: width should be 390
 
     onDeviceIndexChanged: {
         deviceIndexUpdate();
+    }
+
+    function showOptionsDialog(){
+        optionsDialog.reset();
+        optionsDialog.open();
     }
 
     // Layout.leftMargin: 4
@@ -39,15 +45,31 @@ Control {
         headerBackgroundColor: '#215c98'
         headerTextColor: '#ffffff'
         horizontalPadding: 8
+        implicitWidth: 376
 
         content: ColumnLayout {
+            // NOTE: width should be 376
 
             ColumnLayout {
-                ValueLabel {
-                    labelText: 'Index'
-                    valueText: root.device.deviceIndex
-                    orientation: Qt.Horizontal
-                    Layout.fillWidth: true
+                // NOTE: width should be 360
+                RowLayout {
+                    // NOTE: width should be 342
+                    ValueLabel {
+                        labelText: 'Index'
+                        valueText: root.device.deviceIndex
+                        orientation: Qt.Horizontal
+                    }
+                    Item { Layout.fillWidth: true }
+                    ValueLabel {
+                        labelText: 'Name'
+                        valueText: root.device.displayName
+                        orientation: Qt.Horizontal
+                    }
+                    Item { Layout.fillWidth: true }
+                    IconButton {
+                        iconName: 'faCog'
+                        onClicked: { root.showOptionsDialog() }
+                    }
                 }
                 BatteryControls { model: root.model }
             }
@@ -179,18 +201,18 @@ Control {
                     }
                     RowLayout {
                         MyGroupBox {
-                            title: 'Gain'
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-
-                            content: GainControls { model: root.model }
-                        }
-                        MyGroupBox {
                             title: 'Master Black'
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
                             content: MasterBlackControls { model: root.model }
+                        }
+                        MyGroupBox {
+                            title: 'Gain'
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            content: GainControls { model: root.model }
                         }
                     }
                 }
@@ -267,6 +289,44 @@ Control {
             y: parent.y + root.topPadding
             width: root.availableWidth
             height: root.availableHeight
+        }
+    }
+
+    Component {
+        id: optionsDialogComponent
+        CameraOptionsDialog {
+            deviceModel: root.model
+            width: 600
+            height: 400
+            modal: true
+            focus: true
+            parent: Overlay.overlay
+            x: Math.round((parent.width - width) / 2)
+            y: Math.round((parent.height - height) / 2)
+        }
+    }
+
+    Loader {
+        id: optionsDialog
+
+        function open(){
+            var status = optionsDialog.status;
+            if (status == Loader.Null){
+                optionsDialog.sourceComponent = optionsDialogComponent;
+            } else if (status == Loader.Ready){
+                optionsDialog.item.open();
+            }
+        }
+
+        function reset(){
+            if (optionsDialog.status == Loader.Ready){
+                optionsDialog.item.reset();
+            }
+        }
+
+        onLoaded: {
+            optionsDialog.item.reset();
+            optionsDialog.item.open();
         }
     }
 }

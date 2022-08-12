@@ -16,11 +16,13 @@ QtObject {
     }
 
     property CameraParamsModel cameraParams: CameraParamsModel { device: root.device }
+    property NTPParamsModel ntpParams: NTPParamsModel { device: root.device }
     property BatteryParamsModel battery: BatteryParamsModel { device: root.device }
     property IrisModel iris: IrisModel { device: root.device }
     property GainModeModel gainMode: GainModeModel { device: root.device }
     property GainValueModel gainValue: GainValueModel { device: root.device }
     property MasterBlackModel masterBlack: MasterBlackModel { device: root.device }
+    property MasterBlackPosModel masterBlackPos: MasterBlackPosModel { device: root.device }
     property FocusModeModel focusMode: FocusModeModel { device: root.device }
     property FocusPosModel focusPos: FocusPosModel { device: root.device }
     property ZoomPosModel zoomPos: ZoomPosModel { device: root.device }
