@@ -72,15 +72,29 @@ ColumnLayout {
         ColumnLayout {
             id: presetModeBtns
             property bool recordEnabled: false
+            onRecordEnabledChanged: {
+                if (recordEnabled){
+                    recordTimeout.restart();
+                } else {
+                    recordTimeout.stop();
+                }
+            }
+            Timer {
+                id: recordTimeout
+                interval: 10000
+                repeat: false
+                onTriggered: { presetModeBtns.recordEnabled = false }
+            }
             IconButton {
                 iconName: 'faSave'
                 checkable: true
                 checked: parent.recordEnabled
+                property bool blink: checked && UiState.blinker
                 font.pointSize: 9
                 Layout.maximumHeight: 16
                 padding: 0
                 width: height
-                backgroundBlendColor: checked ? Qt.rgba(.8,0,0,1) : Qt.rgba(.2,0,0,.8)
+                backgroundBlendColor: blink ? Qt.rgba(.8,0,0,1) : Qt.rgba(.2,0,0,.8)
                 onClicked: { parent.recordEnabled = !parent.recordEnabled }
             }
             IconButton {

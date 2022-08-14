@@ -6,6 +6,15 @@ import Qt.labs.settings 1.0
 QtObject {
     id: root
     property string foo: 'bar'
+    property bool blinker: false
+
+    property Timer blinkTimer: Timer {
+        id: blinkTimer
+        interval: 500
+        repeat: true
+        running: true
+        onTriggered: { root.blinker = !root.blinker }
+    }
 
     property QtObject panelGroups: QtObject {
         id: panelGroupsObj
