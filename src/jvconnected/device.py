@@ -938,6 +938,11 @@ class ZoomPreset(Dispatcher):
     def __init__(self, name: str, value: int = -1):
         self.name = name
         self.value = value
+        self.bind(**{prop:self._on_prop for prop in ['value', 'is_active']})
+
+    def _on_prop(self, instance, value, **kwargs):
+        prop = kwargs['property']
+        logger.info(f'ZoomPreset {self.name}: {prop.name} = {value}')
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__}: {self}>'
