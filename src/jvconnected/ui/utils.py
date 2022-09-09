@@ -7,7 +7,7 @@ from PySide2 import QtCore
 
 class GenericQObject(QtCore.QObject):
     """Utility class to remove some of the boilerplate code
-    needed to implement :class:`QtCore.Property` attributes.
+    needed to implement :class:`~PySide2.QtCore.Property` attributes.
 
     The intended pattern uses the following naming convention::
 
@@ -36,7 +36,7 @@ class GenericQObject(QtCore.QObject):
         pass
 
     def _generic_setter(self, attr: str, value: Any):
-        """To be used in the 'getter' method for a :class:`QtCore.Property`
+        """To be used in the 'getter' method for a :class:`~PySide2.QtCore.Property`
 
         Arguments:
             attr (str): The instance attribute name containing the Property value

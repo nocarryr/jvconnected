@@ -420,11 +420,13 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
     """
 
     role_names: Dict[Qt.ItemDataRole, bytes]
-    """Qt.UserRoles mapped to each property defined in :attr:`role_attrs`
+    """:obj:`PySide2.QtCore.Qt.UserRole` mapped to each property defined
+    in :attr:`role_attrs`
 
     This is convoluted, weird, cumbersome and many other adjectives, but it seems
-    to be the only way to make QAbstractTableModel act like a table. No clue
-    why "roles" are necessary to access columns since that's all a table
+    to be the only way to make :class:`PySide2.QtCore.QAbstractTableModel` act
+    like a table.
+    No clue why "roles" are necessary to access columns since that's all a table
     is supposed to be ``¯\_(ツ)_/¯``
     """
 

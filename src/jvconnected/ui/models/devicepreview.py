@@ -124,8 +124,8 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
         request image frames while :attr:`videoMode` is :attr:`~PreviewMode.VIDEO`
         or :attr:`~PreviewMode.WAVEFORM`.
 
-        Each frame is then placed into a ``QPixmap`` and an update is requested
-        via ``QPainter``
+        Each frame is then placed into a :class:`~PySide2.QtGui.QPixmap`
+        and an update is requested via :class:`~PySide2.QtGui.QPainter`
         """
         device = self.device.device
         async with device.devicepreview as src:

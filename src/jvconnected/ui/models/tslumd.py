@@ -149,7 +149,7 @@ class UmdModel(GenericQObject):
 
 class TallyRoles(enum.IntEnum):
     """Role definitions to specify column mapping in :class:`TallyListModel` to
-    a ``QtQuick.TableView``
+    a :obj:`PySide2.QtQuick.TableView`
     """
     screenIndexRole = Qt.UserRole + 1   #: Screen index
     tallyIndexRole = Qt.UserRole + 2    #: Tally index
