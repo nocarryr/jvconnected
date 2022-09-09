@@ -8,6 +8,7 @@ from PySide2.QtCore import Property, Signal
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 
+from jvconnected.common import ConnectionState
 from jvconnected.engine import Engine
 from jvconnected.ui.utils import (
     GenericQObject, connect_async_close_event, AnnotatedQtSignal as AnnoSignal,
@@ -44,7 +45,7 @@ class EngineModel(GenericQObject):
             running=self.on_engine_running,
             on_config_device_added=self.on_config_device_added,
             on_device_discovered=self.on_device_discovered,
-            on_device_added=self._engine_device_added,
+            on_device_connected=self._engine_device_connected,
             on_device_removed=self._engine_device_removed,
         )
         self._running = False
@@ -107,6 +108,7 @@ class EngineModel(GenericQObject):
     def on_engine_running(self, instance, value, **kwargs):
         self.running = value
 
+    @logger.catch
     async def on_config_device_added(self, conf_device):
         if conf_device.id in self._device_configs:
             model = self._device_configs[conf_device.id]
@@ -118,9 +120,9 @@ class EngineModel(GenericQObject):
             return
         logger.debug(f'adding conf_device: {conf_device}')
         conf_device.bind(device_index=self._calc_device_view_indices)
-        model = DeviceConfigModel()
-        model.device = conf_device
+        model = DeviceConfigModel(device=conf_device)
         self._device_configs[conf_device.id] = model
+        model.reconnectSignal.connect(self.on_device_conf_reconnect_sig)
         self.configDeviceAdded.emit(model)
 
     @logger.catch
@@ -128,32 +130,60 @@ class EngineModel(GenericQObject):
         logger.info(f'engine.on_device_discovered: {conf_device}')
         await self.on_config_device_added(conf_device)
 
-    async def _engine_device_added(self, device, **kwargs):
-        logger.info(f'engine.on_device_added: {device}')
+    @logger.catch
+    async def _engine_device_connected(self, device, **kwargs):
         conf_device_model = self._device_configs[device.id]
+        logger.info(f'engine.on_device_connected: {device=}, {conf_device_model=}')
+        engine_conf_device = self.engine.config.devices[device.id]
+        assert conf_device_model.device is engine_conf_device
         if device.id in self._devices:
             model = self._devices[device.id]
+            assert model.confDevice is conf_device_model
             if model.device is device:
                 return
             assert model.deviceId == device.id
             logger.info(f'setting model.device to "{device}"')
             model.device = device
         else:
-            model = DeviceModel()
+            logger.info(f'creating new DeviceModel for "{device.id}"')
+            model = DeviceModel(confDevice=conf_device_model)
             model.device = device
-            model.confDevice = conf_device_model
+            model.reconnectSignal.connect(self.on_device_reconnect_sig)
             self._devices[model.deviceId] = model
             self._calc_device_view_indices()
-            # conf_device.bind(device_index=self._calc_device_view_indices)
             self.deviceAdded.emit(model)
             model.removeDeviceIndex.connect(self.on_device_remove_index)
+        logger.debug(f'{engine_conf_device.connection_state=}, {engine_conf_device.device_index=}, {device.device_index=}')
 
-
+    @logger.catch
     async def _engine_device_removed(self, device, reason, **kwargs):
-        logger.info(f'engine.on_device_removed: {device}, {reason}')
+        conf_device_model = self._device_configs.get(device.id)
+        logger.info(f'engine.on_device_removed: {device}, {reason}, {conf_device_model=}')
         model = self._devices.get(device.id)
         if model is not None:
             model.device = None
+
+    @asyncSlot(DeviceConfigModel)
+    async def on_device_conf_reconnect_sig(self, conf_device_model: DeviceConfigModel):
+        """Reconnect the given device
+
+        Calls the :meth:`~jvconnected.engine.Engine.reconnect_device` method on
+        the :attr:`engine`.
+        """
+        conf_device = conf_device_model.device
+        if conf_device.device_index is None:
+            conf_device.device_index = -1
+            logger.debug(f'set conf_device index: {conf_device.device_index=}')
+
+        state = await self.engine.reconnect_device(conf_device, wait_for_state=True)
+        logger.debug(f'reconnect state={state!r}')
+        config_conf_device = self.engine.config.devices[conf_device.id]
+        assert config_conf_device is conf_device
+
+
+    @asyncSlot(DeviceModel)
+    async def on_device_reconnect_sig(self, device_model: DeviceModel):
+        await self.on_device_conf_reconnect_sig(device_model.confDevice)
 
     def _calc_device_view_indices(self, *args, **kwargs):
         devices = self.engine.config.devices

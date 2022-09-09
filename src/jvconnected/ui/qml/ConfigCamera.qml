@@ -4,6 +4,7 @@ import QtQuick.Controls 2.15
 import Qt.labs.settings 1.0
 import DeviceModels 1.0
 import Controls 1.0
+import ControlGroups 1.0
 
 Control {
     id: root
@@ -11,14 +12,9 @@ Control {
     // implicitWidth: contentItem.width
     // implicitHeight: contentItem.height
 
-    property string authUser: ''
-    property string authPass: ''
-    property string hostaddr: ''
-    property int hostport: 80
-    property int deviceIndex: -1
-    property string displayName: ''
-    property alias alwaysConnect: alwaysConnectSwitch.checked
     property bool hasChanges: false
+    property var formData: {'authUser':'', 'authPass':'', 'hostaddr':'', 'hostport':80, 'deviceIndex':-1, 'displayName':'', 'alwaysConnect':false}
+    property var fieldsEdited: []
 
     signal setDevice(DeviceConfigModel dev)
     signal submit()
@@ -29,53 +25,57 @@ Control {
         updateFromDevice();
     }
 
+    function setFormField(name, value){
+        formData[name] = value;
+        if (fieldsEdited.indexOf(name) == -1){
+            fieldsEdited.push(name);
+        }
+        hasChanges = true;
+    }
+
     onSubmit: { setDeviceValues() }
 
     onCancel: { updateFromDevice() }
 
     function updateFromDevice(){
-        checkValues();
-        device.getValuesFromDevice();
-        authUser = device.authUser;
-        authPass = device.authPass;
-        hostaddr = device.hostaddr;
-        hostport = device.hostport;
-        deviceIndex = device.deviceIndex;
-        displayName = device.displayName;
-        alwaysConnect = device.alwaysConnect;
-        // hasChanges = false;
-        checkValues();
+        var deviceProps = device.getEditableProperties(),
+            deviceValue, formValue, tmp={};
+        // console.log('deviceProps: ', JSON.stringify(deviceProps));
+        for (const key in deviceProps){
+            deviceValue = deviceProps[key];
+            tmp[key] = deviceValue;
+        }
+        root.fieldsEdited = [];
+        hasChanges = false;
+        root.formData = tmp;
     }
 
     function setDeviceValues(){
-        if (hasChanges){
-            device.authUser = root.authUser;
-            device.authPass = root.authPass;
-            device.hostaddr = root.hostaddr;
-            device.hostport = root.hostport;
-            device.deviceIndex = root.deviceIndex;
-            device.displayName = root.displayName;
-            device.alwaysConnect = root.alwaysConnect;
-            device.sendValuesToDevice();
-            checkValues();
+        if (!hasChanges){
+            return;
         }
+        var data = {};
+        for (const key of root.fieldsEdited){
+            data[key] = root.formData[key];
+        }
+        device.setFormValues(data);
         updateFromDevice();
-    }
-
-    function checkValues(){
-        hasChanges = (
-            authUser != device.authUser || authPass != device.authPass ||
-            deviceIndex != device.deviceIndex || device.editedProperties.length > 0 ||
-            displayName != device.displayName || alwaysConnect !== device.alwaysConnect ||
-            hostaddr != device.hostaddr || hostport != device.hostport
-        );
     }
 
     Connections {
         target: device
-        function onEditedPropertiesChanged() {
-            // root.hasChanges = device.editedProperties.length > 0;
-            checkValues();
+
+        function onPropertiesUpdated(propNames){
+            var value, tmp = Object.assign({}, root.formData);
+            for (const propName of propNames){
+                if (root.fieldsEdited.indexOf(propName) != -1){
+                    continue;
+                }
+                value = device.getEditableProperty(propName);
+                // console.log('prop: ', propName, ' = ', value);
+                tmp[propName] = value;
+            }
+            root.formData = tmp;
         }
     }
 
@@ -85,11 +85,10 @@ Control {
         content: ColumnLayout {
             TextInput {
                 labelText: 'Display Name'
-                valueText: root.displayName
+                valueText: root.formData['displayName']
                 Layout.fillWidth: true
                 onSubmit: {
-                    root.displayName = value;
-                    root.checkValues();
+                    root.setFormField('displayName', value);
                 }
             }
             GridLayout {
@@ -97,38 +96,34 @@ Control {
                 Layout.fillWidth: true
                 TextInput {
                     labelText: 'Username'
-                    valueText: root.authUser
+                    valueText: root.formData['authUser']
                     Layout.fillWidth: true
                     onSubmit: {
-                        root.authUser = value;
-                        root.checkValues();
+                        root.setFormField('authUser', value);
                     }
                 }
                 TextInput {
                     labelText: 'Password'
-                    valueText: root.authPass
+                    valueText: root.formData['authPass']
                     Layout.fillWidth: true
                     onSubmit: {
-                        root.authPass = value;
-                        root.checkValues();
+                        root.setFormField('authPass', value);
                     }
                 }
                 TextInput {
                     labelText: 'IP Address'
-                    valueText: root.hostaddr
+                    valueText: root.formData['hostaddr']
                     Layout.fillWidth: true
                     onSubmit: {
-                        root.hostaddr = value;
-                        root.checkValues();
+                        root.setFormField('hostaddr', value);
                     }
                 }
                 TextInput {
                     labelText: 'Port'
-                    valueText: root.hostport.toString()
+                    valueText: root.formData['hostport'].toString()
                     Layout.fillWidth: true
                     onSubmit: {
-                        root.hostport = parseInt(value);
-                        root.checkValues();
+                        root.setFormField('hostport', parseInt(value));
                     }
                 }
             }
@@ -138,31 +133,55 @@ Control {
                 }
                 Switch {
                     id: alwaysConnectSwitch
-                    onToggled: { root.checkValues() }
+                    checked: root.formData['alwaysConnect']
+                    onToggled: { root.setFormField('alwaysConnect', checked) }
                 }
             }
             RowLayout {
-                Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
-                ValueLabel {
-                    labelText: 'Index'
-                    valueText: root.deviceIndex
-                    orientation: Qt.Vertical
-                }
-                UpDownButtons {
-                    onDownClicked: {
-                        var ix = root.deviceIndex - 1;
-                        if (ix < 0){
-                            return;
-                        }
-                        root.deviceIndex = ix;
-                        root.checkValues();
-                        // root.device.setDeviceIndex(ix);
+                ColumnLayout {
+                    ConnectionIndicator {
+                        state: root.device ? root.device.connectionState : 'unknown'
                     }
-                    onUpClicked: {
-                        var ix = root.deviceIndex + 1;
-                        root.deviceIndex = ix;
-                        root.checkValues();
-                        // root.device.setDeviceIndex(ix);
+                    RowLayout {
+                        Label {
+                            text: root.device ? root.device.connectionState : ''
+                        }
+                        Button {
+                            text: 'Reconnect'
+                            onClicked: { root.device.reconnect() }
+                        }
+                    }
+                }
+                Item { Layout.fillWidth: true }
+                RowLayout {
+                    Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+                    ValueLabel {
+                        labelText: 'Index'
+                        valueText: root.formData['deviceIndex'] != -1 ? root.formData['deviceIndex'].toString() : ''
+                        orientation: Qt.Vertical
+                    }
+                    UpDownButtons {
+                        onDownClicked: {
+                            var ix = root.formData['deviceIndex'];
+                            if (ix == -1){
+                                root.setFormField('deviceIndex', 0)
+                                return;
+                            }
+                            ix -= 1;
+                            if (ix < 0){
+                                return;
+                            }
+                            root.setFormField('deviceIndex', ix);
+                        }
+                        onUpClicked: {
+                            var ix = root.formData['deviceIndex'];
+                            if (ix == -1){
+                                root.setFormField('deviceIndex', 0)
+                                return;
+                            }
+                            ix += 1;
+                            root.setFormField('deviceIndex', ix);
+                        }
                     }
                 }
             }

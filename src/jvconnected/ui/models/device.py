@@ -6,6 +6,7 @@ from typing import List, TYPE_CHECKING
 if TYPE_CHECKING:
     from jvconnected.config import DeviceConfig
     from jvconnected.device import Device, ParameterGroup
+from jvconnected.common import ConnectionState
 from jvconnected.device import (
     MenuChoices, BatteryState, FocusDirection, ZoomDirection,
 )
@@ -30,6 +31,13 @@ class DeviceBase(GenericQObject):
     _n_hostport = Signal()
     _n_authUser = Signal()
     _n_authPass = Signal()
+    _n_connectionState = Signal()
+    reconnectSignal: AnnoSignal(device='DeviceBase') = Signal(QtCore.QObject)
+    """Signals the owning :class:`~.engine.EngineModel` to initiate a reconnect
+    for the device
+
+    See :meth:`.engine.EngineModel.on_device_conf_reconnect_sig`
+    """
     def __init__(self, *args):
         self.loop = asyncio.get_event_loop()
         self._device = None
@@ -42,6 +50,7 @@ class DeviceBase(GenericQObject):
         self._hostport = 80
         self._authUser = None
         self._authPass = None
+        self._connectionState = ConnectionState.UNKNOWN
         super().__init__(*args)
 
     def _g_device(self): return self._device
@@ -101,18 +110,32 @@ class DeviceBase(GenericQObject):
     def _s_authPass(self, value): self._generic_setter('_authPass', value)
     authPass = Property(str, _g_authPass, _s_authPass, notify=_n_authPass)
 
-    # @asyncSlot()
-    # async def removeDeviceIndex(self):
-    #     await self._remove_device_index()
-    #
-    # async def _remove_device_index(self):
-    #     pass
+    def _g_connectionState(self) -> str: return self._connectionState.name.lower()
+    def _s_connectionState(self, value: ConnectionState|str):
+        if not isinstance(value, ConnectionState):
+            value = getattr(ConnectionState, value.upper())
+        if value == self._connectionState:
+            return
+        self._connectionState = value
+        self._n_connectionState.emit()
+    connectionState: str = Property(str, _g_connectionState, _s_connectionState, notify=_n_connectionState)
+    """The device's :class:`~jvconnected.common.ConnectionState`
+    as a lowercase string
+    """
+
+    @QtCore.Slot()
+    def reconnect(self):
+        """Send the :attr:`reconnectSignal`
+        """
+        self.reconnectSignal.emit(self)
 
     def __repr__(self):
         return f'<{self.__class__}: "{self}">'
     def __str__(self):
         if self.device is not None:
             return str(self.device)
+        elif self.deviceId is not None:
+            return self.deviceId
         return 'None'
 
 class DeviceConfigModel(DeviceBase):
@@ -123,8 +146,9 @@ class DeviceConfigModel(DeviceBase):
     _n_storedInConfig = Signal()
     _n_alwaysConnect = Signal()
     _n_editedProperties = Signal()
+    propertiesUpdated = Signal('QVariantList')
     _prop_attr_map = {
-        'online':'deviceOnline', 'active':'deviceActive', 'always_connect':'alwaysConnect',
+        'always_connect':'alwaysConnect',
         'stored_in_config':'storedInConfig', 'device_index':'deviceIndex',
         'display_name':'displayName', 'auth_user':'authUser', 'auth_pass':'authPass',
         'hostaddr':'hostaddr', 'hostport':'hostport',
@@ -133,16 +157,15 @@ class DeviceConfigModel(DeviceBase):
         'display_name', 'device_index', 'auth_user', 'auth_pass',
         'hostaddr', 'hostport', 'always_connect',
     ]
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         prop_map, editable = self._prop_attr_map, self._editable_properties
         self._editable_props_camel_case = [prop_map[prop] for prop in editable]
         self._deviceOnline = False
         self._deviceActive = False
         self._storedInConfig = False
         self._alwaysConnect = False
-        self._editedProperties = []
-        self._updating_from_device = False
         super().__init__(*args)
+        self.device = kwargs['device']
 
     def _g_deviceOnline(self) -> bool: return self._deviceOnline
     def _s_deviceOnline(self, value: bool): self._generic_setter('_deviceOnline', value)
@@ -172,33 +195,7 @@ class DeviceConfigModel(DeviceBase):
     )
     """Alias for :attr:`jvconnected.config.DeviceConfig.always_connect`"""
 
-    def _g_editedProperties(self) -> List[str]: return self._editedProperties
-    def _s_editedProperties(self, value: List[str]):
-        self._generic_setter('_editedProperties', value)
-    editedProperties: List[str] = Property('QVariantList',
-        _g_editedProperties, _s_editedProperties, notify=_n_editedProperties,
-    )
-    """A list of attributes that have changed and are waiting to be set on the
-    :attr:`device` instance
-    """
-
-    def _generic_setter(self, attr, value):
-        super()._generic_setter(attr, value)
-        attr = attr.lstrip('_')
-        if attr in self._editable_props_camel_case:
-            if self._updating_from_device or self.device is None:
-                return
-            if attr in self.editedProperties:
-                return
-            d = {v:k for k,v in self._prop_attr_map.items()}
-            dev_attr = d[attr]
-            if getattr(self.device, dev_attr) != value:
-                self.editedProperties.append(dev_attr)
-            logger.debug(f'DeviceConfigModel ({self.deviceId}) editedProperties: {self.editedProperties}')
-
     def _do_set_device(self, device):
-        self._updating_from_device = True
-        self.editedProperties.clear()
         if device is not None:
             assert self._device is None
             self._device = device
@@ -206,7 +203,6 @@ class DeviceConfigModel(DeviceBase):
             self._n_device.emit()
         else:
             self._generic_setter('_device', device)
-        self._updating_from_device = False
 
     @asyncSlot(int)
     async def setDeviceIndex(self, value: int):
@@ -217,60 +213,91 @@ class DeviceConfigModel(DeviceBase):
             value = None
         self.device.device_index = value
 
-    # async def _remove_device_index(self):
-    #     self.device.device_index = None
+    @QtCore.Slot('QVariantMap')
+    def setFormValues(self, data: dict):
+        for dev_attr, my_attr in self._prop_attr_map.items():
+            if dev_attr not in self._editable_properties:
+                continue
+            if my_attr not in data:
+                continue
+            value = data[my_attr]
+            dev_val = getattr(self.device, dev_attr)
+            if my_attr == 'deviceIndex':
+                if value == -1:
+                    value = None
+            if value == dev_val:
+                continue
+            logger.debug(f'DeviceConfigModel setting {dev_attr}={value}')
+            setattr(self.device, dev_attr, value)
 
-    @asyncSlot()
-    async def sendValuesToDevice(self):
-        """Update the :attr:`device` values for any attributes currently in
-        :attr:`editedProperties`.
+    @QtCore.Slot(result='QVariantMap')
+    def getEditableProperties(self):
+        d = {}
+        for dev_attr, my_attr in self._prop_attr_map.items():
+            value = getattr(self, my_attr)
+            if value is None:
+                value = ''
+            d[my_attr] = value
+        return d
 
-        After all values are set, the :attr:`editedProperties` list is emptied.
-        """
-        self._updating_from_device = True
-        for dev_attr in self.editedProperties:
-            attr = self._prop_attr_map[dev_attr]
-            val = getattr(self, attr)
-            if attr == 'deviceIndex' and val is None:
-                val = -1
-            logger.debug(f'DeviceConfigModel setting {dev_attr}={val}')
-            setattr(self.device, dev_attr, val)
-        self.editedProperties.clear()
-        self._updating_from_device = False
-
-    @asyncSlot()
-    async def getValuesFromDevice(self):
-        """Get the current values from the :attr:`device`
-
-        Changes made to anything in :attr:`editedProperties` are overwritten
-        and the list is cleared.
-        """
-        self._updating_from_device = True
-        for dev_attr in self._editable_properties:
-            attr = self._prop_attr_map[dev_attr]
-            val = getattr(self.device, dev_attr)
-            setattr(self, attr, val)
-        self.editedProperties = []
-        self._updating_from_device = False
+    @QtCore.Slot(str, result='QVariant')
+    def getEditableProperty(self, name: str):
+        return getattr(self, name)
 
     def _on_device_set(self, device):
+        props_updated = []
         for dev_attr, self_attr in self._prop_attr_map.items():
             val = getattr(device, dev_attr)
+            if self_attr == 'deviceIndex':
+                if val is None:
+                    val = -1
+            changed = getattr(self, self_attr) == val
             setattr(self, self_attr, val)
+            if changed:
+                if dev_attr in self._prop_attr_map:
+                    props_updated.append(self_attr)
+        if len(props_updated):
+            self.propertiesUpdated.emit(props_updated)
         keys = self._prop_attr_map.keys()
         device.bind(**{key:self.on_device_prop_change for key in keys})
-        # device.bind(device_index=self.on_device_index_changed)
         super()._on_device_set(device)
+        self.deviceOnline, self.deviceActive = device.online, device.active
+        self.connectionState = device.connection_state
+        device.bind(
+            online=self.on_device_online,
+            active=self.on_device_active,
+            connection_state=self.on_device_connection_state,
+        )
+
+    def on_device_online(self, instance, value, **kwargs):
+        if instance is not self.device:
+            return
+        self.deviceOnline = value
+
+    def on_device_active(self, instance, value, **kwargs):
+        if instance is not self.device:
+            return
+        self.deviceActive = value
+
+    def on_device_connection_state(self, instance, value, **kwargs):
+        if instance is not self.device:
+            return
+        self.connectionState = value
 
     def on_device_prop_change(self, instance, value, **kwargs):
         if instance is not self.device:
             return
-        self._updating_from_device = True
         prop = kwargs['property']
         attr = self._prop_attr_map.get(prop.name)
+
         if attr is not None:
+            if attr == 'deviceIndex':
+                if value is None:
+                    value = -1
             setattr(self, attr, value)
-        self._updating_from_device = False
+            if prop.name in self._prop_attr_map:
+                self.propertiesUpdated.emit([attr])
+
 
 class DeviceModel(DeviceBase):
     """Qt Bridge for :class:`jvconnected.device.Device`
@@ -285,10 +312,11 @@ class DeviceModel(DeviceBase):
     index
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         self._connected = False
         self._confDevice = None
         super().__init__(*args)
+        self.confDevice = kwargs['confDevice']
 
     def _g_confDevice(self) -> DeviceConfigModel: return self._confDevice
     def _s_confDevice(self, value: DeviceConfigModel):
@@ -354,17 +382,21 @@ class DeviceModel(DeviceBase):
         """
         await self.confDevice.setDeviceIndex(value)
 
-    # async def _remove_device_index(self):
-    #     await self.confDevice._remove_device_index()
-
     def _on_device_set(self, device):
         super()._on_device_set(device)
         self.connected = device._is_open
+        self.connectionState = device.connection_state
+        device.bind(connection_state=self.on_device_connection_state)
         device.bind_async(self.loop,
             model_name=self._on_device_model_name,
             serial_number=self._on_device_serial_number,
             connected=self._on_device_connected,
         )
+
+    def on_device_connection_state(self, instance, value, **kwargs):
+        if instance is not self.device:
+            return
+        self.connectionState = value
 
     def _on_conf_index_changed(self):
         self.deviceIndex = self.confDevice.deviceIndex

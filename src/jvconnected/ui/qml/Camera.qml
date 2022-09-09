@@ -71,6 +71,15 @@ Control {
                         onClicked: { root.showOptionsDialog() }
                     }
                 }
+                RowLayout {
+                    ConnectionIndicator {
+                        state: root.device ? root.device.connectionState : 'unknown'
+                    }
+                    Button {
+                        text: 'Reconnect'
+                        onClicked: { root.device.reconnect() }
+                    }
+                }
                 BatteryControls { model: root.model }
             }
             RowLayout {

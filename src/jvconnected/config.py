@@ -12,6 +12,8 @@ from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 import jsonfactory
 
 from zeroconf import ServiceInfo
+
+from jvconnected.common import ConnectionState
 from jvconnected.utils import IndexedDict
 
 def get_config_dir(app_name: str) -> 'pathlib.Path':
@@ -317,6 +319,10 @@ class DeviceConfig(Dispatcher):
     communicating with the device
     """
 
+    connection_state: ConnectionState = Property(ConnectionState.UNKNOWN)
+    """The device's :class:`~.common.ConnectionState`
+    """
+
     def on_change(instance: 'DeviceConfig', prop_name: str, value: tp.Any):
         """Fired when any property value changes
 
@@ -347,10 +353,14 @@ class DeviceConfig(Dispatcher):
                 continue
             val = kwargs[attr]
             setattr(self, attr, val)
-        if not len(self.display_name):
+        if not self.display_name:
             self.display_name = self.name
 
         self.bind(**{attr:self.on_prop_change for attr in self._all_prop_names})
+        self.bind(connection_state=self.on_connection_state)
+
+    def on_connection_state(self, instance, value, **kwargs):
+        self.active = value == ConnectionState.CONNECTED
 
     @property
     def model_name(self) -> str:

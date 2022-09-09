@@ -10,6 +10,7 @@ Reference
     devicepreview
     client
     discovery
+    common
     interfaces/index.rst
     utils
     ui/index.rst

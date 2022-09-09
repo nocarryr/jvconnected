@@ -2,6 +2,7 @@ Module ControlGroups
 
 BatteryControls 1.0 BatteryControls.qml
 ConnectionControls 1.0 ConnectionControls.qml
+ConnectionIndicator 1.0 ConnectionIndicator.qml
 DetailControls 1.0 DetailControls.qml
 GainControls 1.0 GainControls.qml
 IrisControls 1.0 IrisControls.qml

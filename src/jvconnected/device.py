@@ -6,6 +6,7 @@ from enum import Enum, auto
 
 from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 
+from jvconnected.common import ConnectionState
 from jvconnected.devicepreview import JpegSource
 from jvconnected.client import Client, ClientError
 from jvconnected.utils import NamedQueue
@@ -36,7 +37,11 @@ class Device(Dispatcher):
     """The device index"""
 
     connected: bool = Property(False)
-    """Connection state"""
+    """``True`` communicating with the device"""
+
+    connection_state: ConnectionState = Property(ConnectionState.UNKNOWN)
+    """The device's :class:`~.common.ConnectionState`
+    """
 
     error: bool = Property(False)
     """Becomes ``True`` when a communication error occurs"""
@@ -63,6 +68,8 @@ class Device(Dispatcher):
         self.client = Client(hostaddr, auth_user, auth_pass, hostport)
         self._poll_fut = None
         self._poll_enabled = False
+        self._first_poll_evt = asyncio.Event()
+        self._first_poll_exc = None
         self._is_open = False
         for cls in PARAMETER_GROUP_CLS:
             self._add_param_group(cls)
@@ -103,6 +110,10 @@ class Device(Dispatcher):
         await self._get_system_info()
         self._poll_enabled = True
         self._poll_fut = asyncio.ensure_future(self._poll_loop())
+        await self._first_poll_evt.wait()
+        if self._first_poll_exc is not None:
+            await self._poll_fut
+            raise self._first_poll_exc
         self._is_open = True
         self.connected = True
 
@@ -155,13 +166,25 @@ class Device(Dispatcher):
             else:
                 await self._request_cam_status(short=False)
 
+        first_poll = True
         while self._poll_enabled:
-            item = await get_queue_item(timeout=.5)
+            if first_poll:
+                timeout = .1
+            else:
+                timeout = .5
+            item = await get_queue_item(timeout=timeout)
             try:
                 await do_poll(item)
             except ClientError as exc:
-                asyncio.ensure_future(self._handle_client_error(exc))
+                if first_poll:
+                    self._first_poll_exc = exc
+                    self._first_poll_evt.set()
+                else:
+                    asyncio.ensure_future(self._handle_client_error(exc))
                 break
+            if first_poll:
+                self._first_poll_evt.set()
+            first_poll = False
 
     async def _request_cam_status(self, short=True):
         """Request all available camera parameters
