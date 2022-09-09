@@ -1,10 +1,12 @@
 from __future__ import annotations
 import typing as tp
 import ast
+import re
 
 from docutils.statemachine import StringList
 import sphinx
 from sphinx.application import Sphinx
+from sphinx.environment import BuildEnvironment
 from sphinx.locale import _, __
 from sphinx.util import logging
 from sphinx.util import inspect
@@ -17,23 +19,25 @@ from sphinx.pycode import ModuleAnalyzer
 from sphinx.ext.autodoc import (
     ModuleDocumenter, MethodDocumenter, AttributeDocumenter, EMPTY,
 )
+from sphinx.ext.intersphinx import resolve_reference_in_inventory
 
 from sphinx import addnodes
 from docutils import nodes
 from docutils.parsers.rst import directives
 from sphinx.domains import ObjType
 from sphinx.domains.python import (
-    PyXRefRole, PyAttribute, PyMethod, _parse_arglist,
+    type_to_xref, PyXRefRole, PyAttribute, PyMethod, _parse_arglist,
 )
 
 from PySide2.QtCore import Property, Signal, Slot
 
 from jvconnected.ui.utils import AnnotatedQtSignal
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('autodoc_qt')
 
 
 PYSIDE_VER = 'PySide6'
+PYSIDE_RE = re.compile(r'PySide\d')
 
 FULL_NAMES = {
     cls: '.'.join([cls.__module__, cls.__module__, cls. __qualname__])
@@ -57,30 +61,6 @@ QT_REFS = {
         'refdomain':'std',
     }
 }
-
-
-
-def qt_type_to_xref(
-    target: str, env: 'BuildEnvironment' = None,
-    suppress_prefix: bool = False, domain: str = 'py',
-) -> addnodes.pending_xref:
-    kwargs = {}
-
-    objname = target.split('.')[-1]
-    refspec = QT_REFS[objname]
-    kwargs = refspec.copy()
-
-    if suppress_prefix:
-        title = target.split('.')[-1]
-    else:
-        title = target
-
-    contnodes = [nodes.Text(title)]
-    xref = addnodes.pending_xref('', *contnodes, **kwargs)
-    xref['intersphinx'] = True
-    xref['inventory'] = PYSIDE_VER
-    return xref
-
 
 
 class SlotDecoratorFinder:
@@ -277,7 +257,7 @@ class QtSignalDirective(PyMethod):
 
     def get_signature_prefix(self, sig: str) -> tp.List[nodes.Node]:
         return [
-            qt_type_to_xref(FULL_NAMES[Signal], self.env, suppress_prefix=True),
+            type_to_xref(FULL_NAMES[Signal], self.env, suppress_prefix=True),
             addnodes.desc_sig_space(),
         ]
 
@@ -299,7 +279,7 @@ class QtSlotDirective(PyMethod):
                 addnodes.desc_sig_space(),
             ])
         prefix.extend([
-            qt_type_to_xref(FULL_NAMES[Slot], self.env, suppress_prefix=True),
+            type_to_xref(FULL_NAMES[Slot], self.env, suppress_prefix=True),
             addnodes.desc_sig_space()
         ])
         return prefix
@@ -308,10 +288,87 @@ class QtSlotDirective(PyMethod):
 class QtPropertyDirective(PyAttribute):
     def get_signature_prefix(self, sig: str) -> tp.List[nodes.Node]:
         return [
-            qt_type_to_xref(FULL_NAMES[Property], self.env, suppress_prefix=True),
+            type_to_xref(FULL_NAMES[Property], self.env, suppress_prefix=True),
             addnodes.desc_sig_space(),
         ]
 
+
+def missing_reference(
+    app: Sphinx, env: BuildEnvironment,
+    node: addnodes.pending_xref, contnode: nodes.TextElement
+) -> nodes.Element|None:
+
+    target = node['reftarget']
+    if 'PySide' not in target:
+        return None
+    m = PYSIDE_RE.match(target)
+    if m is None:
+        return None
+
+    if ':' in target:
+        _inv_name, new_target = target.split(':', 1)
+        if 'PySide' not in _inv_name:
+            return None
+        node['reftarget'] = target = new_target
+
+    pyside_mod = m.group()
+    if not isinstance(pyside_mod, str):
+        pyside_mod = pyside_mod[0]
+    objname = target.split('.')[-1]
+    if objname in QT_REFS:
+        ref = QT_REFS[objname]
+        for k,v in ref.items():
+            node[k] = v
+        res_inv = resolve_reference_in_inventory(env, PYSIDE_VER, node, contnode)
+        assert res_inv is not None
+        return res_inv
+
+    if pyside_mod == 'PySide2':
+        other_mod = 'PySide6'
+    else:
+        other_mod = 'PySide2'
+    mods = [pyside_mod, other_mod]
+    for inv_name in mods:
+        if inv_name not in target:
+            new_target = target.replace(pyside_mod, inv_name)
+        else:
+            new_target = target
+        node['reftarget'] = new_target
+        res = resolve_reference(app, env, inv_name, node, contnode)
+        if res is not None:
+            return res
+
+
+def resolve_reference(
+    app: Sphinx, env: BuildEnvironment, inv_name: str,
+    node: addnodes.pending_xref, contnode: nodes.TextElement
+) -> nodes.Element|None:
+    target = node['reftarget']
+    if 'PySide' not in target:
+        return None
+    pyside_mod = PYSIDE_RE.match(target)
+    if pyside_mod is None:
+        return None
+    pyside_mod = pyside_mod.group()[0]
+    try:
+        res_inv = resolve_reference_in_inventory(env, inv_name, node, contnode)
+    except:
+        import traceback
+        traceback.print_exc()
+        print(f'{inv_name=}, {node["reftarget"]=}')
+        raise
+    if res_inv is not None:
+        logger.debug(f'"{target}" resolved')
+        return res_inv
+    pyside_submod = '.'.join(target.split('.')[:2])
+    if target.count(pyside_submod) > 1:
+        return None
+    new_target = f'{pyside_submod}.{target}'
+    node['reftarget'] = new_target
+    res_inv = resolve_reference_in_inventory(env, inv_name, node, contnode)
+    if res_inv is not None:
+        logger.debug(f'"{target}" resolved')
+    return res_inv
 
 
 def setup(app: Sphinx) -> None:
@@ -339,5 +396,8 @@ def setup(app: Sphinx) -> None:
     object_types['qtsignal'] = sig_obj_type
     object_types['qtslot'] = slot_obj_type
     object_types['qtproperty'] = prop_obj_type
+
+    app.setup_extension('sphinx.ext.intersphinx')
+    app.connect('missing-reference', missing_reference)
 
     return {'version': '0.1', 'parallel_read_safe': True}

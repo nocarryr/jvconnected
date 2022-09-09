@@ -85,5 +85,6 @@ intersphinx_mapping = {
     'mido':('https://mido.readthedocs.io/en/latest/', None),
     'numpy':('https://numpy.org/doc/stable/', None),
     'PIL':('https://pillow.readthedocs.io/en/stable/', None),
+    'PySide2':('https://doc.qt.io/qtforpython/', None),
     'PySide6':('https://doc.qt.io/qtforpython-6/', None),
 }
