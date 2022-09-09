@@ -9,7 +9,7 @@ from pydispatch import Dispatcher, Property, DictProperty, ListProperty
 from jvconnected.common import ConnectionState
 from jvconnected.devicepreview import JpegSource
 from jvconnected.client import Client, ClientError
-from jvconnected.utils import NamedQueue
+from jvconnected.utils import NamedItem, NamedQueue
 
 class Device(Dispatcher):
     """A Connected Cam device
@@ -123,12 +123,14 @@ class Device(Dispatcher):
         if not self._is_open:
             return
         self._is_open = False
-        self._poll_enabled = False
         logger.debug(f'{self} closing...')
         pv = self._devicepreview
         if pv is not None and pv.encoding:
             await pv.release()
 
+        coros = [pg.close() for pg in self.parameter_groups.values()]
+        await asyncio.gather(*coros)
+        self._poll_enabled = False
         await self._poll_fut
         for pg in self.parameter_groups.values():
             await pg.close()
@@ -161,6 +163,7 @@ class Device(Dispatcher):
                 command, params = item.item
                 logger.debug(f'tx: {command}, {params}')
                 await self.client.request(command, params)
+                await item.set()
                 await self._request_cam_status(short=True)
                 self.request_queue.task_done()
             else:
@@ -216,14 +219,27 @@ class Device(Dispatcher):
         self.error = True
         self.emit('on_client_error', self, exc)
 
-    async def send_web_button(self, kind: str, value: str):
-        await self.queue_request('SetWebButtonEvent', {'Kind':kind, 'Button':value})
+    async def send_web_button(
+        self,
+        kind: str,
+        value: str,
+        wait_for_response: bool = False,
+    ) -> NamedItem:
+        return await self.queue_request('SetWebButtonEvent', {'Kind':kind, 'Button':value}, wait_for_response)
 
-    async def queue_request(self, command: str, params=None):
+    async def queue_request(
+        self,
+        command: str,
+        params=None,
+        wait_for_response: bool = False,
+    ) -> NamedItem:
         """Enqueue a command to be sent in the :meth:`_poll_loop`
         """
         item = self.request_queue.create_item(command, (command, params))
         await self.request_queue.put(item)
+        if wait_for_response:
+            await item.wait()
+        return item
 
     def on_attr(self, instance, value, **kwargs):
         prop = kwargs['property']
@@ -623,7 +639,7 @@ class ExposureParams(ParameterGroup):
         elif value < 0:
             value = 0
         params = {'Kind':'IrisBar', 'Position':value}
-        await self.device.queue_request('SetWebSliderEvent', params)
+        await self.device.queue_request('SetWebSliderEvent', params, wait_for_response=True)
 
     async def increase_iris(self):
         """Increase (open) iris
@@ -643,7 +659,7 @@ class ExposureParams(ParameterGroup):
 
         """
         value = {True:'Open1', False:'Close1'}.get(direction)
-        await self.device.send_web_button('Iris', value)
+        await self.device.send_web_button('Iris', value, wait_for_response=True)
 
     async def increase_gain(self):
         """Increase gain
@@ -667,7 +683,7 @@ class ExposureParams(ParameterGroup):
         # if self.gain_mode != 'Variable':
         #     await self.device.send_web_button('Gain', 'Variable')
         value = {True:'Up1', False:'Down1'}.get(direction)
-        await self.device.send_web_button('Gain', value)
+        await self.device.send_web_button('Gain', value, wait_for_response=True)
 
     async def increase_master_black(self):
         """Increase master black
@@ -687,7 +703,7 @@ class ExposureParams(ParameterGroup):
 
         """
         value = {True:'Up1', False:'Down1'}.get(direction)
-        await self.device.send_web_button('MasterBlack', value)
+        await self.device.send_web_button('MasterBlack', value, wait_for_response=True)
 
     async def seesaw_master_black(self, direction: MasterBlackDirection|str|int, speed: int):
         """Start or stop MasterBlack movement
@@ -832,7 +848,7 @@ class LensParams(ParameterGroup):
             value (int): The zoom position from 0 to 499
         """
         params = {'Kind':'ZoomBar', 'Position':value}
-        await self.device.queue_request('SetWebSliderEvent', params)
+        await self.device.queue_request('SetWebSliderEvent', params, wait_for_response=True)
 
     async def focus_near(self, speed):
         """Begin focusing "near"
@@ -898,13 +914,14 @@ class LensParams(ParameterGroup):
             'Direction':direction.name,
             'Speed':speed,
         }
-        await self.device.queue_request('SeesawSwitchOperation', params)
+        item = await self.device.queue_request('SeesawSwitchOperation', params)
         if direction == FocusDirection.Stop:
             speed = 0
         elif direction == FocusDirection.Near:
             speed = -speed
         self.focus_speed = speed
         self.focusing = speed != 0
+        await item.wait()
 
     async def seesaw_zoom(self, direction, speed):
         """Start or stop zoom movement
@@ -923,13 +940,14 @@ class LensParams(ParameterGroup):
             'Direction':direction.name,
             'Speed':speed,
         }
-        await self.device.queue_request('SeesawSwitchOperation', params)
+        item = await self.device.queue_request('SeesawSwitchOperation', params)
         if direction == ZoomDirection.Stop:
             speed = 0
         elif direction == ZoomDirection.Wide:
             speed = -speed
         self.zoom_speed = speed
         self.zooming = speed != 0
+        await item.wait()
 
     def on_prop(self, instance, value, **kwargs):
         prop = kwargs['property']
@@ -1161,7 +1179,7 @@ class PaintParams(ParameterGroup):
         }
         self.red_pos = red
         self.blue_pos = blue
-        await self.device.queue_request('SetWebXYFieldEvent', params)
+        await self.device.queue_request('SetWebXYFieldEvent', params, wait_for_response=True)
 
     async def increase_detail(self):
         """Increment detail value
@@ -1181,7 +1199,7 @@ class PaintParams(ParameterGroup):
 
         """
         value = {True:'Up', False:'Down'}.get(direction)
-        await self.device.send_web_button('Detail', value)
+        await self.device.send_web_button('Detail', value, wait_for_response=True)
 
     def on_prop(self, instance, value, **kwargs):
         prop = kwargs['property']
@@ -1254,8 +1272,9 @@ class TallyParams(ParameterGroup):
             value (str): One of 'Program', 'Preview' or 'Off'
 
         """
-        await self.device.queue_request('SetStudioTally', {'Indication':value})
+        item = await self.device.queue_request('SetStudioTally', {'Indication':value})
         self.tally_status = value
+        await item.wait()
 
     async def close(self):
         await self.set_tally_light('Off')
