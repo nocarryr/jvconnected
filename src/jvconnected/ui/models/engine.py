@@ -45,6 +45,7 @@ class EngineModel(GenericQObject):
             running=self.on_engine_running,
             on_config_device_added=self.on_config_device_added,
             on_device_discovered=self.on_device_discovered,
+            on_device_added=self._engine_device_added,
             on_device_connected=self._engine_device_connected,
             on_device_removed=self._engine_device_removed,
         )
@@ -129,6 +130,15 @@ class EngineModel(GenericQObject):
     async def on_device_discovered(self, conf_device, **kwargs):
         logger.info(f'engine.on_device_discovered: {conf_device}')
         await self.on_config_device_added(conf_device)
+
+    @logger.catch
+    async def _engine_device_added(self, device, **kwargs):
+        conf_device_model = self._device_configs[device.id]
+        if device.connection_state == ConnectionState.CONNECTED:
+            return
+        if conf_device_model.alwaysConnect:
+            await self._engine_device_connected(device, **kwargs)
+
 
     @logger.catch
     async def _engine_device_connected(self, device, **kwargs):
