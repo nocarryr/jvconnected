@@ -130,6 +130,8 @@ class MappedParameter(Dispatcher):
         self.param_group = param_spec.param_group_spec
         self.param_spec = param_spec
         self.name = self.param_spec.full_name
+        self._tx_lock = asyncio.Lock()
+        self._rx_messages = []
         self.map_obj = map_obj
         self.channel = kwargs.get('channel', mapped_device.midi_channel)
         if hasattr(self.param_spec.value_type, 'value_min'):
@@ -182,10 +184,16 @@ class MappedParameter(Dispatcher):
         return r
 
     async def handle_incoming_messages(self, msgs: Iterable[mido.Message]):
-        for msg in msgs:
-            if not self.message_valid(msg):
-                continue
-            await self._handle_incoming_message(msg)
+        self._rx_messages.extend(list(msgs))
+        if len(self._rx_messages) > len(msgs):
+            return
+        async with self._tx_lock:
+            rx_msgs = self._rx_messages[:]
+            self._rx_messages.clear()
+            for msg in rx_msgs[-2:]:
+                if not self.message_valid(msg):
+                    continue
+                await self._handle_incoming_message(msg)
 
     async def _handle_incoming_message(self, msg: mido.messages.BaseMessage):
         pass
@@ -274,12 +282,13 @@ class MappedParameter(Dispatcher):
     @logger.catch
     async def on_param_spec_value_changed(self, instance, value, **kwargs):
         msg = self.build_message(value)
-        if self.is_14_bit:
-            assert isinstance(msg, list)
-            assert len(msg) == 2
-            await self.mapped_device.send_messages(msg)
-        else:
-            await self.mapped_device.send_message(msg)
+        async with self._tx_lock:
+            if self.is_14_bit:
+                assert isinstance(msg, list)
+                assert len(msg) == 2
+                await self.mapped_device.send_messages(msg)
+            else:
+                await self.mapped_device.send_message(msg)
 
 
 class MappedController(MappedParameter):
@@ -338,28 +347,37 @@ class MappedController14Bit(MappedController):
         return self.map_obj.controller_lsb
 
     async def handle_incoming_messages(self, msgs: Iterable[mido.Message]):
-        ctrl_lsb, ctrl_msb = self.controller_lsb, self.controller_msb
-        msg_lsb, msg_msb = None, None
-        for msg in msgs:
-            if msg.type != 'control_change':
-                continue
-            if msg.channel != self.channel:
-                continue
-            if msg.control == ctrl_lsb:
-                msg_lsb = msg
-            elif msg.control == ctrl_msb:
-                msg_msb = msg
-        if msg_msb is None:
-            if msg_lsb is not None:
-                logger.warning(f'No MSB message found: msg_lsb={msg_lsb}')
+        self._rx_messages.extend(msgs)
+        if len(self._rx_messages) > len(msgs):
             return
-        value = msg_msb.value << 7
-        if msg_lsb is not None:
-            value |= msg_lsb.value
-        value = self.scale_from_midi(value)
-        # logger.info(f'{self.param_spec.name}: {msg_msb=}, {msg_lsb=}, {value=}, {value_scaled=}')
-        logger.debug(f'setting {self.param_spec.name} to {value}')
-        await self.param_group.set_param_value(self.param_spec.name, value)
+        async with self._tx_lock:
+            msgs = self._rx_messages
+            ctrl_lsb, ctrl_msb = self.controller_lsb, self.controller_msb
+            msg_lsb, msg_msb = None, None
+            while len(msgs):
+                msg = msgs.pop()
+                if msg.type != 'control_change':
+                    continue
+                if msg.channel != self.channel:
+                    continue
+                if msg.control == ctrl_lsb:
+                    msg_lsb = msg
+                elif msg.control == ctrl_msb:
+                    msg_msb = msg
+                if msg_lsb is not None and msg_msb is not None:
+                    break
+            if msg_msb is None:
+                if msg_lsb is not None:
+                    logger.warning(f'No MSB message found: msg_lsb={msg_lsb}')
+                return
+            msgs.clear()
+            value = msg_msb.value << 7
+            if msg_lsb is not None:
+                value |= msg_lsb.value
+            value = self.scale_from_midi(value)
+            # logger.info(f'{self.param_spec.name}: {msg_msb=}, {msg_lsb=}, {value=}, {value_scaled=}')
+            logger.debug(f'setting {self.param_spec.name} to {value}')
+            await self.param_group.set_param_value(self.param_spec.name, value)
 
     def message_valid(self, msg: mido.messages.BaseMessage) -> bool:
         if msg.type != 'control_change':
