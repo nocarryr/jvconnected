@@ -305,24 +305,105 @@ class NamedItem:
     item: Any
     """The item itself"""
 
+    def __post_init__(self):
+        self._waiter = asyncio.Condition()
+        self._waiter_change_notify = asyncio.Condition()
+
+    async def wait(self):
+        async def wait_for_change():
+            async with self._waiter_change_notify:
+                await self._waiter_change_notify.wait()
+                return True
+
+        async def wait_for_waiter():
+            async with self._waiter:
+                await self._waiter.wait()
+                return True
+
+        while True:
+            ch_task = asyncio.create_task(wait_for_change())
+            wait_task = asyncio.create_task(wait_for_waiter())
+            done, pending = await asyncio.wait([ch_task, wait_task], return_when=asyncio.FIRST_COMPLETED)
+            if wait_task in done:
+                ch_task.cancel()
+                try:
+                    await ch_task
+                except asyncio.CancelledError:
+                    pass
+                break
+            else:
+                wait_task.cancel()
+
+    async def set(self):
+        async with self._waiter_change_notify:
+            async with self._waiter:
+                self._waiter.notify_all()
+
+    async def _change_waiter(self, waiter: asyncio.Condition):
+        async with self._waiter_change_notify:
+            self._waiter = waiter
+            self._waiter_change_notify.notify_all()
+
+
 class NamedQueue(asyncio.Queue):
     """A :class:`asyncio.Queue` subclass that stores items by user-defined keys.
 
-    The items placed on the queue must be instances of :class:`NamedItem`.
+    The items placed on the queue must be instances of :class:`NamedItem`
+    (or a subclass of it)
     For convenience, there is a :meth:`create_item` contructor method.
     """
 
-    @classmethod
-    def create_item(self, key: Any, item: Any) -> NamedItem:
-        """Create a :class:`NamedItem` to be put on the queue
+    _item_class = NamedItem
+
+    @property
+    def item_class(self) -> type:
+        """Class used for items placed on the queue
+
+        Default is :class:`NamedItem`
         """
-        return NamedItem(key=key, item=item)
+        return self._item_class
+
+    def create_item(self, key: Any, item: Any, **kwargs) -> NamedItem:
+        """Create an instance of :attr:`item_class` to be put on the queue
+        """
+        return self.item_class(key=key, item=item, **kwargs)
+
+    def set_item_class(self, cls: type):
+        """Set the class to be used for items on the queue.
+
+        *cls* Must be a subclass of :class:`NamedItem` and the queue must
+        be empty before calling this method.
+        """
+        if not self.empty():
+            raise ValueError(f'{self.__class__} must be empty before setting item class')
+        if cls is not NamedItem or not issubclass(cls, NamedItem):
+            raise TypeError(f'Must be a subclass of {NamedItem}. Got {cls}')
+        self._item_class = cls
+
+    def _set_item_waiter(self, item: NamedItem, waiter: asyncio.Condition):
+        self._pending_tasks.add(asyncio.create_task(item._change_waiter(waiter)))
+        if not self._tasks_running:
+            self._tasks_running = True
+            asyncio.create_task(self._run_pending_tasks())
+
+    @logger.catch
+    async def _run_pending_tasks(self):
+        while len(self._pending_tasks):
+            tasks = self._pending_tasks.copy()
+            await asyncio.gather(*tasks)
+            self._pending_tasks ^= tasks
+        self._tasks_running = False
 
     def _init(self, maxsize):
         self._queue = collections.deque()
         self._queue_items = {}
+        self._pending_tasks = set()
+        self._tasks_running = False
 
     def _put(self, item: NamedItem):
+        existing_item = self._queue_items.get(item.key)
+        if existing_item is not None:
+            self._set_item_waiter(existing_item, item._waiter)
         self._queue_items[item.key] = item
         if item.key not in self._queue:
             self._queue.append(item.key)
