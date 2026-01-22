@@ -2,7 +2,7 @@ from __future__ import annotations
 from loguru import logger
 import asyncio
 import threading
-from typing import List, Self
+from typing import Self
 
 from PySide6 import QtCore, QtQml
 from PySide6.QtCore import Signal
@@ -85,7 +85,7 @@ class EngineModel(GenericQObject):
         return self._device_configs[device_id]
 
     @QtCore.Slot(result=list)
-    def getAllDeviceConfigIds(self) -> List[str]:
+    def getAllDeviceConfigIds(self) -> list[str]:
         """Get a list of all device ids in the :class:`jvconnected.config.Config`
         """
         return list(self._device_configs.keys())
@@ -183,11 +183,12 @@ class EngineModel(GenericQObject):
         the :attr:`engine`.
         """
         conf_device = conf_device_model.device
+        assert conf_device is not None
         if conf_device.device_index is None:
             conf_device.device_index = -1
             logger.debug(f'set conf_device index: {conf_device.device_index=}')
 
-        state = await self.engine.reconnect_device(conf_device, wait_for_state=True)
+        state = await self.engine.reconnect_device(conf_device, wait_for_status=True)
         logger.debug(f'reconnect state={state!r}')
         config_conf_device = self.engine.config.devices[conf_device.id]
         assert config_conf_device is conf_device
@@ -195,6 +196,7 @@ class EngineModel(GenericQObject):
 
     @asyncSlot(DeviceModel)
     async def on_device_reconnect_sig(self, device_model: DeviceModel):
+        assert device_model.confDevice is not None
         await self.on_device_conf_reconnect_sig(device_model.confDevice)
 
     def _calc_device_view_indices(self, *args, **kwargs):

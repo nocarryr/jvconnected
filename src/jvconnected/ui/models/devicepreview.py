@@ -1,8 +1,8 @@
+from __future__ import annotations
 from loguru import logger
 import asyncio
 from pathlib import Path
 import enum
-from typing import Union, Optional
 
 from PySide6 import QtCore, QtQml, QtQuick
 from PySide6.QtCore import Signal
@@ -68,9 +68,9 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
             await self.setVideoMode('OFF')
 
     def _g_videoMode(self): return self._videoMode.name
-    def _s_videoMode(self, value: Union[str, PreviewMode]):
+    def _s_videoMode(self, value: str|PreviewMode):
         if isinstance(value, str):
-            value = getattr(PreviewMode, value.upper())
+            value = PreviewMode[value.upper()]
         if value == self._videoMode:
             return
         self._videoMode = value
@@ -80,10 +80,11 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
     """
 
     @asyncSlot(str)
-    async def setVideoMode(self, mode: str):
+    async def setVideoMode(self, mode: str|PreviewMode):
         """Set :attr:`videoMode` and handle necessary task control
         """
-        mode = getattr(PreviewMode, mode.upper())
+        if isinstance(mode, str):
+            mode = PreviewMode[mode.upper()]
         if mode == self._videoMode:
             return
         last_mode = self._videoMode
@@ -94,7 +95,7 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
 
     @logger.catch
     async def _setVideoMode(
-        self, mode: PreviewMode, last_mode: Optional[PreviewMode] = None
+        self, mode: PreviewMode, last_mode: PreviewMode|None = None
     ) -> PreviewMode:
 
         if mode == last_mode:
@@ -128,6 +129,7 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
         Each frame is then placed into a :class:`~PySide6.QtGui.QPixmap`
         and an update is requested via :class:`~PySide6.QtGui.QPainter`
         """
+        assert self.device is not None
         device = self.device.device
         async with device.devicepreview as src:
             async for img_bytes in src:

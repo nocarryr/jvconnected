@@ -3,7 +3,7 @@ from loguru import logger
 import asyncio
 import enum
 import dataclasses
-from typing import Optional, List, Dict, Tuple, Set, Any, Self
+from typing import Any, Self
 from bisect import bisect_left
 
 from PySide6 import QtCore, QtQml, QtGui
@@ -42,7 +42,7 @@ class UmdModel(GenericQObject):
         self._updating_from_interface = False
         super().__init__(*args)
 
-    def _g_engine(self) -> Optional[EngineModel]:
+    def _g_engine(self) -> EngineModel|None:
         return self._engine
     def _s_engine(self, value: EngineModel|None):
         if value is None or value == self._engine:
@@ -78,8 +78,8 @@ class UmdModel(GenericQObject):
     hostport = Property(int, _g_hostport, _s_hostport, notify=_n_hostport)
     """Alias for :class:`jvconnected.interfaces.tslumd.umd_io.UmdIo.hostport`"""
 
-    def _g_editedProperties(self) -> List[str]: return self._editedProperties
-    def _s_editedProperties(self, value: List[str]):
+    def _g_editedProperties(self) -> list[str]: return self._editedProperties
+    def _s_editedProperties(self, value: list[str]):
         self._generic_setter('_editedProperties', value)
     editedProperties: Property[Self, list[str]] = Property(list,
         _g_editedProperties, _s_editedProperties, notify=_n_editedProperties,
@@ -202,7 +202,7 @@ class TallyListModel(QtCore.QAbstractTableModel):
     _n_engine = Signal()
     _roles = tuple((role for role in TallyRoles))
 
-    tally_key_indices: List[TallyKey]
+    tally_key_indices: list[TallyKey]
     """Used to keep the table row in sync with the item key within :attr:`tallies`
     """
 
@@ -216,7 +216,7 @@ class TallyListModel(QtCore.QAbstractTableModel):
         self.tally_key_indices = []
         super().__init__(*args)
 
-    def _g_engine(self) -> Optional[EngineModel]:
+    def _g_engine(self) -> EngineModel|None:
         return self._engine
     def _s_engine(self, value: EngineModel|None):
         if value is None or value == self._engine:
@@ -229,7 +229,7 @@ class TallyListModel(QtCore.QAbstractTableModel):
     """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
 
     @property
-    def tallies(self) -> Optional[Dict[TallyKey, Tally]]:
+    def tallies(self) -> dict[TallyKey, Tally]|None:
         """Shortcut for :attr:`~jvconnected.interfaces.tslumd.umd_io.UmdIo.tallies`
         on :attr:`umd_io`
         """
@@ -249,7 +249,7 @@ class TallyListModel(QtCore.QAbstractTableModel):
         self.endInsertRows()
         tally.bind(on_update=self.update_tally)
 
-    def get_props_from_tally(self, tally: Tally, props_changed: Optional[Set[str]] = None) -> Dict[str, Any]:
+    def get_props_from_tally(self, tally: Tally, props_changed: set[str]|None = None) -> dict[str, Any]:
         props = {}
         for i, role in enumerate(TallyRoles):
             prop = role.get_tally_prop()
@@ -259,7 +259,7 @@ class TallyListModel(QtCore.QAbstractTableModel):
             props[i] = val
         return props
 
-    def update_tally(self, tally: Tally, props_changed: Set[str]):
+    def update_tally(self, tally: Tally, props_changed: set[str]):
         row_ix = self.tally_key_indices.index(tally.id)
         props = self.get_props_from_tally(tally, props_changed)
         tl = self.index(row_ix, min(props.keys()))
@@ -353,7 +353,7 @@ class TallyMapListModel(QtCore.QAbstractTableModel):
     """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
 
     @property
-    def maps(self) -> Optional[Dict[int, DeviceMapping]]:
+    def maps(self) -> dict[int, DeviceMapping]|None:
         """Shortcut for :attr:`~jvconnected.interfaces.tslumd.umd_io.UmdIo.device_maps`
         of the :attr:`umd_io`
         """
@@ -405,8 +405,6 @@ class TallyMapListModel(QtCore.QAbstractTableModel):
     def roleNames(self):
         return self._role_names
 
-    def columnCount(self, parent):
-        return len(self._prop_attrs)
 
     def columnCount(self, parent):
         return len(self._prop_attrs)

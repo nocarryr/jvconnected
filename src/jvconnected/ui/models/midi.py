@@ -1,7 +1,7 @@
 from __future__ import annotations
 from loguru import logger
 import asyncio
-from typing import Optional, ClassVar, Dict, Sequence
+from typing import ClassVar, Sequence
 
 from PySide6 import QtCore, QtQml
 from PySide6.QtCore import Qt, Signal, Slot
@@ -78,7 +78,7 @@ class MidiPortsModel(GenericQObject):
     io_type: ClassVar[IOType] = IOType.NONE
     def __init__(self, *args):
         self.loop = asyncio.get_event_loop()
-        self.ports = {}
+        self.ports: dict[str, MidiPortModel] = {}
         self._engine: EngineModel|None = None
         self.midi_io = None
         super().__init__(*args)
@@ -422,12 +422,12 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
     :attr:`engine`
     """
 
-    role_names: Dict[Qt.ItemDataRole, bytes]
-    """:obj:`PySide2.QtCore.Qt.UserRole` mapped to each property defined
+    role_names: dict[Qt.ItemDataRole, bytes]
+    """:obj:`PySide6.QtCore.Qt.UserRole` mapped to each property defined
     in :attr:`role_attrs`
 
     This is convoluted, weird, cumbersome and many other adjectives, but it seems
-    to be the only way to make :class:`PySide2.QtCore.QAbstractTableModel` act
+    to be the only way to make :class:`PySide6.QtCore.QAbstractTableModel` act
     like a table.
     No clue why "roles" are necessary to access columns since that's all a table
     is supposed to be ``¯\_(ツ)_/¯``
@@ -581,11 +581,13 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
 
     @property
     def config(self):
+        assert self.engine is not None
         return self.engine.engine.config
 
     def set_midi_io(self, midi_io: 'jvconnected.interfaces.midi_io.MidiIO'):
         self.midi_io = midi_io
         self.update_maps()
+        assert self.engine is not None
         self.engine.engine.bind(on_config_device_added=self.update_maps)
 
     @asyncSlot(str)

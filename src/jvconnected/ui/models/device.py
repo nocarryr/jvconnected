@@ -63,7 +63,7 @@ class DeviceBase[DevT: (Device, DeviceConfig)](GenericQObject):
         self._hostport = 80
         self._authUser = None
         self._authPass = None
-        self._connectionState = ConnectionState.UNKNOWN
+        self._connectionState: ConnectionState = ConnectionState.UNKNOWN
         super().__init__(*args)
 
     def _g_device(self) -> DevT|None: return self._device
@@ -123,10 +123,11 @@ class DeviceBase[DevT: (Device, DeviceConfig)](GenericQObject):
     def _s_authPass(self, value): self._generic_setter('_authPass', value)
     authPass = Property(str, _g_authPass, _s_authPass, notify=_n_authPass)
 
-    def _g_connectionState(self) -> str: return self._connectionState.name.lower()
+    def _g_connectionState(self) -> str:
+        return 'unknown' if self._connectionState.name is None else self._connectionState.name.lower()
     def _s_connectionState(self, value: ConnectionState|str):
         if not isinstance(value, ConnectionState):
-            value = getattr(ConnectionState, value.upper())
+            value = ConnectionState[value.upper()]
         if value == self._connectionState:
             return
         self._connectionState = value
@@ -222,9 +223,10 @@ class DeviceConfigModel(DeviceBase[DeviceConfig]):
         """Set the :attr:`~jvconnected.config.DeviceConfig.device_index`
         on the :attr:`device`
         """
-        if value == -1:
-            value = None
-        self.device.device_index = value
+        _value = None if value == -1 else value
+        if self.device is None:
+            return
+        self.device.device_index = _value
 
     @QtCore.Slot('QVariantMap')
     def setFormValues(self, data: dict):
@@ -282,17 +284,17 @@ class DeviceConfigModel(DeviceBase[DeviceConfig]):
             connection_state=self.on_device_connection_state,
         )
 
-    def on_device_online(self, instance, value, **kwargs):
+    def on_device_online(self, instance, value: bool, **kwargs):
         if instance is not self.device:
             return
         self.deviceOnline = value
 
-    def on_device_active(self, instance, value, **kwargs):
+    def on_device_active(self, instance, value: bool, **kwargs):
         if instance is not self.device:
             return
         self.deviceActive = value
 
-    def on_device_connection_state(self, instance, value, **kwargs):
+    def on_device_connection_state(self, instance, value: ConnectionState, **kwargs):
         if instance is not self.device:
             return
         self.connectionState = value
@@ -393,6 +395,7 @@ class DeviceModel(DeviceBase[Device]):
     async def setDeviceIndex(self, value: int):
         """Calls :meth:`~DeviceConfigModel.setDeviceIndex` on :attr:`confDevice`
         """
+        assert self.confDevice is not None
         await self.confDevice.setDeviceIndex(value)
 
     def _on_device_set(self, device: Device):
@@ -412,9 +415,11 @@ class DeviceModel(DeviceBase[Device]):
         self.connectionState = value
 
     def _on_conf_index_changed(self):
+        assert self.confDevice is not None
         self.deviceIndex = self.confDevice.deviceIndex
 
     def _on_conf_display_name_changed(self):
+        assert self.confDevice is not None
         self.displayName = self.confDevice.displayName
 
     async def _on_device_model_name(self, instance, value, **kwargs):
@@ -469,6 +474,14 @@ class ParamBase[PGroupT: (ParameterGroup)](GenericQObject):
     """The :class:`jvconnected.device.ParameterGroup` for this object. Retreived
     from the :attr:`device`
     """
+
+    @property
+    def paramGroupNotNone(self) -> PGroupT:
+        """The :attr:`paramGroup`, but non-optional. Raises :class:`AssertionError`
+        if :attr:`paramGroup` is ``None``
+        """
+        assert self.paramGroup is not None
+        return self.paramGroup
 
     def _on_device_set(self, device: DeviceModel|None):
         if device is None or device.device is None:
@@ -552,7 +565,7 @@ class CameraParamsModel(ParamBase[CameraParams]):
         See :meth:`jvconnected.device.CameraParams.send_menu_button`
         """
         enum_value = getattr(MenuChoices, value.upper())
-        await self.paramGroup.send_menu_button(enum_value)
+        await self.paramGroupNotNone.send_menu_button(enum_value)
 
 class NTPParamsModel(ParamBase[NTPParams]):
     """Qt bridge for :class:`jvconnected.device.NTPParams`
@@ -598,7 +611,7 @@ class NTPParamsModel(ParamBase[NTPParams]):
     async def setAddress(self, address: str):
         """Set the NTP server using :meth:`jvconnected.device.NTPParams.set_address`
         """
-        await self.paramGroup.set_address(address)
+        await self.paramGroupNotNone.set_address(address)
 
 class BatteryParamsModel(ParamBase[BatteryParams]):
     _param_group_key = 'battery'
@@ -615,9 +628,8 @@ class BatteryParamsModel(ParamBase[BatteryParams]):
 
     def _g_batteryState(self) -> str: return self._batteryState
     def _s_batteryState(self, value: BatteryState):
-        if value is not None:
-            value = value.name
-        self._generic_setter('_batteryState', value)
+        name = value.name if value is not None else None
+        self._generic_setter('_batteryState', name)
     batteryState = Property(str,
         _g_batteryState, _s_batteryState, notify=_n_batteryState,
     )
@@ -707,7 +719,7 @@ class IrisModel(ParamBase[ExposureParams]):
 
         See :meth:`jvconnected.device.ExposureParams.set_auto_iris`
         """
-        await self.paramGroup.set_auto_iris(value)
+        await self.paramGroupNotNone.set_auto_iris(value)
 
     @asyncSlot(int)
     async def setPos(self, value: int):
@@ -724,12 +736,12 @@ class IrisModel(ParamBase[ExposureParams]):
         async with self._request_pending:
             logger.debug('LOCKED')
             req_value = self.requestedPos
-            await self.paramGroup.set_iris_pos(req_value)
+            await self.paramGroupNotNone.set_iris_pos(req_value)
             # await self._run_on_device_loop(self.paramGroup.set_iris_pos(req_value))
             logger.debug(f'set_iris_pos({req_value})')
             while req_value != self.requestedPos:
                 req_value = self.requestedPos
-                await self.paramGroup.set_iris_pos(req_value)
+                await self.paramGroupNotNone.set_iris_pos(req_value)
                 # await self._run_on_device_loop(self.paramGroup.set_iris_pos(req_value))
                 logger.debug(f'set_iris_pos({req_value})')
             self.requestedPos = -1
@@ -743,7 +755,7 @@ class IrisModel(ParamBase[ExposureParams]):
         if self._request_pending.locked():
             return
         async with self._request_pending:
-            await self.paramGroup.increase_iris()
+            await self.paramGroupNotNone.increase_iris()
             # await self._run_on_device_loop(self.paramGroup.increase_iris())
 
     @asyncSlot()
@@ -753,7 +765,7 @@ class IrisModel(ParamBase[ExposureParams]):
         if self._request_pending.locked():
             return
         async with self._request_pending:
-            await self.paramGroup.decrease_iris()
+            await self.paramGroupNotNone.decrease_iris()
             # await self._run_on_device_loop(self.paramGroup.decrease_iris())
 
 class SingleParam[PGroupT: ParameterGroup](ParamBase[PGroupT]):
@@ -815,20 +827,20 @@ class GainValueModel(SingleAdjustableParam[ExposureParams]):
     _param_group_attr = 'gain_value'
 
     async def _increase(self):
-        await self.paramGroup.increase_gain()
+        await self.paramGroupNotNone.increase_gain()
 
     async def _decrease(self):
-        await self.paramGroup.decrease_gain()
+        await self.paramGroupNotNone.decrease_gain()
 
 class MasterBlackModel(SingleAdjustableParam[ExposureParams]):
     _param_group_key = 'exposure'
     _param_group_attr = 'master_black'
 
     async def _increase(self):
-        await self.paramGroup.increase_master_black()
+        await self.paramGroupNotNone.increase_master_black()
 
     async def _decrease(self):
-        await self.paramGroup.decrease_master_black()
+        await self.paramGroupNotNone.decrease_master_black()
 
 class FocusModeModel(SingleParam[LensParams]):
     _param_group_key = 'lens'
@@ -836,7 +848,7 @@ class FocusModeModel(SingleParam[LensParams]):
 
     @asyncSlot(str)
     async def setMode(self, mode: str):
-        await self.paramGroup.set_focus_mode(mode)
+        await self.paramGroupNotNone.set_focus_mode(mode)
 
 class SeesawParam[PGroupT: ParameterGroup](SingleParam[PGroupT]):
     """Base parameter for "seesaw" movement
@@ -883,24 +895,24 @@ class MasterBlackPosModel(SeesawParam[ExposureParams]):
     async def up(self, speed: int):
         """Move MasterBlack up at the specified speed (0 to 8)
         """
-        await self.move('Up', speed)
+        await self.move(MasterBlackDirection.Up, speed)
 
     @asyncSlot(int)
     async def down(self, speed: int):
         """Move MasterBlack down at the specified speed (0 to 8)
         """
-        await self.move('Down', speed)
+        await self.move(MasterBlackDirection.Down, speed)
 
     @asyncSlot()
     async def stop(self):
         """Stop moving
         """
-        await self.move('Stop', 0)
+        await self.move(MasterBlackDirection.Stop, 0)
 
     @logger.catch
     async def move(self, direction: MasterBlackDirection, speed: int):
         async with self._request_pending:
-            await self.paramGroup.seesaw_master_black(direction, speed)
+            await self.paramGroupNotNone.seesaw_master_black(direction, speed)
 
     def _on_param_group_set(self, param_group):
         super()._on_param_group_set(param_group)
@@ -920,7 +932,7 @@ class FocusPosModel(SeesawParam[LensParams]):
 
     @asyncSlot()
     async def pushAuto(self):
-        await self.paramGroup.focus_push_auto()
+        await self.paramGroupNotNone.focus_push_auto()
 
     @asyncSlot(int)
     async def near(self, speed: int):
@@ -942,7 +954,7 @@ class FocusPosModel(SeesawParam[LensParams]):
 
     async def move(self, direction: FocusDirection, speed: int):
         async with self._request_pending:
-            await self.paramGroup.seesaw_focus(direction, speed)
+            await self.paramGroupNotNone.seesaw_focus(direction, speed)
 
     def _on_param_group_set(self, param_group):
         super()._on_param_group_set(param_group)
@@ -966,7 +978,7 @@ class ZoomPresetModel(GenericQObject):
         self._isActive = kwargs.get('isActive', False)
         super().__init__(*args)
 
-    def _bind_to_preset(self, preset: 'jvconnected.device.ZoomPreset'):
+    def _bind_to_preset(self, preset: ZoomPreset):
         assert self.name == preset.name
         self.value = preset.value
         self.isActive = preset.is_active
@@ -1025,6 +1037,16 @@ class ZoomPosModel(SeesawParam[LensParams]):
     presets: Property[Self, list[ZoomPresetModel]] = Property(list, _g_presets, _s_presets, notify=_n_presets)
     """A list of :class:`ZoomPresetModel` instances"""
 
+    @property
+    def preset_zoom_params(self) -> PresetZoomParams:
+        """Shortcut to the :class:`jvconnected.device.PresetZoomParams` of
+        the parent :attr:`paramGroup`'s :attr:`jvconnected.device.Device`
+        """
+        device = self.paramGroupNotNone.device
+        pg = device.preset_zoom
+        assert isinstance(pg, PresetZoomParams)
+        return pg
+
     @asyncSlot(int)
     async def tele(self, speed: int):
         """Zoom in (tele) at the specified speed (0 to 8)
@@ -1045,7 +1067,7 @@ class ZoomPosModel(SeesawParam[LensParams]):
 
     async def move(self, direction: ZoomDirection, speed: int):
         async with self._request_pending:
-            await self.paramGroup.seesaw_zoom(direction, speed)
+            await self.paramGroupNotNone.seesaw_zoom(direction, speed)
 
     @asyncSlot(int)
     async def setPos(self, pos: int):
@@ -1053,8 +1075,8 @@ class ZoomPosModel(SeesawParam[LensParams]):
         """
         async with self._request_pending:
             if self.moving:
-                await self.paramGroup.zoom_stop()
-            await self.paramGroup.set_zoom_position(pos)
+                await self.paramGroupNotNone.zoom_stop()
+            await self.paramGroupNotNone.set_zoom_position(pos)
 
     @asyncSlot(str)
     async def setPreset(self, name: str):
@@ -1066,9 +1088,7 @@ class ZoomPosModel(SeesawParam[LensParams]):
             name: The preset name (one of ``["A", "B", "C"]``)
         """
         pos = self.pos
-        device = self.paramGroup.device
-        pg = device.preset_zoom
-        await pg.set_preset(name, pos)
+        await self.preset_zoom_params.set_preset(name, pos)
 
     @asyncSlot(str)
     async def recallPreset(self, name: str):
@@ -1076,9 +1096,7 @@ class ZoomPosModel(SeesawParam[LensParams]):
 
         (See :meth:`jvconnected.device.PresetZoomParams.recall_preset`)
         """
-        device = self.paramGroup.device
-        pg = device.preset_zoom
-        await pg.recall_preset(name)
+        await self.preset_zoom_params.recall_preset(name)
 
     @asyncSlot(str)
     async def clearPreset(self, name: str):
@@ -1087,9 +1105,7 @@ class ZoomPosModel(SeesawParam[LensParams]):
 
         (See :meth:`jvconnected.device.PresetZoomParams.clear_preset`)
         """
-        device = self.paramGroup.device
-        pg = device.preset_zoom
-        await pg.clear_preset(name)
+        await self.preset_zoom_params.clear_preset(name)
 
     def _on_param_group_set(self, param_group):
         super()._on_param_group_set(param_group)
@@ -1098,7 +1114,7 @@ class ZoomPosModel(SeesawParam[LensParams]):
             zoom_speed=self._on_zoom_speed,
             zoom_pos=self._on_zoom_pos,
         )
-        preset_group = param_group.device.preset_zoom
+        preset_group = self.preset_zoom_params
         for preset in self.presets:
             preset._bind_to_preset(preset_group.presets[preset.name])
 
@@ -1119,7 +1135,7 @@ class WbModeModel(SingleParam[PaintParams]):
 
     @asyncSlot(str)
     async def setMode(self, mode: str):
-        await self.paramGroup.set_white_balance_mode(mode)
+        await self.paramGroupNotNone.set_white_balance_mode(mode)
 
 class WbColorTempModel(SingleParam[PaintParams]):
     _param_group_key = 'paint'
@@ -1196,7 +1212,7 @@ class WbPaintModelBase(ParamBase[PaintParams]):
             # logger.debug(f'setRedPos({value})')
             if self._color_name == 'red':
                 self._set_temp_values(value)
-            await self.paramGroup.set_red_pos(value)
+            await self.paramGroupNotNone.set_red_pos(value)
             # await self._run_on_device_loop(self.paramGroup.set_red_pos(value))
 
     @asyncSlot(int)
@@ -1211,7 +1227,7 @@ class WbPaintModelBase(ParamBase[PaintParams]):
             # logger.debug(f'setBluePos({value})')
             if self._color_name == 'blue':
                 self._set_temp_values(value)
-            await self.paramGroup.set_blue_pos(value)
+            await self.paramGroupNotNone.set_blue_pos(value)
             # await self._run_on_device_loop(self.paramGroup.set_blue_pos(value))
 
     @asyncSlot(int, int)
@@ -1228,7 +1244,7 @@ class WbPaintModelBase(ParamBase[PaintParams]):
             else:
                 tmp = blue
             self._set_temp_values(tmp - self.scale // 2)
-            await self.paramGroup.set_wb_pos(red, blue)
+            await self.paramGroupNotNone.set_wb_pos(red, blue)
             # await self._run_on_device_loop(self.paramGroup.set_wb_pos(red, blue))
 
     @asyncSlot(int, int)
@@ -1245,7 +1261,7 @@ class WbPaintModelBase(ParamBase[PaintParams]):
             else:
                 tmp = blue
             self._set_temp_values(tmp - self.scale // 2)
-            await self.paramGroup.set_wb_pos_raw(red, blue)
+            await self.paramGroupNotNone.set_wb_pos_raw(red, blue)
             # await self._run_on_device_loop(self.paramGroup.set_wb_pos_raw(red, blue))
 
     def _set_temp_values(self, pos: int):
@@ -1273,10 +1289,10 @@ class DetailModel(SingleAdjustableParam[PaintParams]):
     _param_group_attr = 'detail'
 
     async def _increase(self):
-        await self.paramGroup.increase_detail()
+        await self.paramGroupNotNone.increase_detail()
 
     async def _decrease(self):
-        await self.paramGroup.decrease_detail()
+        await self.paramGroupNotNone.decrease_detail()
 
 class TallyModel(ParamBase[TallyParams]):
     _param_group_key = 'tally'
@@ -1307,16 +1323,16 @@ class TallyModel(ParamBase[TallyParams]):
 
         See :meth:`jvconnected.device.TallyParams.set_program`
         """
-        await self.paramGroup.set_program(state)
+        await self.paramGroupNotNone.set_program(state)
         # await self._run_on_device_loop(self.paramGroup.set_program(state))
 
     @asyncSlot(bool)
-    async def setPreview(self, state):
+    async def setPreview(self, state: bool):
         """Set the program tally state
 
         See :meth:`jvconnected.device.TallyParams.set_preview`
         """
-        await self.paramGroup.set_preview(state)
+        await self.paramGroupNotNone.set_preview(state)
         # await self._run_on_device_loop(self.paramGroup.set_preview(state))
 
 
