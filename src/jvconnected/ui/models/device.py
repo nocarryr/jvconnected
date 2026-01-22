@@ -4,7 +4,19 @@ from loguru import logger
 import asyncio
 
 from jvconnected.config import DeviceConfig
-from jvconnected.device import Device, ParameterGroup
+from jvconnected.device import (
+    Device,
+    ParameterGroup,
+    CameraParams,
+    NTPParams,
+    BatteryParams,
+    ExposureParams,
+    LensParams,
+    ZoomPreset,
+    PresetZoomParams,
+    PaintParams,
+    TallyParams,
+)
 from jvconnected.common import ConnectionState
 from jvconnected.device import (
     MenuChoices, BatteryState, FocusDirection, ZoomDirection, MasterBlackDirection,
@@ -18,7 +30,8 @@ from qasync import QEventLoop, asyncSlot, asyncClose
 from ..properties import Property
 from jvconnected.ui.utils import GenericQObject
 
-class DeviceBase(GenericQObject):
+
+class DeviceBase[DevT: (Device, DeviceConfig)](GenericQObject):
     """Base class to interface devices with Qt
     """
     _n_device = Signal()
@@ -40,8 +53,8 @@ class DeviceBase(GenericQObject):
     """
     def __init__(self, *args):
         self.loop = asyncio.get_event_loop()
-        self._device = None
-        self._deviceId = None
+        self._device: DevT|None = None
+        self._deviceId = ''
         self._deviceIndex = -1
         self._modelName = None
         self._serialNumber = None
@@ -53,8 +66,8 @@ class DeviceBase(GenericQObject):
         self._connectionState = ConnectionState.UNKNOWN
         super().__init__(*args)
 
-    def _g_device(self): return self._device
-    def _s_device(self, value):
+    def _g_device(self) -> DevT|None: return self._device
+    def _s_device(self, value: DevT|None):
         if value is not None and value is self._device:
             return
         self._do_set_device(value)
@@ -63,7 +76,7 @@ class DeviceBase(GenericQObject):
     device: Property[Self, DevT|None] = Property(object, _g_device, _s_device, notify=_n_device)
     """The device instance"""
 
-    def _on_device_set(self, device):
+    def _on_device_set(self, device: DevT):
         self.deviceId = device.id
         self.modelName = device.model_name
         self.serialNumber = device.serial_number
@@ -138,7 +151,7 @@ class DeviceBase(GenericQObject):
             return self.deviceId
         return 'None'
 
-class DeviceConfigModel(DeviceBase):
+class DeviceConfigModel(DeviceBase[DeviceConfig]):
     """Qt Bridge for :class:`jvconnected.config.DeviceConfig`
     """
     _n_deviceOnline = Signal()
@@ -157,7 +170,7 @@ class DeviceConfigModel(DeviceBase):
         'display_name', 'device_index', 'auth_user', 'auth_pass',
         'hostaddr', 'hostport', 'always_connect',
     ]
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, device: DeviceConfig, **kwargs):
         prop_map, editable = self._prop_attr_map, self._editable_properties
         self._editable_props_camel_case = [prop_map[prop] for prop in editable]
         self._deviceOnline = False
@@ -165,7 +178,7 @@ class DeviceConfigModel(DeviceBase):
         self._storedInConfig = False
         self._alwaysConnect = False
         super().__init__(*args)
-        self.device = kwargs['device']
+        self.device = device
 
     def _g_deviceOnline(self) -> bool: return self._deviceOnline
     def _s_deviceOnline(self, value: bool): self._generic_setter('_deviceOnline', value)
@@ -299,7 +312,7 @@ class DeviceConfigModel(DeviceBase):
                 self.propertiesUpdated.emit([attr])
 
 
-class DeviceModel(DeviceBase):
+class DeviceModel(DeviceBase[Device]):
     """Qt Bridge for :class:`jvconnected.device.Device`
 
     """
@@ -312,11 +325,11 @@ class DeviceModel(DeviceBase):
     index
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, confDevice: DeviceConfigModel, **kwargs):
         self._connected = False
-        self._confDevice = None
+        self._confDevice: DeviceConfigModel|None = None
         super().__init__(*args)
-        self.confDevice = kwargs['confDevice']
+        self.confDevice = confDevice
 
     def _g_confDevice(self) -> DeviceConfigModel|None: return self._confDevice
     def _s_confDevice(self, value: DeviceConfigModel|None):
@@ -415,18 +428,18 @@ class DeviceModel(DeviceBase):
             return
         self.connected = value
 
-class ParamBase(GenericQObject):
+class ParamBase[PGroupT: (ParameterGroup)](GenericQObject):
     """Qt Bridge for :class:`jvconnected.device.ParameterGroup`
     """
     _n_device = Signal()
     _n_paramGroup = Signal()
     _param_group_key = None
-    _prop_attr_map = None
+    _prop_attr_map: dict[str, str]|None = None
     def __init__(self, *args):
         self.loop = asyncio.get_event_loop()
         assert self._param_group_key is not None
-        self._device = None
-        self._paramGroup = None
+        self._device: DeviceModel|None = None
+        self._paramGroup: PGroupT|None = None
         super().__init__(*args)
 
     def _g_device(self) -> DeviceModel|None: return self._device
@@ -442,15 +455,15 @@ class ParamBase(GenericQObject):
     )
     """The parent :class:`DeviceModel`"""
 
-    def _g_paramGroup(self) -> ParameterGroup|None: return self._paramGroup
-    def _s_paramGroup(self, value: ParameterGroup|None):
+    def _g_paramGroup(self) -> PGroupT|None: return self._paramGroup
+    def _s_paramGroup(self, value: PGroupT|None):
         if value is not None and value is self._paramGroup:
             return
         old = self._paramGroup
         if old is not None:
             old.unbind(self)
         self._generic_setter('_paramGroup', value)
-    paramGroup: Property[Self, ParameterGroup|None] = Property(object,
+    paramGroup: Property[Self, PGroupT|None] = Property(object,
         _g_paramGroup, _s_paramGroup, notify=_n_paramGroup,
     )
     """The :class:`jvconnected.device.ParameterGroup` for this object. Retreived
@@ -461,13 +474,16 @@ class ParamBase(GenericQObject):
         if device is None or device.device is None:
             self.paramGroup = None
             return
-        p = self.paramGroup = device.device.parameter_groups[self._param_group_key]
+        assert self._param_group_key is not None
+        p = device.device.parameter_groups[self._param_group_key]
+        p = cast(PGroupT, p)
+        self.paramGroup = p
         self._on_param_group_set(p)
 
     def on_device_changed(self):
         self._on_device_set(self.device)
 
-    def _on_param_group_set(self, param_group):
+    def _on_param_group_set(self, param_group: PGroupT):
         if not self._prop_attr_map:
             return
         for pg_attr, my_attr in self._prop_attr_map.items():
@@ -480,6 +496,7 @@ class ParamBase(GenericQObject):
             return
         prop = kwargs['property']
         pg_attr = prop.name
+        assert self._prop_attr_map is not None
         my_attr = self._prop_attr_map[pg_attr]
         setattr(self, my_attr, value)
 
@@ -488,7 +505,7 @@ class ParamBase(GenericQObject):
         # fut = asyncio.run_coroutine_threadsafe(coro, loop=self.device.loop)
         # return await asyncio.wrap_future(fut)
 
-class CameraParamsModel(ParamBase):
+class CameraParamsModel(ParamBase[CameraParams]):
     _n_status = Signal()
     _n_menuStatus = Signal()
     _n_mode = Signal()
@@ -537,7 +554,7 @@ class CameraParamsModel(ParamBase):
         enum_value = getattr(MenuChoices, value.upper())
         await self.paramGroup.send_menu_button(enum_value)
 
-class NTPParamsModel(ParamBase):
+class NTPParamsModel(ParamBase[NTPParams]):
     """Qt bridge for :class:`jvconnected.device.NTPParams`
     """
     _param_group_key = 'ntp'
@@ -583,7 +600,7 @@ class NTPParamsModel(ParamBase):
         """
         await self.paramGroup.set_address(address)
 
-class BatteryParamsModel(ParamBase):
+class BatteryParamsModel(ParamBase[BatteryParams]):
     _param_group_key = 'battery'
     _prop_attr_map = {'state':'batteryState', 'level':'level'}
     _n_batteryState = Signal()
@@ -640,7 +657,7 @@ class BatteryParamsModel(ParamBase):
             txt = ''
         self.textStatus = txt
 
-class IrisModel(ParamBase):
+class IrisModel(ParamBase[ExposureParams]):
     _param_group_key = 'exposure'
     _prop_attr_map = {
         'iris_mode':'mode',
@@ -739,7 +756,7 @@ class IrisModel(ParamBase):
             await self.paramGroup.decrease_iris()
             # await self._run_on_device_loop(self.paramGroup.decrease_iris())
 
-class SingleParam(ParamBase):
+class SingleParam[PGroupT: ParameterGroup](ParamBase[PGroupT]):
     """A direct mapping to a single parameter within a
     :class:`~jvconnected.device.ParameterGroup`
     """
@@ -756,7 +773,7 @@ class SingleParam(ParamBase):
     value = Property(str, _g_value, _s_value, notify=_n_value)
     """The parameter value"""
 
-class SingleAdjustableParam(SingleParam):
+class SingleAdjustableParam[PGroupT: ParameterGroup](SingleParam[PGroupT]):
     """A single parameter with increment/decrement methods
     """
     def __init__(self, *args):
@@ -789,11 +806,11 @@ class SingleAdjustableParam(SingleParam):
     async def _decrease(self):
         raise NotImplementedError
 
-class GainModeModel(SingleParam):
+class GainModeModel(SingleParam[ExposureParams]):
     _param_group_key = 'exposure'
     _param_group_attr = 'gain_mode'
 
-class GainValueModel(SingleAdjustableParam):
+class GainValueModel(SingleAdjustableParam[ExposureParams]):
     _param_group_key = 'exposure'
     _param_group_attr = 'gain_value'
 
@@ -803,7 +820,7 @@ class GainValueModel(SingleAdjustableParam):
     async def _decrease(self):
         await self.paramGroup.decrease_gain()
 
-class MasterBlackModel(SingleAdjustableParam):
+class MasterBlackModel(SingleAdjustableParam[ExposureParams]):
     _param_group_key = 'exposure'
     _param_group_attr = 'master_black'
 
@@ -813,7 +830,7 @@ class MasterBlackModel(SingleAdjustableParam):
     async def _decrease(self):
         await self.paramGroup.decrease_master_black()
 
-class FocusModeModel(SingleParam):
+class FocusModeModel(SingleParam[LensParams]):
     _param_group_key = 'lens'
     _param_group_attr = 'focus_mode'
 
@@ -821,7 +838,7 @@ class FocusModeModel(SingleParam):
     async def setMode(self, mode: str):
         await self.paramGroup.set_focus_mode(mode)
 
-class SeesawParam(SingleParam):
+class SeesawParam[PGroupT: ParameterGroup](SingleParam[PGroupT]):
     """Base parameter for "seesaw" movement
     """
     _n_currentSpeed = Signal()
@@ -855,7 +872,7 @@ class SeesawParam(SingleParam):
     """True if the parameter is moving
     """
 
-class MasterBlackPosModel(SeesawParam):
+class MasterBlackPosModel(SeesawParam[ExposureParams]):
     """MasterBlack seesaw operation
     """
 
@@ -895,7 +912,7 @@ class MasterBlackPosModel(SeesawParam):
         self.currentSpeed = value
 
 
-class FocusPosModel(SeesawParam):
+class FocusPosModel(SeesawParam[LensParams]):
     """Focus position and movement
     """
     _param_group_key = 'lens'
@@ -979,7 +996,7 @@ class ZoomPresetModel(GenericQObject):
         self.isActive = value
 
 
-class ZoomPosModel(SeesawParam):
+class ZoomPosModel(SeesawParam[LensParams]):
     """Zoom position and movement
     """
     _param_group_key = 'lens'
@@ -1096,7 +1113,7 @@ class ZoomPosModel(SeesawParam):
         self.pos = value
 
 
-class WbModeModel(SingleParam):
+class WbModeModel(SingleParam[PaintParams]):
     _param_group_key = 'paint'
     _param_group_attr = 'white_balance_mode'
 
@@ -1104,11 +1121,11 @@ class WbModeModel(SingleParam):
     async def setMode(self, mode: str):
         await self.paramGroup.set_white_balance_mode(mode)
 
-class WbColorTempModel(SingleParam):
+class WbColorTempModel(SingleParam[PaintParams]):
     _param_group_key = 'paint'
     _param_group_attr = 'color_temp'
 
-class WbPaintModelBase(ParamBase):
+class WbPaintModelBase(ParamBase[PaintParams]):
     _param_group_key = 'paint'
     _color_name = None
     _n_scale = Signal()
@@ -1251,7 +1268,7 @@ class WbBluePaintModel(WbPaintModelBase):
     """
     _color_name = 'blue'
 
-class DetailModel(SingleAdjustableParam):
+class DetailModel(SingleAdjustableParam[PaintParams]):
     _param_group_key = 'paint'
     _param_group_attr = 'detail'
 
@@ -1261,7 +1278,7 @@ class DetailModel(SingleAdjustableParam):
     async def _decrease(self):
         await self.paramGroup.decrease_detail()
 
-class TallyModel(ParamBase):
+class TallyModel(ParamBase[TallyParams]):
     _param_group_key = 'tally'
     _prop_attr_map = {
         'program':'program',
