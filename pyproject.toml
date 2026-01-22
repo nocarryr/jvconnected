@@ -24,7 +24,7 @@ midi = [
     "python-rtmidi"
 ]
 ui = [
-    "PySide2==5.15.1",
+    "PySide6",
     "qasync>=0.16.1",
     "ruamel.yaml",
     "numpy>=1.20",
@@ -50,7 +50,7 @@ midi = [
     "python-rtmidi",
 ]
 ui = [
-    "PySide2==5.15.1",
+    "PySide6",
     "qasync>=0.16.1",
     "ruamel.yaml",
     "numpy>=1.20",
