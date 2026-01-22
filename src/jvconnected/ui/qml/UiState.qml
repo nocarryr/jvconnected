@@ -1,7 +1,7 @@
 pragma Singleton
 
-import QtQuick 2.15
-import Qt.labs.settings 1.0
+import QtQuick
+import Qt.labs.settings
 
 QtObject {
     id: root

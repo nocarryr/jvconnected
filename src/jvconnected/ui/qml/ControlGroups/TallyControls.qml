@@ -1,9 +1,9 @@
-import QtQuick 2.15
-import QtQuick.Layouts 1.15
-import QtQuick.Controls 2.15
-import Controls 1.0
-import QtQuick.Controls.Fusion 2.15
-import QtQuick.Controls.Fusion.impl 2.15
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import Controls
+import QtQuick.Controls.Fusion
+import QtQuick.Controls.Fusion.impl
 
 RowLayout {
     id: root

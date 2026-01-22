@@ -1,9 +1,9 @@
-import QtQuick 2.15
-import QtQuick.Layouts 1.15
-import QtQuick.Controls 2.15
-import QtQuick.Controls.Fusion 2.15
-import QtQuick.Controls.Fusion.impl 2.15
-import Fonts 1.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Controls.Fusion
+import QtQuick.Controls.Fusion.impl
+import Fonts
 
 MyGroupBox {
     id: root

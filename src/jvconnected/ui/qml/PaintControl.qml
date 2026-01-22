@@ -1,9 +1,9 @@
-import QtQuick 2.15
-import QtQuick.Layouts 1.15
-import QtQuick.Controls 2.15
-import Qt.labs.settings 1.0
-import DeviceModels 1.0
-import Controls 1.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import Qt.labs.settings
+import DeviceModels
+import Controls
 
 Control {
     id: root
