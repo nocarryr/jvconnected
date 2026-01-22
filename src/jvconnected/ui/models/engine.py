@@ -11,7 +11,7 @@ from qasync import QEventLoop, asyncSlot, asyncClose
 from jvconnected.common import ConnectionState
 from jvconnected.engine import Engine
 from jvconnected.ui.utils import (
-    GenericQObject, connect_async_close_event, AnnotatedQtSignal as AnnoSignal,
+    GenericQObject, connect_async_close_event,
 )
 from jvconnected.ui.models.device import DeviceModel, DeviceConfigModel
 
@@ -23,15 +23,15 @@ class EngineModel(GenericQObject):
     """
     _n_running = Signal()
     _n_deviceViewIndices = Signal()
-    deviceAdded: AnnoSignal(device=DeviceModel) = Signal(DeviceModel)
+    deviceAdded = Signal(DeviceModel)
     """Fired when an active device is added to the engine
     """
 
-    deviceRemoved: AnnoSignal(device_id=str) = Signal(str)
+    deviceRemoved = Signal(str) # device_id: str
     """Fired when a device is removed
     """
 
-    configDeviceAdded: AnnoSignal(conf_device=DeviceConfigModel) = Signal(DeviceConfigModel)
+    configDeviceAdded = Signal(DeviceConfigModel)
     """Fired when a device is detected or loaded from config
     """
 

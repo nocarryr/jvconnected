@@ -9,7 +9,7 @@ from qasync import QEventLoop, asyncSlot, asyncClose
 
 from jvconnected.utils import IOType
 from jvconnected.interfaces.midi import MIDI_AVAILABLE
-from jvconnected.ui.utils import GenericQObject, AnnotatedQtSignal as AnnoSignal
+from jvconnected.ui.utils import GenericQObject
 from jvconnected.ui.models.engine import EngineModel
 
 class MidiPortModel(GenericQObject):
@@ -63,13 +63,13 @@ class MidiPortsModel(GenericQObject):
     """
     _n_engine = Signal()
     _n_count = Signal()
-    portAdded: AnnoSignal(port=MidiPortModel) = Signal(MidiPortModel)
+    portAdded = Signal(MidiPortModel)
     """Fired when a new port is added"""
 
-    portRemoved: AnnoSignal(port=MidiPortModel) = Signal(MidiPortModel)
+    portRemoved = Signal(MidiPortModel)
     """Fired when an existing port is removed"""
 
-    portsUpdated: AnnoSignal() = Signal()
+    portsUpdated = Signal()
     """Fired when any change is made in the container"""
 
     io_type: ClassVar[IOType] = IOType.NONE
@@ -232,7 +232,7 @@ class DeviceMapModel(GenericQObject):
     _n_isActive = Signal()
     _n_isOnline = Signal()
     _n_edited = Signal()
-    dataChanged: AnnoSignal(deviceId=str, attr=str) = Signal(str, str)
+    dataChanged = Signal(str, str) # deviceId: str, attr: str
     """Emitted on property changes
 
     Arguments:

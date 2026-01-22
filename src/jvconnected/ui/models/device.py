@@ -16,7 +16,7 @@ from PySide6.QtCore import Property, Signal
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 
-from jvconnected.ui.utils import GenericQObject, AnnotatedQtSignal as AnnoSignal
+from jvconnected.ui.utils import GenericQObject
 
 class DeviceBase(GenericQObject):
     """Base class to interface devices with Qt
@@ -32,7 +32,7 @@ class DeviceBase(GenericQObject):
     _n_authUser = Signal()
     _n_authPass = Signal()
     _n_connectionState = Signal()
-    reconnectSignal: AnnoSignal(device='DeviceBase') = Signal(QtCore.QObject)
+    reconnectSignal = Signal(QtCore.QObject)#('DeviceBase')#QtCore.QObject)
     """Signals the owning :class:`~.engine.EngineModel` to initiate a reconnect
     for the device
 
@@ -305,7 +305,7 @@ class DeviceModel(DeviceBase):
     """
     _n_connected = Signal()
     _n_confDevice = Signal()
-    removeDeviceIndex: AnnoSignal(device_id=str) = Signal(str)
+    removeDeviceIndex = Signal(str) # deviceId: str)
     """When triggered, the :class:`~jvconnected.ui.models.engine.EngineModel`
     resets the device_index of the :class:`jvconnected.config.DeviceConfig`
     for this :attr:`device`. This will force an auto-calculation of the
