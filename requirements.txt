@@ -1,8 +1,0 @@
-zeroconf
-httpx
-tslumd
-loguru
-python-dispatch
-json-object-factory
-mido
--r src/jvconnected/ui/requirements.txt

@@ -1,0 +1,80 @@
+[project]
+name = "jvconnected"
+description = "Api for JVC Connected Cam Devices"
+version = "0.0.1"
+authors = [
+    { name = "Matthew Reid", email = "matt@nomadic-recording.com" },
+]
+requires-python = ">=3.8"
+license-files = ["LICENSE"]
+readme = "README.md"
+
+dependencies = [
+    "zeroconf>=0.36.5",
+    "httpx",
+    "tslumd>=0.0.3",
+    "loguru",
+    "python-dispatch>=0.2.0",
+    "json-object-factory"
+]
+
+[project.optional-dependencies]
+midi = [
+    "mido",
+    "python-rtmidi"
+]
+ui = [
+    "PySide2==5.15.1",
+    "qasync>=0.16.1",
+    "ruamel.yaml",
+    "numpy>=1.20",
+]
+
+[project.scripts]
+jvconnected-ui = "jvconnected.ui.main:run"
+jvconnected-build-qrc = "jvconnected.ui.tools.build_qrc:main"
+
+
+[tool.setuptools.package-data]
+jvconnected = ["*.qml", "qmldir"]
+"jvconnected.ui" = ["*.qrc", "*.png"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
+[dependency-groups]
+midi = [
+    "mido",
+    "python-rtmidi",
+]
+ui = [
+    "PySide2==5.15.1",
+    "qasync>=0.16.1",
+    "ruamel.yaml",
+    "numpy>=1.20",
+]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "aiohttp",
+    "numpy",
+    "Pillow",
+]
+doc = [
+    "sphinx-rtd-theme",
+    "python-dispatch-sphinx>=0.2.0",
+    "Sphinx>=4.5",
+]
+dev = [
+    {include-group = "midi"},
+    {include-group = "ui"},
+    {include-group = "test"},
+    {include-group = "doc"},
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests"
+]
