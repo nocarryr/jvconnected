@@ -1,9 +1,9 @@
 from pathlib import Path
-from pkg_resources import resource_filename
+import importlib.resources
 
 def get_resource_filename(name: str) -> Path:
     """Get a resource filename relative to this package location using
-    `pkg_resources`_
+    :func:`importlib.resources.files`
 
     Arguments:
         name (str): The filename or directory name
@@ -11,6 +11,7 @@ def get_resource_filename(name: str) -> Path:
     Returns:
         The resource filename as a :class:`pathlib.Path`
 
-    .. _pkg_resources: https://setuptools.readthedocs.io/en/latest/pkg_resources.html#resourcemanager-api
     """
-    return Path(resource_filename(__name__, name))
+    p = importlib.resources.files(__name__).joinpath(name)
+    assert isinstance(p, Path)
+    return Path(p)
