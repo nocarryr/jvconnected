@@ -5,9 +5,9 @@ import dataclasses
 from typing import Optional, List, Dict, Tuple, Set, Any
 from bisect import bisect_left
 
-from PySide2 import QtCore, QtQml, QtGui
-from PySide2.QtCore import Property, Signal
-from PySide2.QtCore import Qt
+from PySide6 import QtCore, QtQml, QtGui
+from PySide6.QtCore import Property, Signal
+from PySide6.QtCore import Qt
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 from tslumd import Tally, TallyType, TallyColor, TallyKey
@@ -149,7 +149,7 @@ class UmdModel(GenericQObject):
 
 class TallyRoles(enum.IntEnum):
     """Role definitions to specify column mapping in :class:`TallyListModel` to
-    a :obj:`PySide2.QtQuick.TableView`
+    a :obj:`PySide6.QtQuick.TableView`
     """
     screenIndexRole = Qt.UserRole + 1   #: Screen index
     tallyIndexRole = Qt.UserRole + 2    #: Tally index

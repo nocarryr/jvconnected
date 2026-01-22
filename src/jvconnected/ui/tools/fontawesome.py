@@ -12,8 +12,8 @@ import tempfile
 import dataclasses
 from dataclasses import dataclass, field
 
-import PySide2
-PYSIDE_DIR = Path(PySide2.__file__).parent
+import PySide6
+PYSIDE_DIR = Path(PySide6.__file__).parent
 
 import httpx
 
@@ -529,7 +529,7 @@ def build_theme(fa_root: Path, theme_name: str, category_names: Optional[Sequenc
     qrc_doc.write(RESOURCE_QRC)
 
 def build_rcc():
-    rcc_bin = PYSIDE_DIR / 'rcc'
+    rcc_bin = 'pyside6-rcc'
     cmd_str = f'{rcc_bin} -g python -o "{RESOURCE_SCRIPT}" "{RESOURCE_QRC}"'
     logger.debug(cmd_str)
     subprocess.run(shlex.split(cmd_str))

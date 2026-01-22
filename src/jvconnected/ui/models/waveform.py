@@ -52,9 +52,9 @@ Types
 """
 from typing import List, Tuple, Sequence, Union, Dict, Optional, NewType
 
-from PySide2 import QtCore, QtGui
-from PySide2.QtCore import Qt, QPointF, QLineF, QRect, QRectF
-from PySide2.QtGui import QImage, QColor, QPainterPath
+from PySide6 import QtCore, QtGui
+from PySide6.QtCore import Qt, QPointF, QLineF, QRect, QRectF
+from PySide6.QtGui import QImage, QColor, QPainterPath
 from PIL import Image, ImageDraw
 
 import numpy as np

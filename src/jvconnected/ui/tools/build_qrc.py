@@ -34,7 +34,7 @@ STYLE_QRC = get_resource_filename('style.qrc')
 STYLE_SCRIPT = get_resource_filename('rc_style.py')
 
 def rcc(qrc_file: Path, rc_script: Path):
-    """Run `pyside2-rcc`_, the PySide2 wrapper for `rcc`_ to compile resources
+    """Run `pyside6-rcc`_, the PySide6 wrapper for `rcc`_ to compile resources
     into a python module
 
     Arguments:
@@ -42,11 +42,11 @@ def rcc(qrc_file: Path, rc_script: Path):
         rc_script (pathlib.Path): The filename for the python module to generate
 
 
-    .. _rcc: https://doc.qt.io/qt-5/rcc.html
-    .. _pyside2-rcc: https://doc.qt.io/qtforpython/tutorials/basictutorial/qrcfiles.html
+    .. _rcc: https://doc.qt.io/qt-6/rcc.html
+    .. _pyside6-rcc: https://doc.qt.io/qtforpython-6/tools/pyside-rcc.html#pyside6-rcc
 
     """
-    rcc_bin = PYSIDE_DIR / 'rcc'
+    rcc_bin = 'pyside6-rcc'
     cmd_str = f'{rcc_bin} -g python -o "{rc_script}" "{qrc_file}"'
     subprocess.run(shlex.split(cmd_str))
 
@@ -131,15 +131,6 @@ def build_style(conf_file: Path = STYLE_CONF,
 def build_fa():
     fa.main()
 
-class BuildQRC(Command):
-    description = "Build qml and image resources"
-    user_options = []
-    def initialize_options(self):
-        pass
-    def finalize_options(self):
-        pass
-    def run(self):
-        main()
 
 def main():
     build_images()

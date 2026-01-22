@@ -2,8 +2,8 @@ from loguru import logger
 import asyncio
 from typing import Optional, ClassVar, Dict, Sequence
 
-from PySide2 import QtCore, QtQml
-from PySide2.QtCore import Qt, Property, Signal, Slot
+from PySide6 import QtCore, QtQml
+from PySide6.QtCore import Qt, Property, Signal, Slot
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 

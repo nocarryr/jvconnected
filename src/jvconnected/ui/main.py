@@ -6,10 +6,10 @@ from pathlib import Path
 import argparse
 import importlib
 
-from PySide2 import QtCore, QtQml, QtGui
-from PySide2.QtCore import Qt
-from PySide2.QtWidgets import QApplication
-from PySide2.QtQuick import QQuickView
+from PySide6 import QtCore, QtQml, QtGui
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication
+from PySide6.QtQuick import QQuickView
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 
@@ -65,7 +65,6 @@ def run(argv=None):
         resource_manager.build_missing()
         assert resource_manager.ready is True
 
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     app = QApplication(remaining)
     QtGui.QIcon.setThemeName('fa-icons')
     loop = QEventLoop(app)
@@ -92,7 +91,7 @@ def run(argv=None):
 
     engine.load(qml_main)
     win = engine.rootObjects()[0]
-    win.show()
+
     with loop:
         sys.exit(loop.run_forever())
 

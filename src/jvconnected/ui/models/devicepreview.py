@@ -4,9 +4,9 @@ from pathlib import Path
 import enum
 from typing import Union, Optional
 
-from PySide2 import QtCore, QtQml, QtQuick
-from PySide2.QtCore import Property, Signal
-from PySide2.QtGui import QPixmap, QColor
+from PySide6 import QtCore, QtQml, QtQuick
+from PySide6.QtCore import Property, Signal
+from PySide6.QtGui import QPixmap, QColor
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 
@@ -124,8 +124,8 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
         request image frames while :attr:`videoMode` is :attr:`~PreviewMode.VIDEO`
         or :attr:`~PreviewMode.WAVEFORM`.
 
-        Each frame is then placed into a :class:`~PySide2.QtGui.QPixmap`
-        and an update is requested via :class:`~PySide2.QtGui.QPainter`
+        Each frame is then placed into a :class:`~PySide6.QtGui.QPixmap`
+        and an update is requested via :class:`~PySide6.QtGui.QPainter`
         """
         device = self.device.device
         async with device.devicepreview as src:

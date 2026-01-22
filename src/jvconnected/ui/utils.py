@@ -2,12 +2,12 @@ import sys
 import asyncio
 import functools
 from typing import Any, Callable, Coroutine, NamedTuple
-from PySide2 import QtCore
+from PySide6 import QtCore
 
 
 class GenericQObject(QtCore.QObject):
     """Utility class to remove some of the boilerplate code
-    needed to implement :class:`~PySide2.QtCore.Property` attributes.
+    needed to implement :class:`~PySide6.QtCore.Property` attributes.
 
     The intended pattern uses the following naming convention::
 
@@ -36,7 +36,7 @@ class GenericQObject(QtCore.QObject):
         pass
 
     def _generic_setter(self, attr: str, value: Any):
-        """To be used in the 'getter' method for a :class:`~PySide2.QtCore.Property`
+        """To be used in the 'getter' method for a :class:`~PySide6.QtCore.Property`
 
         Arguments:
             attr (str): The instance attribute name containing the Property value
@@ -79,7 +79,7 @@ def AnnotatedQtSignal(**kwargs):
 
     .. code-block:: python
 
-        from PySide2.QtCore import QObject, Signal
+        from PySide6.QtCore import QObject, Signal
         from jvconnected.ui.utils import AnnotatedQtSignal as AnnoSignal
 
         class MyObject(QObject):

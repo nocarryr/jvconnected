@@ -1,8 +1,8 @@
 from loguru import logger
-from PySide2 import QtCore, QtQml
-from PySide2.QtCore import Qt, Property, Signal, Slot
-from PySide2.QtGui import QPalette, QColor
-from PySide2.QtWidgets import QApplication
+from PySide6 import QtCore, QtQml
+from PySide6.QtCore import Qt, Property, Signal, Slot
+from PySide6.QtGui import QPalette, QColor
+from PySide6.QtWidgets import QApplication
 
 from jvconnected.ui.utils import GenericQObject
 
@@ -16,26 +16,26 @@ def build_dark_palette():
     highlight = QColor(42, 130, 218)
     dark = window.darker(170)
 
-    darkPalette.setColor(QPalette.Window, window)
-    darkPalette.setColor(QPalette.WindowText, text)
-    darkPalette.setColor(QPalette.Disabled, QPalette.WindowText, disabledText)
-    darkPalette.setColor(QPalette.Base, base)
-    darkPalette.setColor(QPalette.AlternateBase, QColor(46, 47, 48))
-    darkPalette.setColor(QPalette.ToolTipBase, base)
-    darkPalette.setColor(QPalette.ToolTipText, text)
-    darkPalette.setColor(QPalette.Text, text)
-    darkPalette.setColor(QPalette.Disabled, QPalette.Text, disabledText)
-    darkPalette.setColor(QPalette.Button, button)
-    darkPalette.setColor(QPalette.ButtonText, text)
-    darkPalette.setColor(QPalette.Disabled, QPalette.ButtonText, disabledText)
+    darkPalette.setColor(QPalette.ColorRole.Window, window)
+    darkPalette.setColor(QPalette.ColorRole.WindowText, text)
+    darkPalette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, disabledText)
+    darkPalette.setColor(QPalette.ColorRole.Base, base)
+    darkPalette.setColor(QPalette.ColorRole.AlternateBase, QColor(46, 47, 48))
+    darkPalette.setColor(QPalette.ColorRole.ToolTipBase, base)
+    darkPalette.setColor(QPalette.ColorRole.ToolTipText, text)
+    darkPalette.setColor(QPalette.ColorRole.Text, text)
+    darkPalette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, disabledText)
+    darkPalette.setColor(QPalette.ColorRole.Button, button)
+    darkPalette.setColor(QPalette.ColorRole.ButtonText, text)
+    darkPalette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, disabledText)
 
-    darkPalette.setColor(QPalette.Mid, button.lighter(120))
-    darkPalette.setColor(QPalette.Highlight, highlight)
-    darkPalette.setColor(QPalette.Disabled, QPalette.Highlight, QColor(80, 80, 80))
-    darkPalette.setColor(QPalette.HighlightedText, Qt.white)
-    darkPalette.setColor(QPalette.Disabled, QPalette.HighlightedText, QColor(127, 127, 127))
-    darkPalette.setColor(QPalette.Shadow, Qt.black)
-    darkPalette.setColor(QPalette.Link, highlight.lighter(160))
+    darkPalette.setColor(QPalette.ColorRole.Mid, button.lighter(120))
+    darkPalette.setColor(QPalette.ColorRole.Highlight, highlight)
+    darkPalette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Highlight, QColor(80, 80, 80))
+    darkPalette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.white)
+    darkPalette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.HighlightedText, QColor(127, 127, 127))
+    darkPalette.setColor(QPalette.ColorRole.Shadow, Qt.GlobalColor.black)
+    darkPalette.setColor(QPalette.ColorRole.Link, highlight.lighter(160))
     return darkPalette
 
 class PaletteManager(GenericQObject):

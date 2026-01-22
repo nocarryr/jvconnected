@@ -11,8 +11,8 @@ from jvconnected.device import (
     MenuChoices, BatteryState, FocusDirection, ZoomDirection,
 )
 
-from PySide2 import QtCore, QtQml
-from PySide2.QtCore import Property, Signal
+from PySide6 import QtCore, QtQml
+from PySide6.QtCore import Property, Signal
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 

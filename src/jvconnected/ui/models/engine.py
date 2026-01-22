@@ -3,8 +3,8 @@ import asyncio
 import threading
 from typing import List
 
-from PySide2 import QtCore, QtQml
-from PySide2.QtCore import Property, Signal
+from PySide6 import QtCore, QtQml
+from PySide6.QtCore import Property, Signal
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 
@@ -82,7 +82,7 @@ class EngineModel(GenericQObject):
         """
         return self._device_configs[device_id]
 
-    @QtCore.Slot(result='QVariantList')
+    @QtCore.Slot(result=list)
     def getAllDeviceConfigIds(self) -> List[str]:
         """Get a list of all device ids in the :class:`jvconnected.config.Config`
         """
