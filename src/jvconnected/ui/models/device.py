@@ -1,21 +1,21 @@
 from __future__ import annotations
+from typing import Self, cast
 from loguru import logger
 import asyncio
-import typing as tp
-from typing import List, TYPE_CHECKING
-if TYPE_CHECKING:
-    from jvconnected.config import DeviceConfig
-    from jvconnected.device import Device, ParameterGroup
+
+from jvconnected.config import DeviceConfig
+from jvconnected.device import Device, ParameterGroup
 from jvconnected.common import ConnectionState
 from jvconnected.device import (
-    MenuChoices, BatteryState, FocusDirection, ZoomDirection,
+    MenuChoices, BatteryState, FocusDirection, ZoomDirection, MasterBlackDirection,
 )
 
 from PySide6 import QtCore, QtQml
-from PySide6.QtCore import Property, Signal
+from PySide6.QtCore import Signal
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 
+from ..properties import Property
 from jvconnected.ui.utils import GenericQObject
 
 class DeviceBase(GenericQObject):
@@ -58,9 +58,9 @@ class DeviceBase(GenericQObject):
         if value is not None and value is self._device:
             return
         self._do_set_device(value)
-    def _do_set_device(self, device):
+    def _do_set_device(self, device: DevT|None):
         raise NotImplementedError
-    device = Property(object, _g_device, _s_device, notify=_n_device)
+    device: Property[Self, DevT|None] = Property(object, _g_device, _s_device, notify=_n_device)
     """The device instance"""
 
     def _on_device_set(self, device):
@@ -74,12 +74,12 @@ class DeviceBase(GenericQObject):
 
     def _g_deviceId(self) -> str: return self._deviceId
     def _s_deviceId(self, value: str): self._generic_setter('_deviceId', value)
-    deviceId: str = Property(str, _g_deviceId, _s_deviceId, notify=_n_deviceId)
+    deviceId = Property(str, _g_deviceId, _s_deviceId, notify=_n_deviceId)
     """The device id"""
 
     def _g_deviceIndex(self): return self._deviceIndex
     def _s_deviceIndex(self, value): self._generic_setter('_deviceIndex', value)
-    deviceIndex: int = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
+    deviceIndex = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
     """The device index"""
 
     def _g_modelName(self): return self._modelName
@@ -118,7 +118,7 @@ class DeviceBase(GenericQObject):
             return
         self._connectionState = value
         self._n_connectionState.emit()
-    connectionState: str = Property(str, _g_connectionState, _s_connectionState, notify=_n_connectionState)
+    connectionState = Property(str, _g_connectionState, _s_connectionState, notify=_n_connectionState)
     """The device's :class:`~jvconnected.common.ConnectionState`
     as a lowercase string
     """
@@ -146,7 +146,7 @@ class DeviceConfigModel(DeviceBase):
     _n_storedInConfig = Signal()
     _n_alwaysConnect = Signal()
     _n_editedProperties = Signal()
-    propertiesUpdated = Signal('QVariantList')
+    propertiesUpdated = Signal(list) #List[str])
     _prop_attr_map = {
         'always_connect':'alwaysConnect',
         'stored_in_config':'storedInConfig', 'device_index':'deviceIndex',
@@ -169,28 +169,28 @@ class DeviceConfigModel(DeviceBase):
 
     def _g_deviceOnline(self) -> bool: return self._deviceOnline
     def _s_deviceOnline(self, value: bool): self._generic_setter('_deviceOnline', value)
-    deviceOnline: bool = Property(bool,
+    deviceOnline = Property(bool,
         _g_deviceOnline, _s_deviceOnline, notify=_n_deviceOnline,
     )
     """Alias for :attr:`jvconnected.config.DeviceConfig.online`"""
 
     def _g_deviceActive(self) -> bool: return self._deviceActive
     def _s_deviceActive(self, value: bool): self._generic_setter('_deviceActive', value)
-    deviceActive: bool = Property(bool,
+    deviceActive = Property(bool,
         _g_deviceActive, _s_deviceActive, notify=_n_deviceActive,
     )
     """Alias for :attr:`jvconnected.config.DeviceConfig.active`"""
 
     def _g_storedInConfig(self): return self._storedInConfig
     def _s_storedInConfig(self, value): self._generic_setter('_storedInConfig', value)
-    storedInConfig: bool = Property(bool,
+    storedInConfig = Property(bool,
         _g_storedInConfig, _s_storedInConfig, notify=_n_storedInConfig,
     )
     """Alias for :attr:`jvconnected.config.DeviceConfig.stored_in_config`"""
 
     def _g_alwaysConnect(self): return self._alwaysConnect
     def _s_alwaysConnect(self, value): self._generic_setter('_alwaysConnect', value)
-    alwaysConnect: bool = Property(bool,
+    alwaysConnect = Property(bool,
         _g_alwaysConnect, _s_alwaysConnect, notify=_n_alwaysConnect,
     )
     """Alias for :attr:`jvconnected.config.DeviceConfig.always_connect`"""
@@ -244,7 +244,7 @@ class DeviceConfigModel(DeviceBase):
     def getEditableProperty(self, name: str):
         return getattr(self, name)
 
-    def _on_device_set(self, device):
+    def _on_device_set(self, device: DeviceConfig):
         props_updated = []
         for dev_attr, self_attr in self._prop_attr_map.items():
             val = getattr(device, dev_attr)
@@ -318,8 +318,8 @@ class DeviceModel(DeviceBase):
         super().__init__(*args)
         self.confDevice = kwargs['confDevice']
 
-    def _g_confDevice(self) -> DeviceConfigModel: return self._confDevice
-    def _s_confDevice(self, value: DeviceConfigModel):
+    def _g_confDevice(self) -> DeviceConfigModel|None: return self._confDevice
+    def _s_confDevice(self, value: DeviceConfigModel|None):
         if self._confDevice == value:
             return
         self._generic_setter('_confDevice', value)
@@ -328,12 +328,12 @@ class DeviceModel(DeviceBase):
             value._n_deviceIndex.connect(self._on_conf_index_changed)
             self.displayName = value.displayName
             value._n_displayName.connect(self._on_conf_display_name_changed)
-    confDevice: DeviceConfigModel = Property(DeviceConfigModel,
+    confDevice: Property[Self, DeviceConfigModel|None] = Property(DeviceConfigModel,
         _g_confDevice, _s_confDevice, notify=_n_confDevice,
     )
     """Instance of :class:`DeviceConfigModel` matching this device"""
 
-    def _do_set_device(self, device):
+    def _do_set_device(self, device: Device|None):
         old = self._device
         if old is not None:
             old.unbind(self)
@@ -350,7 +350,7 @@ class DeviceModel(DeviceBase):
 
     def _g_connected(self) -> bool: return self._connected
     def _s_connected(self, value: bool): self._generic_setter('_connected', value)
-    connected: bool = Property(bool, _g_connected, _s_connected, notify=_n_connected)
+    connected = Property(bool, _g_connected, _s_connected, notify=_n_connected)
     """Alias for :attr:`jvconnected.device.Device.connected`"""
 
     @asyncSlot()
@@ -382,7 +382,7 @@ class DeviceModel(DeviceBase):
         """
         await self.confDevice.setDeviceIndex(value)
 
-    def _on_device_set(self, device):
+    def _on_device_set(self, device: Device):
         super()._on_device_set(device)
         self.connected = device._is_open
         self.connectionState = device.connection_state
@@ -429,35 +429,35 @@ class ParamBase(GenericQObject):
         self._paramGroup = None
         super().__init__(*args)
 
-    def _g_device(self) -> DeviceModel: return self._device
-    def _s_device(self, value: DeviceModel):
+    def _g_device(self) -> DeviceModel|None: return self._device
+    def _s_device(self, value: DeviceModel|None):
         if value is not None and value is self._device:
             return
         self._generic_setter('_device', value)
         self._on_device_set(value)
         if value is not None:
             value._n_device.connect(self.on_device_changed)
-    device: DeviceModel = Property(DeviceModel,
+    device: Property[Self, DeviceModel|None] = Property(DeviceModel,
         _g_device, _s_device, notify=_n_device,
     )
     """The parent :class:`DeviceModel`"""
 
-    def _g_paramGroup(self) -> 'ParameterGroup': return self._paramGroup
-    def _s_paramGroup(self, value: 'ParameterGroup'):
+    def _g_paramGroup(self) -> ParameterGroup|None: return self._paramGroup
+    def _s_paramGroup(self, value: ParameterGroup|None):
         if value is not None and value is self._paramGroup:
             return
         old = self._paramGroup
         if old is not None:
             old.unbind(self)
         self._generic_setter('_paramGroup', value)
-    paramGroup: ParameterGroup = Property(object,
+    paramGroup: Property[Self, ParameterGroup|None] = Property(object,
         _g_paramGroup, _s_paramGroup, notify=_n_paramGroup,
     )
     """The :class:`jvconnected.device.ParameterGroup` for this object. Retreived
     from the :attr:`device`
     """
 
-    def _on_device_set(self, device):
+    def _on_device_set(self, device: DeviceModel|None):
         if device is None or device.device is None:
             self.paramGroup = None
             return
@@ -498,30 +498,30 @@ class CameraParamsModel(ParamBase):
         'status':'status', 'menu_status':'menuStatus', 'mode':'mode', 'timecode':'timecode',
     }
     def __init__(self, *args):
-        self._status = None
-        self._menuStatus = False
-        self._mode = None
-        self._timecode = None
+        self._status: str|None = None
+        self._menuStatus: bool|None = None
+        self._mode: str|None = None
+        self._timecode: str|None = None
         super().__init__(*args)
 
-    def _g_status(self) -> str: return self._status
-    def _s_status(self, value: str): self._generic_setter('_status', value)
-    status: str = Property(str, _g_status, _s_status, notify=_n_status)
+    def _g_status(self) -> str|None: return self._status
+    def _s_status(self, value: str|None): self._generic_setter('_status', value)
+    status = Property(str, _g_status, _s_status, notify=_n_status)
     """Alias for :attr:`jvconnected.device.CameraParams.status`"""
 
-    def _g_menuStatus(self) -> bool: return self._menuStatus
-    def _s_menuStatus(self, value: bool): self._generic_setter('_menuStatus', value)
-    menuStatus: bool = Property(bool, _g_menuStatus, _s_menuStatus, notify=_n_menuStatus)
+    def _g_menuStatus(self) -> bool|None: return self._menuStatus
+    def _s_menuStatus(self, value: bool|None): self._generic_setter('_menuStatus', value)
+    menuStatus = Property(bool, _g_menuStatus, _s_menuStatus, notify=_n_menuStatus)
     """Alias for :attr:`jvconnected.device.CameraParams.menu_status`"""
 
-    def _g_mode(self) -> str: return self._mode
-    def _s_mode(self, value: str): self._generic_setter('_mode', value)
-    mode: str = Property(str, _g_mode, _s_mode, notify=_n_mode)
+    def _g_mode(self) -> str|None: return self._mode
+    def _s_mode(self, value: str|None): self._generic_setter('_mode', value)
+    mode = Property(str, _g_mode, _s_mode, notify=_n_mode)
     """Alias for :attr:`jvconnected.device.CameraParams.status`"""
 
-    def _g_timecode(self) -> str: return self._timecode
-    def _s_timecode(self, value: str): self._generic_setter('_timecode', value)
-    timecode: str = Property(str, _g_timecode, _s_timecode, notify=_n_timecode)
+    def _g_timecode(self) -> str|None: return self._timecode
+    def _s_timecode(self, value: str|None): self._generic_setter('_timecode', value)
+    timecode = Property(str, _g_timecode, _s_timecode, notify=_n_timecode)
     """Alias for :attr:`jvconnected.device.CameraParams.status`"""
 
     @asyncSlot(str)
@@ -559,22 +559,22 @@ class NTPParamsModel(ParamBase):
 
     def _g_address(self) -> str: return self._address
     def _s_address(self, value: str): self._generic_setter('_address', value)
-    address: str = Property(str, _g_address, _s_address, notify=_n_address)
+    address = Property(str, _g_address, _s_address, notify=_n_address)
     """Alias for :class:`jvconnected.device.NTPParams.address`"""
 
     def _g_tcSync(self) -> bool: return self._tcSync
     def _s_tcSync(self, value: bool): self._generic_setter('_tcSync', value)
-    tcSync: bool = Property(bool, _g_tcSync, _s_tcSync, notify=_n_tcSync)
+    tcSync = Property(bool, _g_tcSync, _s_tcSync, notify=_n_tcSync)
     """Alias for :class:`jvconnected.device.NTPParams.tc_sync`"""
 
     def _g_syncronized(self) -> bool: return self._syncronized
     def _s_syncronized(self, value: bool): self._generic_setter('_syncronized', value)
-    syncronized: bool = Property(bool, _g_syncronized, _s_syncronized, notify=_n_syncronized)
+    syncronized = Property(bool, _g_syncronized, _s_syncronized, notify=_n_syncronized)
     """Alias for :class:`jvconnected.device.NTPParams.syncronized`"""
 
     def _g_syncMaster(self) -> bool: return self._syncMaster
     def _s_syncMaster(self, value: bool): self._generic_setter('_syncMaster', value)
-    syncMaster: bool = Property(bool, _g_syncMaster, _s_syncMaster, notify=_n_syncMaster)
+    syncMaster = Property(bool, _g_syncMaster, _s_syncMaster, notify=_n_syncMaster)
     """Alias for :class:`jvconnected.device.NTPParams.sync_master`"""
 
     @asyncSlot(str)
@@ -601,19 +601,19 @@ class BatteryParamsModel(ParamBase):
         if value is not None:
             value = value.name
         self._generic_setter('_batteryState', value)
-    batteryState: str = Property(str,
+    batteryState = Property(str,
         _g_batteryState, _s_batteryState, notify=_n_batteryState,
     )
     """Alias for :attr:`jvconnected.device.BatteryParams.state`"""
 
     def _g_level(self) -> float: return self._level
     def _s_level(self, value: float): self._generic_setter('_level', value)
-    level: float = Property(float, _g_level, _s_level, notify=_n_level)
+    level = Property(float, _g_level, _s_level, notify=_n_level)
     """Alias for :attr:`jvconnected.device.BatteryParams.level`"""
 
     def _g_textStatus(self) -> str: return self._textStatus
     def _s_textStatus(self, value: BatteryState): self._generic_setter('_textStatus', value)
-    textStatus: str = Property(str, _g_textStatus, _s_textStatus, notify=_n_textStatus)
+    textStatus = Property(str, _g_textStatus, _s_textStatus, notify=_n_textStatus)
     """Battery information from one of :attr:`~jvconnected.device.BatteryParams.minutes`,
     :attr:`~jvconnected.device.BatteryParams.percent` or
     :attr:`~jvconnected.device.BatteryParams.voltage` depending on availability
@@ -652,26 +652,26 @@ class IrisModel(ParamBase):
     _n_pos = Signal()
     _n_requestedPos = Signal()
     def __init__(self, *args):
-        self._mode = None
-        self._fstop = None
-        self._pos = None
-        self._requestedPos = -1
+        self._mode: str|None = None
+        self._fstop: str|None = None
+        self._pos: int|None = None
+        self._requestedPos: int = -1
         self._request_pending = asyncio.Lock()
         super().__init__(*args)
 
-    def _g_mode(self) -> str: return self._mode
-    def _s_mode(self, value: str): self._generic_setter('_mode', value)
-    mode: str = Property(str, _g_mode, _s_mode, notify=_n_mode)
+    def _g_mode(self) -> str|None: return self._mode
+    def _s_mode(self, value: str|None): self._generic_setter('_mode', value)
+    mode = Property(str, _g_mode, _s_mode, notify=_n_mode)
     """Alias for :attr:`jvconnected.device.ExposureParams.iris_mode`"""
 
-    def _g_fstop(self) -> str: return str(self._fstop)
-    def _s_fstop(self, value: str): self._generic_setter('_fstop', value)
-    fstop: str = Property(str, _g_fstop, _s_fstop, notify=_n_fstop)
+    def _g_fstop(self) -> str|None: return str(self._fstop)
+    def _s_fstop(self, value: str|None): self._generic_setter('_fstop', value)
+    fstop = Property(str, _g_fstop, _s_fstop, notify=_n_fstop)
     """Alias for :attr:`jvconnected.device.ExposureParams.iris_fstop`"""
 
-    def _g_pos(self) -> int: return self._pos
-    def _s_pos(self, value: int): self._generic_setter('_pos', value)
-    pos: int = Property(int, _g_pos, _s_pos, notify=_n_pos)
+    def _g_pos(self) -> int|None: return self._pos
+    def _s_pos(self, value: int|None): self._generic_setter('_pos', value)
+    pos = Property(int, _g_pos, _s_pos, notify=_n_pos)
     """Alias for :attr:`jvconnected.device.ExposureParams.iris_pos`"""
 
     def _g_requestedPos(self): return self._requestedPos
@@ -753,7 +753,7 @@ class SingleParam(ParamBase):
 
     def _g_value(self) -> str: return str(self._value)
     def _s_value(self, value: str): self._generic_setter('_value', value)
-    value: str = Property(str, _g_value, _s_value, notify=_n_value)
+    value = Property(str, _g_value, _s_value, notify=_n_value)
     """The parameter value"""
 
 class SingleAdjustableParam(SingleParam):
@@ -838,7 +838,7 @@ class SeesawParam(SingleParam):
         moving = value != 0
         if moving != self._moving:
             self.moving = moving
-    currentSpeed: int = Property(int,
+    currentSpeed = Property(int,
         _g_currentSpeed, _s_currentSpeed, notify=_n_currentSpeed,
     )
     """Current speed of movement from -8 to 8
@@ -851,7 +851,7 @@ class SeesawParam(SingleParam):
         if not value:
             if self._currentSpeed != 0:
                 self.currentSpeed = 0
-    moving: bool = Property(bool, _g_moving, _s_moving, notify=_n_moving)
+    moving = Property(bool, _g_moving, _s_moving, notify=_n_moving)
     """True if the parameter is moving
     """
 
@@ -957,17 +957,17 @@ class ZoomPresetModel(GenericQObject):
 
     def _g_name(self) -> str: return self._name
     def _s_name(self, value: str): self._generic_setter('_name', value)
-    name: str = Property(str, _g_name, _s_name, notify=_n_name)
+    name = Property(str, _g_name, _s_name, notify=_n_name)
     """The preset name (or id)"""
 
     def _g_value(self) -> int: return self._value
     def _s_value(self, value: int): self._generic_setter('_value', value)
-    value: int = Property(int, _g_value, _s_value, notify=_n_value)
+    value = Property(int, _g_value, _s_value, notify=_n_value)
     """Stored zoom position of the preset"""
 
     def _g_isActive(self) -> bool: return self._isActive
     def _s_isActive(self, value: bool): self._generic_setter('_isActive', value)
-    isActive: bool = Property(bool, _g_isActive, _s_isActive, notify=_n_isActive)
+    isActive = Property(bool, _g_isActive, _s_isActive, notify=_n_isActive)
     """Flag indicating if the current zoom :attr:`~ZoomPosModel.pos`
     matches the stored :attr:`value`
     """
@@ -999,13 +999,13 @@ class ZoomPosModel(SeesawParam):
     def _g_pos(self) -> int: return self._pos
     def _s_pos(self, value: int):
         self._generic_setter('_pos', value)
-    pos: int = Property(int, _g_pos, _s_pos, notify=_n_pos)
+    pos = Property(int, _g_pos, _s_pos, notify=_n_pos)
     """Current zoom position from 0 to 499
     """
 
-    def _g_presets(self) -> tp.List[ZoomPresetModel]: return self._presets
-    def _s_presets(self, presets: tp.List[ZoomPresetModel]): self._generic_setter('_presets', presets)
-    presets: tp.List[ZoomPresetModel] = Property('QVariantList', _g_presets, _s_presets, notify=_n_presets)
+    def _g_presets(self) -> list[ZoomPresetModel]: return self._presets
+    def _s_presets(self, presets: list[ZoomPresetModel]): self._generic_setter('_presets', presets)
+    presets: Property[Self, list[ZoomPresetModel]] = Property(list, _g_presets, _s_presets, notify=_n_presets)
     """A list of :class:`ZoomPresetModel` instances"""
 
     @asyncSlot(int)
@@ -1132,22 +1132,22 @@ class WbPaintModelBase(ParamBase):
 
     def _g_scale(self) -> int: return self._scale
     def _s_scale(self, value: int): self._generic_setter('_scale', value)
-    scale: int = Property(int, _g_scale, _s_scale, notify=_n_scale)
+    scale = Property(int, _g_scale, _s_scale, notify=_n_scale)
     """Total range of values for the parameter"""
 
     def _g_pos(self) -> int: return self._pos
     def _s_pos(self, value: int): self._generic_setter('_pos', value)
-    pos: int = Property(int, _g_pos, _s_pos, notify=_n_pos)
+    pos = Property(int, _g_pos, _s_pos, notify=_n_pos)
     """The normalized position value (zero-centered)"""
 
     def _g_rawPos(self) -> int: return self._rawPos
     def _s_rawPos(self, value: int): self._generic_setter('_rawPos', value)
-    rawPos: int = Property(int, _g_rawPos, _s_rawPos, notify=_n_rawPos)
+    rawPos = Property(int, _g_rawPos, _s_rawPos, notify=_n_rawPos)
     """Un-normalized position value"""
 
     def _g_value(self) -> str: return self._value
     def _s_value(self, value: str): self._generic_setter('_value', value)
-    value: str = Property(str, _g_value, _s_value, notify=_n_value)
+    value = Property(str, _g_value, _s_value, notify=_n_value)
     """String representation of the value"""
 
     @asyncSlot(int)
@@ -1276,12 +1276,12 @@ class TallyModel(ParamBase):
 
     def _g_program(self) -> bool: return self._program
     def _s_program(self, value: bool): self._generic_setter('_program', value)
-    program: bool = Property(bool, _g_program, _s_program, notify=_n_program)
+    program = Property(bool, _g_program, _s_program, notify=_n_program)
     """Alias for :attr:`jvconnected.device.TallyParams.program`"""
 
     def _g_preview(self) -> bool: return self._preview
     def _s_preview(self, value: bool): self._generic_setter('_preview', value)
-    preview: bool = Property(bool, _g_preview, _s_preview, notify=_n_preview)
+    preview = Property(bool, _g_preview, _s_preview, notify=_n_preview)
     """Alias for :attr:`jvconnected.device.TallyParams.preview`"""
 
     @asyncSlot(bool)

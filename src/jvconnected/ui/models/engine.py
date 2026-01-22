@@ -1,13 +1,15 @@
+from __future__ import annotations
 from loguru import logger
 import asyncio
 import threading
-from typing import List
+from typing import List, Self
 
 from PySide6 import QtCore, QtQml
-from PySide6.QtCore import Property, Signal
+from PySide6.QtCore import Signal
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 
+from ..properties import Property
 from jvconnected.common import ConnectionState
 from jvconnected.engine import Engine
 from jvconnected.ui.utils import (
@@ -97,12 +99,12 @@ class EngineModel(GenericQObject):
 
     def _g_running(self) -> bool: return self._running
     def _s_running(self, value: bool): self._generic_setter('_running', value)
-    running: bool = Property(bool, _g_running, _s_running, notify=_n_running)
+    running = Property(bool, _g_running, _s_running, notify=_n_running)
     """Run state"""
 
     def _g_deviceViewIndices(self): return self._deviceViewIndices
     def _s_deviceViewIndices(self, value): self._generic_setter('_deviceViewIndices', value)
-    deviceViewIndices: List[int] = Property('QVariantList',
+    deviceViewIndices: Property[Self, list[int]] = Property(list,
         _g_deviceViewIndices, _s_deviceViewIndices, notify=_n_deviceViewIndices,
     )
 

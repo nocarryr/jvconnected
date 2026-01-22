@@ -5,11 +5,12 @@ import enum
 from typing import Union, Optional
 
 from PySide6 import QtCore, QtQml, QtQuick
-from PySide6.QtCore import Property, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtGui import QPixmap, QColor
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 
+from ..properties import Property
 from jvconnected.ui.models.device import DeviceModel
 from jvconnected.ui.utils import GenericQObject
 from jvconnected.ui.models.waveform import (
@@ -34,7 +35,7 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
     _n_videoMode = Signal()
     def __init__(self, *args):
         self._device = None
-        self._videoMode = PreviewMode.OFF
+        self._videoMode: PreviewMode = PreviewMode.OFF
         self.pixmap = None
         self.capture_task = None
         self._task_lock = asyncio.Lock()
@@ -50,7 +51,7 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
         self._device = value
         value._n_connected.connect(self.checkModeOnDeviceConnect)
         self._n_device.emit()
-    device: DeviceModel = Property(DeviceModel, _g_device, _s_device, notify=_n_device)
+    device = Property(DeviceModel, _g_device, _s_device, notify=_n_device)
     """The :class:`~jvconnected.ui.models.DeviceModel` instance"""
 
     @asyncSlot()
@@ -74,7 +75,7 @@ class CameraPreview(QtQuick.QQuickPaintedItem):
             return
         self._videoMode = value
         self._n_videoMode.emit()
-    videoMode: str = Property(str, _g_videoMode, _s_videoMode, notify=_n_videoMode)
+    videoMode = Property(str, _g_videoMode, _s_videoMode, notify=_n_videoMode)
     """The current display mode as a member of :class:`PreviewMode`
     """
 

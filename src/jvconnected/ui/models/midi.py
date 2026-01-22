@@ -1,12 +1,15 @@
+from __future__ import annotations
 from loguru import logger
 import asyncio
 from typing import Optional, ClassVar, Dict, Sequence
 
 from PySide6 import QtCore, QtQml
-from PySide6.QtCore import Qt, Property, Signal, Slot
+from PySide6.QtCore import Qt, Signal, Slot
 
 from qasync import QEventLoop, asyncSlot, asyncClose
 
+
+from ..properties import Property
 from jvconnected.utils import IOType
 from jvconnected.interfaces.midi import MIDI_AVAILABLE
 from jvconnected.ui.utils import GenericQObject
@@ -32,17 +35,17 @@ class MidiPortModel(GenericQObject):
 
     def _g_name(self) -> str: return self._name
     def _s_name(self, value: str): self._generic_setter('_name', value)
-    name: str = Property(str, _g_name, _s_name, notify=_n_name)
+    name = Property(str, _g_name, _s_name, notify=_n_name)
     """The port name"""
 
     def _g_index(self) -> int: return self._index
     def _s_index(self, value: int): self._generic_setter('_index', value)
-    index: int = Property(int, _g_index, _s_index, notify=_n_index)
+    index = Property(int, _g_index, _s_index, notify=_n_index)
     """The port index"""
 
     def _g_isActive(self) -> bool: return self._isActive
     def _s_isActive(self, value: bool): self._generic_setter('_isActive', value)
-    isActive: bool = Property(bool, _g_isActive, _s_isActive, notify=_n_isActive)
+    isActive = Property(bool, _g_isActive, _s_isActive, notify=_n_isActive)
     """Current state of the port"""
 
     @asyncSlot(bool)
@@ -76,24 +79,24 @@ class MidiPortsModel(GenericQObject):
     def __init__(self, *args):
         self.loop = asyncio.get_event_loop()
         self.ports = {}
-        self._engine = None
+        self._engine: EngineModel|None = None
         self.midi_io = None
         super().__init__(*args)
 
-    def _g_engine(self) -> Optional[EngineModel]:
+    def _g_engine(self) -> EngineModel|None:
         return self._engine
-    def _s_engine(self, value: EngineModel):
+    def _s_engine(self, value: EngineModel|None):
         if value is None or value == self._engine:
             return
         assert self._engine is None
         self._engine = value
         if MIDI_AVAILABLE:
             self.set_midi_io(value.engine.midi_io)
-    engine: EngineModel = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
+    engine = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
     """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
 
     def _g_count(self) -> int: return len(self.ports)
-    count: int = Property(int, _g_count, notify=_n_count)
+    count = Property(int, _g_count, notify=_n_count)
     """Number of ports"""
 
     def set_midi_io(self, midi_io: 'jvconnected.interfaces.midi_io.MidiIO'):
@@ -269,7 +272,7 @@ class DeviceMapModel(GenericQObject):
 
     def _g_deviceId(self) -> str: return self._deviceId
     def _s_deviceId(self, value: str): self._generic_setter('_deviceId', value)
-    deviceId: str = Property(str, _g_deviceId, _s_deviceId, notify=_n_deviceId)
+    deviceId = Property(str, _g_deviceId, _s_deviceId, notify=_n_deviceId)
     """The :attr:`device_id <jvconnected.config.DeviceConfig.id>` associated
     with this instance
     """
@@ -280,7 +283,7 @@ class DeviceMapModel(GenericQObject):
         if changed:
             self._deviceName = value
             self._emit_change('deviceName')
-    deviceName: str = Property(str, _g_deviceName, _s_deviceName, notify=_n_deviceName)
+    deviceName = Property(str, _g_deviceName, _s_deviceName, notify=_n_deviceName)
     """The :attr:`display_name <jvconnected.config.DeviceConfig.display_name>`
     of the device
     """
@@ -291,7 +294,7 @@ class DeviceMapModel(GenericQObject):
         if changed:
             self._isMapped = value
             self._emit_change('isMapped')
-    isMapped: bool = Property(bool, _g_isMapped, _s_isMapped, notify=_n_isMapped)
+    isMapped = Property(bool, _g_isMapped, _s_isMapped, notify=_n_isMapped)
     """True if the device is mapped to a Midi channel
     """
 
@@ -301,7 +304,7 @@ class DeviceMapModel(GenericQObject):
         if changed:
             self._isOnline = value
             self._emit_change('isOnline')
-    isOnline: bool = Property(bool, _g_isOnline, _s_isOnline, notify=_n_isOnline)
+    isOnline = Property(bool, _g_isOnline, _s_isOnline, notify=_n_isOnline)
     """True if the device is currently online
     """
 
@@ -313,7 +316,7 @@ class DeviceMapModel(GenericQObject):
             self._emit_change('channel')
         self.isMapped = value >= 0
         self.edited = value != self.get_current_channel()
-    channel: int = Property(int, _g_channel, _s_channel, notify=_n_channel)
+    channel = Property(int, _g_channel, _s_channel, notify=_n_channel)
     """If :attr:`edited` is True, the midi channel to assign to the device.
     Otherwise the channel currently assigned
 
@@ -327,7 +330,7 @@ class DeviceMapModel(GenericQObject):
         if changed:
             self._deviceIndex = value
             self._emit_change('deviceIndex')
-    deviceIndex: int = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
+    deviceIndex = Property(int, _g_deviceIndex, _s_deviceIndex, notify=_n_deviceIndex)
     """The :attr:`~jvconnected.config.DeviceConfig.device_index`
     """
 
@@ -337,7 +340,7 @@ class DeviceMapModel(GenericQObject):
         if changed:
             self._edited = value
             self._emit_change('edited')
-    edited: bool = Property(bool, _g_edited, _s_edited, notify=_n_edited)
+    edited = Property(bool, _g_edited, _s_edited, notify=_n_edited)
     """True if the :attr:`channel` has been edited by the user
     """
 
@@ -437,7 +440,7 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
         roles = [Qt.UserRole+i+1 for i in range(len(self.role_attrs))]
         self.role_names = {role:attr.encode() for role, attr in zip(roles, self.role_attrs)}
         self.role_names[self._sort_role] = b'__sort_role__'
-        self._engine = None
+        self._engine: EngineModel|None = None
         self.midi_io = None
         self._proxyModel = None
         self._sortColumn = 0
@@ -446,9 +449,9 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
         self.proxyModel.setSourceModel(self)
         self.proxyModel.setSortRole(self._sort_role)
 
-    def _g_engine(self) -> Optional[EngineModel]:
+    def _g_engine(self) -> EngineModel|None:
         return self._engine
-    def _s_engine(self, value: EngineModel):
+    def _s_engine(self, value: EngineModel|None):
         if value is None or value == self._engine:
             return
         assert self._engine is None
@@ -456,7 +459,7 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
         midi_io = value.engine.interfaces.get('midi')
         if midi_io is not None:
             self.set_midi_io(midi_io)
-    engine: EngineModel = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
+    engine = Property(EngineModel, _g_engine, _s_engine, notify=_n_engine)
     """The :class:`~jvconnected.ui.models.engine.EngineModel` in use"""
 
     def _g_proxyModel(self): return self._proxyModel
@@ -465,7 +468,7 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
             return
         self._proxyModel = value
         self._n_proxyModel.emit()
-    proxyModel: SortFilterProxyModel = Property(
+    proxyModel = Property(
         QtCore.QAbstractItemModel,
         _g_proxyModel, _s_proxyModel, notify=_n_proxyModel,
     )
@@ -478,7 +481,7 @@ class DeviceMapsModel(QtCore.QAbstractTableModel):
             return
         self._sortColumn = value
         self._n_sortColumn.emit()
-    sortColumn: int = Property(int, _g_sortColumn, _s_sortColumn, notify=_n_sortColumn)
+    sortColumn = Property(int, _g_sortColumn, _s_sortColumn, notify=_n_sortColumn)
     """The current sort column (index of the current :attr:`role_name <role_names>`)
     """
 
